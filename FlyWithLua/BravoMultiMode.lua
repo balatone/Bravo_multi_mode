@@ -14,6 +14,8 @@ local modes = {"AUTO", "PFD", "MFD"} -- Add more modes as needed
 local current_cf_mode = "outer"
 local outer_inner_modes = {"outer", "inner"}
 
+local current_buttons = {"HDG","NAV","APR","REV","ALT","VS","IAS"}
+
 local last_button_mode_state = false
 local last_button_mode_change_time = 0
 local last_button_cf_mode_state = false
@@ -31,23 +33,14 @@ local SELECTOR3 = SELECTOR1 - 2
 local SELECTOR4 = SELECTOR1 - 3
 local SELECTOR5 = SELECTOR1 - 4
 
--- Bindings for the decrement/increment knob
-local KNOB_INCREASE = 652
-local KNOB_DECREASE = 653
-
-local outer_inner_TOGGLE = 815
-
--- Mode toggling
-local MODE_TOGGLE = 802
-
 -- Screen position for the overlay
 local OVERLAY_X = 50  -- X position (pixels from left)
 local OVERLAY_Y = SCREEN_HEIGHT - 500  -- Y position (pixels from top)
 
 -- imgui only works inside a floating window, so we need to create one first:
-my_floating_wnd = float_wnd_create(260, 80, 1, false)
-float_wnd_set_title(my_floating_wnd, "Bravo++")
-float_wnd_set_position(my_floating_wnd, SCREEN_WIDTH / 2 - 640 / 2, SCREEN_HIGHT / 2 - 480 / 2)
+my_floating_wnd = float_wnd_create(330, 120, 1, false)
+float_wnd_set_title(my_floating_wnd, "Bravo multi-mode")
+float_wnd_set_position(my_floating_wnd, SCREEN_WIDTH * 2/3 + 50, SCREEN_HIGHT * 1/6)
 float_wnd_set_ondraw(my_floating_wnd, "on_draw_floating_window")
 -- float_wnd_set_onclick(my_floating_wnd, "on_click_floating_window")
 float_wnd_set_onclose(my_floating_wnd, "on_close_floating_window")
@@ -55,21 +48,22 @@ float_wnd_set_onclose(my_floating_wnd, "on_close_floating_window")
 function on_draw_floating_window(my_floating_wnd, x3, y3)
     local offset_mode = -20
 	local v_spacing = -30
+	local h_spacing = 50
 	local offset_selection = 10
-	local v_offset = y3 + 80
-	
+	local v_offset = y3 + 120
+		
 	for i = 1, #modes  do	
 		if current_mode == modes[i] then
 			glColor3f(0, 1, 0) -- Green for default
 			offset_selection = offset_mode
 		else
-			glColor3f(0.2, 0.2, 0.2) -- Balck semitransparent
+			glColor3f(0.2, 0.2, 0.2) -- Black semitransparent
 		end	   
 		draw_string_Helvetica_18(x3, v_offset + offset_mode, modes[i])
         offset_mode = offset_mode + v_spacing	
 	end
 	
-    glColor3f(1, 1, 1) -- Balck semitransparent
+    glColor3f(1, 1, 1) -- Black semitransparent
     draw_string_Helvetica_18(x3 + 80, v_offset + offset_selection, current_selection)
 
     local offset_mode = -20
@@ -81,49 +75,20 @@ function on_draw_floating_window(my_floating_wnd, x3, y3)
 		else
 			glColor3f(0.2, 0.2, 0.2) -- Balck semitransparent
 		end	   
-		draw_string_Helvetica_18(x3 + 180, v_offset + offset_mode, outer_inner_modes[i])
-        offset_mode = offset_mode + v_spacing	
-	end	
-end
-
-function on_close_floating_window(demo_floating_wnd)
-end
--- Function to draw the overlay on screen
-function draw_mode_overlay()
-    -- Draw background box
-    glColor4f(0.1, 0.1, 0.1, 1) -- Semi-transparent black background
-    glRectf(OVERLAY_X - 10, OVERLAY_Y - 90, OVERLAY_X + 250, OVERLAY_Y)
-
-    local offset_mode = -20
-	local v_spacing = -30
-	local offset_selection = 10
-	
-	for i = 1, #modes  do	
-		if current_mode == modes[i] then
-			glColor4f(0, 1, 0, 1) -- Green for default
-			offset_selection = offset_mode
-		else
-			glColor4f(0.2, 0.2, 0.2, 0.5) -- Balck semitransparent
-		end	   
-		draw_string_Helvetica_18(OVERLAY_X, OVERLAY_Y + offset_mode, modes[i])
+		draw_string_Helvetica_18(x3 + 290, v_offset + offset_mode, outer_inner_modes[i])
         offset_mode = offset_mode + v_spacing	
 	end
 	
-    glColor4f(1, 1, 1, 1) -- Balck semitransparent
-    draw_string_Helvetica_18(OVERLAY_X + 80, OVERLAY_Y + offset_selection, current_selection)
+    offset_mode = offset_mode + v_spacing	
+	local h_offset = 0
+	for i = 1, #current_buttons do
+		glColor3f(1, 1, 0) -- Green for default
+		draw_string_Helvetica_18(x3 + h_offset, v_offset + offset_mode, current_buttons[i])
+		h_offset = h_offset + h_spacing 
+	end
+end
 
-    local offset_mode = -20
-
-	for i = 1, #outer_inner_modes  do	
-		if current_cf_mode == outer_inner_modes[i] then
-			glColor4f(0, 1, 0, 1) -- Green for default
-			offset_selection = offset_mode
-		else
-			glColor4f(0.2, 0.2, 0.2, 0.5) -- Balck semitransparent
-		end	   
-		draw_string_Helvetica_18(OVERLAY_X + 180, OVERLAY_Y + offset_mode, outer_inner_modes[i])
-        offset_mode = offset_mode + v_spacing	
-	end	
+function on_close_floating_window(demo_floating_wnd)
 end
 
 -- Function to cycle through modes
@@ -138,31 +103,6 @@ function cycle_cf_mode()
 	local index = table.find(outer_inner_modes, current_cf_mode)
 	index = (index % #outer_inner_modes) + 1
 	current_cf_mode = outer_inner_modes[index]
-end
-
--- Function to handle mode switching
-function handle_mode_switch()
-    local current_time = os.clock()
-	local button_mode_state = button(MODE_TOGGLE)
-	local button_cf_mode_state = button(outer_inner_TOGGLE)
-
-    if button_mode_state ~= last_button_mode_state then
-        if current_time - last_button_mode_change_time > DEBOUNCE_DELAY then
-            if not button_mode_state then -- Button released
-                cycle_mode()
-            end
-            last_button_mode_change_time = current_time
-        end
-        last_button_mode_state = button_mode_state
-    elseif button_cf_mode_state ~= last_button_cf_mode_state then
-        if current_time - last_button_cf_mode_change_time > DEBOUNCE_DELAY then
-            if not button_cf_mode_state then -- Button released
-                cycle_cf_mode()
-            end
-            last_button_cf_mode_change_time = current_time
-        end
-        last_button_cf_mode_state = button_cf_mode_state
-    end
 end
 
 -- Function that applies the correct action depending on mode 
@@ -192,6 +132,22 @@ function set_current_selector(index)
 		current_selection	= selections2[index]
 	else
 		current_selection	= selections3[index]
+	end
+end
+
+function set_current_buttons()
+	if current_mode == "AUTO" then
+		current_buttons = {"HDG","NAV","APR","REV","ALT","VS","IAS"}
+	elseif current_mode == "PFD" or current_mode == "MFD" then
+		if current_selection == "COM" or current_selection == "NAV" then
+			current_buttons = {"   ","   ","   ","   ","1&2","<->","O/I"}
+		elseif current_selection == "BARO/CRS" then
+			current_buttons = {"   ","   ","   ","   ","   ","   ","O/I"}
+		elseif current_selection == "RNG" then
+			current_buttons = {"   ","   ","   ","   ","   ","   ","   "}
+		elseif current_selection == "FMS" then
+			current_buttons = {"DIR","FPL","PRC","CLR","ENT","PSH","O/I"}
+		end
 	end
 end
 
@@ -530,7 +486,6 @@ create_command(
 -- IAS button
 
 -- Store original commands
--- local original_ias_button = "sim/autopilot/autothrottle_toggle"
 local original_ias_button = "sim/autopilot/speed_hold"
 
 
@@ -726,8 +681,8 @@ local fms_PFD_nav_button = "sim/GPS/g1000n1_fpl"
 local fms_MFD_nav_button = "sim/GPS/g1000n3_fpl"
 
 -- Store original commands
-local original_nav_button = "sim/GPS/g1000n3_nav"
-
+-- local original_nav_button = "sim/GPS/g1000n3_nav"
+local original_nav_button = "sim/autopilot/NAV"
 -- Function to handle button press based on mode
 function handle_bravo_nav_button()
     if current_mode == "AUTO" then
@@ -783,6 +738,24 @@ create_command(
     ""
 )
 
+-- Create a custom command for changing mode
+create_command(
+    "FlyWithLua/custom/mode_button",
+    "Bravo++ toggles mode button",
+    "cycle_mode()", -- Call Lua function when pressed
+    "",
+    ""
+)
+
+-- Create a custom command for changing cf mode
+create_command(
+    "FlyWithLua/custom/cf_mode_button",
+    "Bravo++ toggles cf mode button",
+    "cycle_cf_mode()", -- Call Lua function when pressed
+    "",
+    ""
+)
+
 -- Helper function to find index in table (used for cycling modes)
 function table.find(t, value)
     for i, v in ipairs(t) do
@@ -793,6 +766,6 @@ end
 
 -- Register the drawing function
 -- do_every_draw("draw_mode_overlay()")
-do_every_draw("handle_mode_switch()")
+do_every_draw("set_current_buttons()")
 do_every_draw("refresh_selector()")
 
