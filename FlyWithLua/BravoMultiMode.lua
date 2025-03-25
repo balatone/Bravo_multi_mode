@@ -146,7 +146,7 @@ function set_current_buttons()
 		elseif current_selection == "RNG" then
 			current_buttons = {"   ","   ","   ","   ","   ","   ","   "}
 		elseif current_selection == "FMS" then
-			current_buttons = {"DIR","FPL","PRC","CLR","ENT","PSH","O/I"}
+			current_buttons = {"MNU","FPL","PRC","CLR","ENT","PSH","O/I"}
 		end
 	end
 end
@@ -483,6 +483,33 @@ create_command(
     ""
 )
 
+-- Autopilot button
+local PFD_autopilot_button = "sim/GPS/g1000n1_direct"
+local MFD_autopilot_button = "sim/GPS/g1000n3_direct"
+
+-- Store original commands
+local original_autopilot_button = "sim/autopilot/servos_toggle"
+
+-- Function to handle button press based on mode
+function handle_bravo_autopilot_button()
+    if current_mode == "AUTO" then
+        command_once(original_autopilot_button) 
+    elseif current_mode == "PFD" then
+        command_once(PFD_autopilot_button) 		
+    elseif current_mode == "MFD" then
+        command_once(MFD_autopilot_button) 				
+	end
+end
+
+-- Create a custom command for bravo knob increase
+create_command(
+    "FlyWithLua/custom/autopilot_button",
+    "Bravo++ toggles autopilot button",
+    "handle_bravo_autopilot_button()", -- Call Lua function when pressed
+    "",
+    ""
+)
+
 -- IAS button
 
 -- Store original commands
@@ -708,8 +735,8 @@ create_command(
 )
 
 -- HDG button
-local fms_PFD_hdg_button = "sim/GPS/g1000n1_direct"
-local fms_MFD_hdg_button = "sim/GPS/g1000n3_direct"
+local fms_PFD_hdg_button = "sim/GPS/g1000n1_menu"
+local fms_MFD_hdg_button = "sim/GPS/g1000n3_menu"
 
 -- Store original commands
 local original_hdg_button = "sim/GPS/g1000n3_hdg"
