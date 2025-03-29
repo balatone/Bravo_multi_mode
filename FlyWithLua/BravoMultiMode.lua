@@ -6,6 +6,65 @@ if not SUPPORTS_FLOATING_WINDOWS then
     return
 end
 
+-- Get aircraft directory from X-Plane's AIRCRAFT_FILENAME
+local aircraft_dir = string.match(AIRCRAFT_PATH, "(.*[/\\])")
+local nav_cfg_path = aircraft_dir .. "bravo_multi-mode.cfg"
+
+-- Table to hold dataref assignments
+local nav_bindings = {}
+
+-- Check if config file exists
+local cfg_file = io.open(nav_cfg_path, "r")
+if cfg_file then
+    for line in cfg_file:lines() do
+        -- Skip comments/empty lines and parse key=value
+        if not line:match("^%s*#") and line:match("=") then
+            local key, value = line:match("%s*([%w_]+)%s*=%s*(.+)%s*")
+            if key and value then
+                nav_bindings[key] = value:gsub("^\"(.*)\"$", "%1") -- Remove quotes if present
+            end
+        end
+    end
+    cfg_file:close()
+else
+    logMsg("FlyWithLua Error: bravo_multi-mode.cfg not found in " .. aircraft_dir)
+    return -- Stop script if config is missing
+end
+
+-- Assign datarefs from config (with validation)
+local required_keys = {
+"com1_PFD_outer_freq_up","com1_PFD_outer_freq_down","com1_PFD_inner_freq_up","com1_PFD_inner_freq_down",
+"com1_MFD_outer_freq_up","com1_MFD_outer_freq_down","com1_MFD_inner_freq_up","com1_MFD_inner_freq_down",
+"original_altitude_up","original_altitude_down",
+"nav1_PFD_outer_freq_up","nav1_PFD_outer_freq_down","nav1_PFD_inner_freq_up","nav1_PFD_inner_freq_down",
+"nav1_MFD_outer_freq_up","nav1_MFD_outer_freq_down","nav1_MFD_inner_freq_up","nav1_MFD_inner_freq_down",
+"original_nose_up","original_nose_down",
+"baro_outer_up","crs_inner_up",
+"baro_outer_down","crs_inner_down",
+"original_hdg_up","original_hdg_down",
+"range1_up","range1_down",
+"range2_up","range2_down",
+"original_crs_up","original_crs_down",
+"fms1_outer_up","fms1_inner_up","fms1_outer_down","fms1_inner_down",
+"fms2_outer_up","fms2_inner_up","fms2_outer_down","fms2_inner_down",
+"original_ias_up","original_ias_down",
+"PFD_autopilot_button","MFD_autopilot_button","original_autopilot_button",
+"original_ias_button",
+"com1_PFD_vs_button","com1_MFD_vs_button","nav1_PFD_vs_button","nav1_MFD_vs_button","fms_PFD_vs_button","fms_MFD_vs_button","original_vs_button",
+"com_PFD_alt_button","com_MFD_alt_button","nav_PFD_alt_button","nav_MFD_alt_button","fms_PFD_alt_button","fms_MFD_alt_button","original_alt_button",
+"fms_PFD_rev_button","fms_MFD_rev_button","original_rev_button",
+"fms_PFD_apr_button","fms_MFD_apr_button","original_apr_button",
+"fms_PFD_nav_button","fms_MFD_nav_button","original_nav_button",
+"fms_PFD_hdg_button","fms_MFD_hdg_button","original_hdg_button"
+}
+
+for _, key in ipairs(required_keys) do
+    if not nav_bindings[key] then
+        logMsg("FlyWithLua Error: Missing key in bravo_multi-mode.cfg - " .. key)
+        return
+    end
+end
+
 require("graphics")
 
 -- Mode management
@@ -15,12 +74,6 @@ local current_cf_mode = "outer"
 local outer_inner_modes = {"outer", "inner"}
 
 local current_buttons = {"HDG","NAV","APR","REV","ALT","VS","IAS"}
-
-local last_button_mode_state = false
-local last_button_mode_change_time = 0
-local last_button_cf_mode_state = false
-local last_button_cf_mode_change_time = 0
-local DEBOUNCE_DELAY = 0.0 -- 300 milliseconds debounce
 
 -- Bindings for the selector knob
 local current_selection = "ALT"
@@ -33,14 +86,11 @@ local SELECTOR3 = SELECTOR1 - 2
 local SELECTOR4 = SELECTOR1 - 3
 local SELECTOR5 = SELECTOR1 - 4
 
--- Screen position for the overlay
-local OVERLAY_X = 50  -- X position (pixels from left)
-local OVERLAY_Y = SCREEN_HEIGHT - 500  -- Y position (pixels from top)
-
 -- imgui only works inside a floating window, so we need to create one first:
 my_floating_wnd = float_wnd_create(330, 120, 1, false)
 float_wnd_set_title(my_floating_wnd, "Bravo multi-mode")
-float_wnd_set_position(my_floating_wnd, SCREEN_WIDTH * 2/3 + 50, SCREEN_HIGHT * 1/6)
+-- float_wnd_set_position(my_floating_wnd, SCREEN_WIDTH * 2/3 + 50, SCREEN_HEIGHT * 1/6)
+float_wnd_set_position(my_floating_wnd, SCREEN_WIDTH *0.25, SCREEN_HEIGHT*0.25)
 float_wnd_set_ondraw(my_floating_wnd, "on_draw_floating_window")
 -- float_wnd_set_onclick(my_floating_wnd, "on_click_floating_window")
 float_wnd_set_onclose(my_floating_wnd, "on_close_floating_window")
@@ -82,7 +132,7 @@ function on_draw_floating_window(my_floating_wnd, x3, y3)
     offset_mode = offset_mode + v_spacing	
 	local h_offset = 0
 	for i = 1, #current_buttons do
-		glColor3f(1, 1, 0) -- Green for default
+		glColor3f(1, 1, 0) -- Yellow
 		draw_string_Helvetica_18(x3 + h_offset, v_offset + offset_mode, current_buttons[i])
 		h_offset = h_offset + h_spacing 
 	end
@@ -125,6 +175,28 @@ function refresh_selector()
     end
 end
 
+local index = 1
+function cycle_selector()
+	if index < 5 then
+		index = index + 1
+	else
+		index = 1
+	end
+end
+
+function refresh_selector_mock()
+	set_current_selector(index)
+end
+
+-- Create a custom command for bravo knob increase
+create_command(
+    "FlyWithLua/custom/cycle_selector",
+    "Cycle the selection (use only when Bravo hardware is not available) ",
+    "cycle_selector()", -- Call Lua function when pressed
+    "",
+    ""
+)
+
 function set_current_selector(index)
 	if current_mode == "AUTO" then
 		current_selection	= selections1[index]
@@ -152,20 +224,20 @@ function set_current_buttons()
 end
 
 -- COM1 PFD
-local com1_PFD_outer_freq_up = "sim/GPS/g1000n1_com_outer_up"
-local com1_PFD_outer_freq_down = "sim/GPS/g1000n1_com_outer_down"
-local com1_PFD_inner_freq_up = "sim/GPS/g1000n1_com_inner_up"
-local com1_PFD_inner_freq_down = "sim/GPS/g1000n1_com_inner_down"
+local com1_PFD_outer_freq_up = nav_bindings.com1_PFD_outer_freq_up
+local com1_PFD_outer_freq_down = nav_bindings.com1_PFD_outer_freq_down
+local com1_PFD_inner_freq_up = nav_bindings.com1_PFD_inner_freq_up
+local com1_PFD_inner_freq_down = nav_bindings.com1_PFD_inner_freq_down
 
 -- COM1 MFD
-local com1_MFD_outer_freq_up = "sim/GPS/g1000n3_com_outer_up"
-local com1_MFD_outer_freq_down = "sim/GPS/g1000n3_com_outer_down"
-local com1_MFD_inner_freq_up = "sim/GPS/g1000n3_com_inner_up"
-local com1_MFD_inner_freq_down = "sim/GPS/g1000n3_com_inner_down"
+local com1_MFD_outer_freq_up = nav_bindings.com1_MFD_outer_freq_up
+local com1_MFD_outer_freq_down = nav_bindings.com1_MFD_outer_freq_down
+local com1_MFD_inner_freq_up = nav_bindings.com1_MFD_inner_freq_up
+local com1_MFD_inner_freq_down = nav_bindings.com1_MFD_inner_freq_down
 
 -- Store original commands
-local original_altitude_up = "sim/autopilot/altitude_up"
-local original_altitude_down = "sim/autopilot/altitude_down"
+local original_altitude_up = nav_bindings.original_altitude_up
+local original_altitude_down = nav_bindings.original_altitude_down
 
 
 -- Function to handle button press based on mode
@@ -224,20 +296,20 @@ create_command(
 )
 
 -- NAV1 PFD
-local nav1_PFD_outer_freq_up = "sim/GPS/g1000n1_nav_outer_up"
-local nav1_PFD_outer_freq_down = "sim/GPS/g1000n1_nav_outer_down"
-local nav1_PFD_inner_freq_up = "sim/GPS/g1000n1_nav_inner_up"
-local nav1_PFD_inner_freq_down = "sim/GPS/g1000n1_nav_inner_down"
+local nav1_PFD_outer_freq_up = nav_bindings.nav1_PFD_outer_freq_up
+local nav1_PFD_outer_freq_down = nav_bindings.nav1_PFD_outer_freq_down
+local nav1_PFD_inner_freq_up = nav_bindings.nav1_PFD_inner_freq_up
+local nav1_PFD_inner_freq_down = nav_bindings.nav1_PFD_inner_freq_down
 
 -- NAV1 MFD
-local nav1_MFD_outer_freq_up = "sim/GPS/g1000n3_nav_outer_up"
-local nav1_MFD_outer_freq_down = "sim/GPS/g1000n3_nav_outer_down"
-local nav1_MFD_inner_freq_up = "sim/GPS/g1000n3_nav_inner_up"
-local nav1_MFD_inner_freq_down = "sim/GPS/g1000n3_nav_inner_down"
+local nav1_MFD_outer_freq_up = nav_bindings.nav1_MFD_outer_freq_up
+local nav1_MFD_outer_freq_down = nav_bindings.nav1_MFD_outer_freq_down
+local nav1_MFD_inner_freq_up = nav_bindings.nav1_MFD_inner_freq_up
+local nav1_MFD_inner_freq_down = nav_bindings.nav1_MFD_inner_freq_down
 
 -- Store original commands
-local original_nose_up = "sim/autopilot/nose_up"
-local original_nose_down = "sim/autopilot/nose_down"
+local original_nose_up = nav_bindings.original_nose_up
+local original_nose_down = nav_bindings.original_nose_down
 
 
 -- Function to handle button press based on mode
@@ -296,14 +368,14 @@ create_command(
 )
 
 -- BARO and HSI
-local baro_outer_up = "sim/instruments/barometer_up"
-local crs_inner_up = "sim/radios/obs_HSI_up"
-local baro_outer_down = "sim/instruments/barometer_down"
-local crs_inner_down = "sim/radios/obs_HSI_down"
+local baro_outer_up = nav_bindings.baro_outer_up
+local crs_inner_up = nav_bindings.crs_inner_up
+local baro_outer_down = nav_bindings.baro_outer_down
+local crs_inner_down = nav_bindings.crs_inner_down
 
 -- Store original commands
-local original_hdg_up = "sim/GPS/g1000n1_hdg_up"
-local original_hdg_down = "sim/GPS/g1000n1_hdg_down"
+local original_hdg_up = nav_bindings.original_hdg_up
+local original_hdg_down = nav_bindings.original_hdg_down
 
 
 -- Function to handle button press based on mode
@@ -362,14 +434,14 @@ create_command(
 )
 
 -- Range
-local range1_up = "sim/GPS/g1000n1_range_up"
-local range1_down = "sim/GPS/g1000n1_range_down"
-local range2_up = "sim/GPS/g1000n3_range_up"
-local range2_down = "sim/GPS/g1000n3_range_down"
+local range1_up = nav_bindings.range1_up
+local range1_down = nav_bindings.range1_down
+local range2_up = nav_bindings.range2_up
+local range2_down = nav_bindings.range2_down
 
 -- Store original commands
-local original_crs_up = "sim/radios/obs_HSI_up"
-local original_crs_down = "sim/radios/obs_HSI_down"
+local original_crs_up = nav_bindings.original_crs_up
+local original_crs_down = nav_bindings.original_crs_down
 
 
 -- Function to handle button press based on mode
@@ -412,19 +484,19 @@ create_command(
 )
 
 -- FMS
-local fms1_outer_up = "sim/GPS/g1000n1_fms_outer_up"
-local fms1_inner_up = "sim/GPS/g1000n1_fms_inner_up"
-local fms1_outer_down = "sim/GPS/g1000n1_fms_outer_down"
-local fms1_inner_down = "sim/GPS/g1000n1_fms_inner_down"
+local fms1_outer_up = nav_bindings.fms1_outer_up
+local fms1_inner_up = nav_bindings.fms1_inner_up
+local fms1_outer_down = nav_bindings.fms1_outer_down
+local fms1_inner_down = nav_bindings.fms1_inner_down
 
-local fms2_outer_up = "sim/GPS/g1000n3_fms_outer_up"
-local fms2_inner_up = "sim/GPS/g1000n3_fms_inner_up"
-local fms2_outer_down = "sim/GPS/g1000n3_fms_outer_down"
-local fms2_inner_down = "sim/GPS/g1000n3_fms_inner_down"
+local fms2_outer_up = nav_bindings.fms2_outer_up
+local fms2_inner_up = nav_bindings.fms2_inner_up
+local fms2_outer_down = nav_bindings.fms2_outer_down
+local fms2_inner_down = nav_bindings.fms2_inner_down
 
 -- Store original commands
-local original_ias_up = "sim/autopilot/airspeed_up"
-local original_ias_down = "sim/autopilot/airspeed_down"
+local original_ias_up = nav_bindings.original_ias_up
+local original_ias_down = nav_bindings.original_ias_down
 
 
 -- Function to handle button press based on mode
@@ -484,11 +556,11 @@ create_command(
 )
 
 -- Autopilot button
-local PFD_autopilot_button = "sim/GPS/g1000n1_direct"
-local MFD_autopilot_button = "sim/GPS/g1000n3_direct"
+local PFD_autopilot_button = nav_bindings.PFD_autopilot_button
+local MFD_autopilot_button = nav_bindings.MFD_autopilot_button
 
 -- Store original commands
-local original_autopilot_button = "sim/autopilot/servos_toggle"
+local original_autopilot_button = nav_bindings.original_autopilot_button
 
 -- Function to handle button press based on mode
 function handle_bravo_autopilot_button()
@@ -513,8 +585,7 @@ create_command(
 -- IAS button
 
 -- Store original commands
-local original_ias_button = "sim/autopilot/speed_hold"
-
+local original_ias_button = nav_bindings.original_ias_button
 
 -- Function to handle button press based on mode
 function handle_bravo_ias_button()
@@ -553,16 +624,15 @@ create_command(
 )
 
 -- VS button
-local com1_PFD_vs_button = "sim/GPS/g1000n1_com_ff"
-local com1_MFD_vs_button = "sim/GPS/g1000n3_com_ff"
-local nav1_PFD_vs_button = "sim/GPS/g1000n1_nav_ff"
-local nav1_MFD_vs_button = "sim/GPS/g1000n3_nav_ff"
-local fms_PFD_vs_button = "sim/GPS/g1000n1_cursor"
-local fms_MFD_vs_button = "sim/GPS/g1000n3_cursor"
-
+local com1_PFD_vs_button = nav_bindings.com1_PFD_vs_button
+local com1_MFD_vs_button = nav_bindings.com1_MFD_vs_button
+local nav1_PFD_vs_button = nav_bindings.nav1_PFD_vs_button
+local nav1_MFD_vs_button = nav_bindings.nav1_MFD_vs_button
+local fms_PFD_vs_button = nav_bindings.fms_PFD_vs_button
+local fms_MFD_vs_button = nav_bindings.fms_MFD_vs_button
 
 -- Store original commands
-local original_vs_button = "sim/autopilot/vertical_speed"
+local original_vs_button = nav_bindings.original_vs_button
 
 -- Function to handle button press based on mode
 function handle_bravo_vs_button()
@@ -597,16 +667,16 @@ create_command(
 )
 
 -- ALT button
-local com_PFD_alt_button = "sim/GPS/g1000n1_com12"
-local com_MFD_alt_button = "sim/GPS/g1000n3_com12"
-local nav_PFD_alt_button = "sim/GPS/g1000n1_nav12"
-local nav_MFD_alt_button = "sim/GPS/g1000n3_nav12"
+local com_PFD_alt_button = nav_bindings.com_PFD_alt_button
+local com_MFD_alt_button = nav_bindings.com_MFD_alt_button
+local nav_PFD_alt_button = nav_bindings.nav_PFD_alt_button
+local nav_MFD_alt_button = nav_bindings.nav_MFD_alt_button
 
-local fms_PFD_alt_button = "sim/GPS/g1000n1_ent"
-local fms_MFD_alt_button = "sim/GPS/g1000n3_ent"
+local fms_PFD_alt_button = nav_bindings.fms_PFD_alt_button
+local fms_MFD_alt_button = nav_bindings.fms_MFD_alt_button
 
 -- Store original commands
-local original_alt_button = "sim/autopilot/altitude_hold"
+local original_alt_button = nav_bindings.original_alt_button
 
 
 -- Function to handle button press based on mode
@@ -642,11 +712,11 @@ create_command(
 )
 
 -- REV button
-local fms_PFD_rev_button = "sim/GPS/g1000n1_clr"
-local fms_MFD_rev_button = "sim/GPS/g1000n3_clr"
+local fms_PFD_rev_button = nav_bindings.fms_PFD_rev_button
+local fms_MFD_rev_button = nav_bindings.fms_MFD_rev_button
 
 -- Store original commands
-local original_rev_button = "sim/autopilot/back_course"
+local original_rev_button = nav_bindings.original_rev_button
 
 -- Function to handle button press based on mode
 function handle_bravo_rev_button()
@@ -673,11 +743,11 @@ create_command(
 )
 
 -- APR button
-local fms_PFD_apr_button = "sim/GPS/g1000n1_proc"
-local fms_MFD_apr_button = "sim/GPS/g1000n3_proc"
+local fms_PFD_apr_button = nav_bindings.fms_PFD_apr_button
+local fms_MFD_apr_button = nav_bindings.fms_MFD_apr_button
 
 -- Store original commands
-local original_apr_button = "sim/autopilot/approach"
+local original_apr_button = nav_bindings.original_apr_button
 
 -- Function to handle button press based on mode
 function handle_bravo_apr_button()
@@ -704,12 +774,12 @@ create_command(
 )
 
 -- NAV button
-local fms_PFD_nav_button = "sim/GPS/g1000n1_fpl"
-local fms_MFD_nav_button = "sim/GPS/g1000n3_fpl"
+local fms_PFD_nav_button = nav_bindings.fms_PFD_nav_button
+local fms_MFD_nav_button = nav_bindings.fms_MFD_nav_button
 
 -- Store original commands
--- local original_nav_button = "sim/GPS/g1000n3_nav"
-local original_nav_button = "sim/autopilot/NAV"
+local original_nav_button = nav_bindings.original_nav_button
+
 -- Function to handle button press based on mode
 function handle_bravo_nav_button()
     if current_mode == "AUTO" then
@@ -735,11 +805,11 @@ create_command(
 )
 
 -- HDG button
-local fms_PFD_hdg_button = "sim/GPS/g1000n1_menu"
-local fms_MFD_hdg_button = "sim/GPS/g1000n3_menu"
+local fms_PFD_hdg_button = nav_bindings.fms_PFD_hdg_button
+local fms_MFD_hdg_button = nav_bindings.fms_MFD_hdg_button
 
 -- Store original commands
-local original_hdg_button = "sim/GPS/g1000n3_hdg"
+local original_hdg_button = nav_bindings.original_hdg_button
 
 -- Function to handle button press based on mode
 function handle_bravo_hdg_button()
@@ -792,7 +862,5 @@ function table.find(t, value)
 end
 
 -- Register the drawing function
--- do_every_draw("draw_mode_overlay()")
 do_every_draw("set_current_buttons()")
 do_every_draw("refresh_selector()")
-
