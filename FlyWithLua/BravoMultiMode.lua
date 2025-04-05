@@ -1,4 +1,5 @@
--- Example FlyWithLua script for Honeycomb Bravo Selector Knob
+require("bit")
+require("graphics")
 
 if not SUPPORTS_FLOATING_WINDOWS then
     -- to make sure the script doesn't stop old FlyWithLua versions
@@ -65,8 +66,6 @@ for _, key in ipairs(required_keys) do
     end
 end
 
-require("graphics")
-
 -- Mode management
 local current_mode = "AUTO"
 local modes = {"AUTO", "PFD", "MFD"} -- Add more modes as needed
@@ -80,11 +79,6 @@ local current_selection = "ALT"
 local selections1 = {"ALT","VS","HDG","CRS","IAS"}
 local selections2 = {"COM","NAV","BARO/CRS","RNG","FMS"}
 local selections3 = {"COM","NAV","BARO/CRS","RNG","FMS"}
-local SELECTOR1 = 660
-local SELECTOR2 = SELECTOR1 - 1
-local SELECTOR3 = SELECTOR1 - 2
-local SELECTOR4 = SELECTOR1 - 3
-local SELECTOR5 = SELECTOR1 - 4
 
 -- imgui only works inside a floating window, so we need to create one first:
 my_floating_wnd = float_wnd_create(330, 120, 1, false)
@@ -141,6 +135,49 @@ end
 function on_close_floating_window(demo_floating_wnd)
 end
 
+
+-- Determine the position of the selector knob
+local bravo = hid_open(0x294B, 0x1901)  -- Honeycomb Bravo VID/PID
+hid_set_nonblocking(bravo, 1)
+
+function find_position(n)
+    if n == 0 or (bit.band(n, (n - 1)) ~= 0) then 
+	 	return -1
+	end
+    
+    local pos = 1;
+    local val = 1;
+    while bit.band(val, n) == 0 do
+        val = bit.lshift(val, 1)
+        pos = pos + 1
+	end    
+    return pos
+end
+
+function refresh_selector()
+    local pos = 0
+	local num, data1, data2, data3, data4, data5, data6, data7, data8, data9, data10, data11, data12, data13, data14, data15, data16, data17, data18= hid_read(bravo, 64)
+	selector = data15
+    if selector and selector > 0 then
+		idx = 6 - find_position(selector)
+        set_current_selector(idx)
+    end
+end
+
+local index = 1
+
+function cycle_selector()
+	if index < 5 then
+		index = index + 1
+	else
+		index = 1
+	end
+end
+
+function refresh_selector_mock()
+	set_current_selector(index)
+end
+
 -- Function to cycle through modes
 function cycle_mode()
 	local index = table.find(modes, current_mode)
@@ -153,39 +190,6 @@ function cycle_cf_mode()
 	local index = table.find(outer_inner_modes, current_cf_mode)
 	index = (index % #outer_inner_modes) + 1
 	current_cf_mode = outer_inner_modes[index]
-end
-
--- Function that applies the correct action depending on mode 
-function refresh_selector()
-	if button(SELECTOR1) then
-        -- Action for Position 1
-		set_current_selector(1)
-    elseif button(SELECTOR2) then
-        -- Action for Position 2
-		set_current_selector(2)
-    elseif button(SELECTOR3) then
-        -- Action for Position 3
-		set_current_selector(3)
-    elseif button(SELECTOR4) then
-        -- Action for Position 4
-		set_current_selector(4)
-    elseif button(SELECTOR5) then
-        -- Action for Position 5
-		set_current_selector(5)
-    end
-end
-
-local index = 1
-function cycle_selector()
-	if index < 5 then
-		index = index + 1
-	else
-		index = 1
-	end
-end
-
-function refresh_selector_mock()
-	set_current_selector(index)
 end
 
 -- Create a custom command for bravo knob increase
@@ -863,4 +867,9 @@ end
 
 -- Register the drawing function
 do_every_draw("set_current_buttons()")
-do_every_draw("refresh_selector()")
+if bravo then
+	do_every_draw("refresh_selector()")
+else
+	do_every_draw("refresh_selector_mock()")
+end
+
