@@ -72,13 +72,26 @@ local modes = {"AUTO", "PFD", "MFD"} -- Add more modes as needed
 local current_cf_mode = "outer"
 local outer_inner_modes = {"outer", "inner"}
 
-local current_buttons = {"HDG","NAV","APR","REV","ALT","VS","IAS"}
+local default_buttons = {"HDG","NAV","APR","REV","ALT","VS","IAS"}
+local current_buttons = default_buttons
 
 -- Bindings for the selector knob
 local current_selection = "ALT"
 local selections1 = {"ALT","VS","HDG","CRS","IAS"}
 local selections2 = {"COM","NAV","BARO/CRS","RNG","FMS"}
 local selections3 = {"COM","NAV","BARO/CRS","RNG","FMS"}
+
+local com_buttons = {"   ","   ","   ","   ","1&2","<->","O/I"}
+local nav_buttons = {"   ","   ","   ","   ","1&2","<->","O/I"}
+local baro_crs_buttons = {"   ","   ","   ","   ","   ","   ","O/I"}
+local rng_buttons = {"   ","   ","   ","   ","   ","   ","   "}
+local fms_buttons = {"MNU","FPL","PRC","CLR","ENT","PSH","O/I"}
+
+local button_map = {
+	AUTO = {ALT = default_buttons, VS = default_buttons, HDG = default_buttons, CRS = default_buttons, IAS = default_buttons},
+     PFD = {COM = com_buttons, NAV = nav_buttons, ["BARO/CRS"] = baro_crs_buttons, RNG = rng_buttons, FMS = fms_buttons},
+     MFD = {COM = com_buttons, NAV = nav_buttons, ["BARO/CRS"] = baro_crs_buttons, RNG = rng_buttons, FMS = fms_buttons}
+}
 
 -- imgui only works inside a floating window, so we need to create one first:
 my_floating_wnd = float_wnd_create(330, 120, 1, false)
@@ -133,12 +146,16 @@ function on_draw_floating_window(my_floating_wnd, x3, y3)
 end
 
 function on_close_floating_window(demo_floating_wnd)
+	if bravo then
+		hid_close(bravo)
+	end
 end
-
 
 -- Determine the position of the selector knob
 local bravo = hid_open(0x294B, 0x1901)  -- Honeycomb Bravo VID/PID
-hid_set_nonblocking(bravo, 1)
+if bravo then
+	hid_set_nonblocking(bravo, 1)
+end
 
 function find_position(n)
     if n == 0 or (bit.band(n, (n - 1)) ~= 0) then 
@@ -212,18 +229,8 @@ function set_current_selector(index)
 end
 
 function set_current_buttons()
-	if current_mode == "AUTO" then
-		current_buttons = {"HDG","NAV","APR","REV","ALT","VS","IAS"}
-	elseif current_mode == "PFD" or current_mode == "MFD" then
-		if current_selection == "COM" or current_selection == "NAV" then
-			current_buttons = {"   ","   ","   ","   ","1&2","<->","O/I"}
-		elseif current_selection == "BARO/CRS" then
-			current_buttons = {"   ","   ","   ","   ","   ","   ","O/I"}
-		elseif current_selection == "RNG" then
-			current_buttons = {"   ","   ","   ","   ","   ","   ","   "}
-		elseif current_selection == "FMS" then
-			current_buttons = {"MNU","FPL","PRC","CLR","ENT","PSH","O/I"}
-		end
+	if button_map[current_mode][current_selection] then
+		current_buttons = button_map[current_mode][current_selection]
 	end
 end
 
