@@ -51,7 +51,8 @@ local required_keys = {
 "original_ias_up","original_ias_down",
 "PFD_autopilot_button","MFD_autopilot_button","original_autopilot_button",
 "original_ias_button",
-"com1_PFD_vs_button","com1_MFD_vs_button","nav1_PFD_vs_button","nav1_MFD_vs_button","fms_PFD_vs_button","fms_MFD_vs_button","original_vs_button",
+"com_PFD_ias_button","com_MFD_ias_button","nav_PFD_ias_button","nav_MFD_ias_button","baro_crs_PFD_ias_button","baro_crs_MFD_ias_button","fms_PFD_ias_button","fms_MFD_ias_button","original_ias_button",
+"com_PFD_vs_button","com_MFD_vs_button","nav_PFD_vs_button","nav_MFD_vs_button","fms_PFD_vs_button","fms_MFD_vs_button","original_vs_button",
 "com_PFD_alt_button","com_MFD_alt_button","nav_PFD_alt_button","nav_MFD_alt_button","fms_PFD_alt_button","fms_MFD_alt_button","original_alt_button",
 "fms_PFD_rev_button","fms_MFD_rev_button","original_rev_button",
 "fms_PFD_apr_button","fms_MFD_apr_button","original_apr_button",
@@ -72,8 +73,8 @@ local modes = {"AUTO", "PFD", "MFD"} -- Add more modes as needed
 local current_cf_mode = "outer"
 local outer_inner_modes = {"outer", "inner"}
 
-local default_buttons = {"HDG","NAV","APR","REV","ALT","VS","IAS"}
-local current_buttons = default_buttons
+local default_button_labels = {"HDG","NAV","APR","REV","ALT","VS","IAS"}
+local current_buttons = default_button_labels
 
 -- Bindings for the selector knob
 local current_selection = "ALT"
@@ -81,17 +82,43 @@ local selections1 = {"ALT","VS","HDG","CRS","IAS"}
 local selections2 = {"COM","NAV","BARO/CRS","RNG","FMS"}
 local selections3 = {"COM","NAV","BARO/CRS","RNG","FMS"}
 
-local com_buttons = {"   ","   ","   ","   ","1&2","<->","O/I"}
-local nav_buttons = {"   ","   ","   ","   ","1&2","<->","O/I"}
-local baro_crs_buttons = {"   ","   ","   ","   ","   ","   ","O/I"}
-local rng_buttons = {"   ","   ","   ","   ","   ","   ","   "}
-local fms_buttons = {"MNU","FPL","PRC","CLR","ENT","PSH","O/I"}
+-- The button labels that will be displayed on the console
+local com_button_labels = {"   ","   ","   ","   ","1&2","<->","O/I"}
+local nav_button_labels = {"   ","   ","   ","   ","1&2","<->","O/I"}
+local baro_crs_button_labels = {"   ","   ","   ","   ","   ","   ","O/I"}
+local rng_button_labels = {"   ","   ","   ","   ","   ","   ","   "}
+local fms_button_labels = {"MNU","FPL","PRC","CLR","ENT","PSH","O/I"}
 
-local button_map = {
-	AUTO = {ALT = default_buttons, VS = default_buttons, HDG = default_buttons, CRS = default_buttons, IAS = default_buttons},
-     PFD = {COM = com_buttons, NAV = nav_buttons, ["BARO/CRS"] = baro_crs_buttons, RNG = rng_buttons, FMS = fms_buttons},
-     MFD = {COM = com_buttons, NAV = nav_buttons, ["BARO/CRS"] = baro_crs_buttons, RNG = rng_buttons, FMS = fms_buttons}
+local button_map_labels = {
+	AUTO = {ALT = default_button_labels, VS = default_button_labels, HDG = default_button_labels, CRS = default_button_labels, IAS = default_button_labels},
+     PFD = {COM = com_button_labels, NAV = nav_button_labels, ["BARO/CRS"] = baro_crs_button_labels, RNG = rng_button_labels, FMS = fms_button_labels},
+     MFD = {COM = com_button_labels, NAV = nav_button_labels, ["BARO/CRS"] = baro_crs_button_labels, RNG = rng_button_labels, FMS = fms_button_labels}
 }
+
+-- The button actions that will be used depending on mode and selection
+local cf_mode_toggle = "FlyWithLua/custom/cf_mode_button"
+local default_button_actions = {HDG = nav_bindings.original_hdg_button, NAV = nav_bindings.original_nav_button, APR = nav_bindings.original_apr_button, REV = nav_bindings.original_rev_button, 
+								ALT = nav_bindings.original_alt_button, VS = nav_bindings.original_vs_button, IAS = nav_bindings.original_ias_button, PLT = nav_bindings.original_autopilot_button}
+local com_PFD_button_actions = {HDG = nil, NAV = nil, APR = nil, REV = nil, ALT = nav_bindings.com_PFD_alt_button, VS = nav_bindings.com_PFD_vs_button, IAS = nav_bindings.com_PFD_ias_button, PLT = nil}
+local baro_crs_PFD_button_actions = {HDG = nil, NAV = nil, APR = nil, REV = nil, ALT = nil, VS = nil, IAS = nav_bindings.baro_crs_PFD_ias_button, PLT = nil}
+local rng_PFD_button_actions = {HDG = nil, NAV = nil, APR = nil, REV = nil, ALT = nil, VS = nil, IAS = nil, PLT = nil}
+local fms_PFD_button_actions = {HDG = nav_bindings.fms_PFD_hdg_button, NAV = nav_bindings.fms_PFD_nav_button, APR = nav_bindings.fms_PFD_apr_button, REV = nav_bindings.fms_PFD_rev_button, 
+								ALT = nav_bindings.fms_PFD_alt_button, VS = nav_bindings.fms_PFD_vs_button, IAS = nav_bindings.fms_PFD_ias_button, PLT = nav_bindings.PFD_autopilot_button}
+
+local com_MFD_button_actions = {HDG = nil, NAV = nil, APR = nil, REV = nil, ALT = nav_bindings.com_MFD_alt_button, VS = nav_bindings.com1_MFD_vs_button, IAS = nav_bindings.com_MFD_ias_button, PLT = nil}
+local baro_crs_MFD_button_actions = {HDG = nil, NAV = nil, APR = nil, REV = nil, ALT = nil, VS = nil, IAS = nav_bindings.baro_crs_MFD_ias_button, PLT = nil}
+local rng_MFD_button_actions = {HDG = nil, NAV = nil, APR = nil, REV = nil, ALT = nil, VS = nil, IAS = nil, PLT = nil}
+local fms_MFD_button_actions = {HDG = nav_bindings.fms_MFD_hdg_button, NAV = nav_bindings.fms_MFD_nav_button, APR = nav_bindings.fms_MFD_apr_button, REV = nav_bindings.fms_MFD_rev_button, 
+								ALT = nav_bindings.fms_MFD_alt_button, VS = nav_bindings.fms_MFD_vs_button, IAS = nav_bindings.fms_MFD_ias_button, PLT = nav_bindings.MFD_autopilot_button}
+
+local button_map_actions = {
+	AUTO = {ALT = default_button_actions, VS = default_button_actions, HDG = default_button_actions, CRS = default_button_actions, IAS = default_button_actions},
+     PFD = {COM = com_PFD_button_actions, NAV = com_PFD_button_actions, ["BARO/CRS"] = baro_crs_PFD_button_actions, RNG = rng_PFD_button_actions, FMS = fms_PFD_button_actions},
+     MFD = {COM = com_MFD_button_actions, NAV = com_MFD_button_actions, ["BARO/CRS"] = baro_crs_MFD_button_actions, RNG = rng_MFD_button_actions, FMS = fms_MFD_button_actions},
+}
+
+-- The actions that will br triggred when twisting the right knob depedning on mode and selection
+
 
 -- imgui only works inside a floating window, so we need to create one first:
 my_floating_wnd = float_wnd_create(330, 120, 1, false)
@@ -191,6 +218,15 @@ function cycle_selector()
 	end
 end
 
+-- Create a custom command for bravo knob increase
+create_command(
+    "FlyWithLua/custom/cycle_selector",
+    "Cycle the selection (use only when Bravo hardware is not available) ",
+    "cycle_selector()", -- Call Lua function when pressed
+    "",
+    ""
+)
+
 function refresh_selector_mock()
 	set_current_selector(index)
 end
@@ -202,6 +238,15 @@ function cycle_mode()
 	current_mode = modes[index]
 end
 
+-- Create a custom command for changing mode
+create_command(
+    "FlyWithLua/custom/mode_button",
+    "Bravo++ toggles mode button",
+    "cycle_mode()", -- Call Lua function when pressed
+    "",
+    ""
+)
+
 -- Function to cycle through outer/inner modes
 function cycle_cf_mode()
 	local index = table.find(outer_inner_modes, current_cf_mode)
@@ -209,11 +254,11 @@ function cycle_cf_mode()
 	current_cf_mode = outer_inner_modes[index]
 end
 
--- Create a custom command for bravo knob increase
+-- Create a custom command for changing cf mode
 create_command(
-    "FlyWithLua/custom/cycle_selector",
-    "Cycle the selection (use only when Bravo hardware is not available) ",
-    "cycle_selector()", -- Call Lua function when pressed
+    "FlyWithLua/custom/cf_mode_button",
+    "Bravo++ toggles cf mode button",
+    "cycle_cf_mode()", -- Call Lua function when pressed
     "",
     ""
 )
@@ -229,8 +274,8 @@ function set_current_selector(index)
 end
 
 function set_current_buttons()
-	if button_map[current_mode][current_selection] then
-		current_buttons = button_map[current_mode][current_selection]
+	if button_map_labels[current_mode][current_selection] then
+		current_buttons = button_map_labels[current_mode][current_selection]
 	end
 end
 
@@ -567,20 +612,10 @@ create_command(
 )
 
 -- Autopilot button
-local PFD_autopilot_button = nav_bindings.PFD_autopilot_button
-local MFD_autopilot_button = nav_bindings.MFD_autopilot_button
-
--- Store original commands
-local original_autopilot_button = nav_bindings.original_autopilot_button
-
--- Function to handle button press based on mode
-function handle_bravo_autopilot_button()
-    if current_mode == "AUTO" then
-        command_once(original_autopilot_button) 
-    elseif current_mode == "PFD" then
-        command_once(PFD_autopilot_button) 		
-    elseif current_mode == "MFD" then
-        command_once(MFD_autopilot_button) 				
+function handle_bravo_ias_button()
+	local command = button_map_actions[current_mode][current_selection]["PLT"]
+	if  command then
+		command_once(command)
 	end
 end
 
@@ -594,34 +629,10 @@ create_command(
 )
 
 -- IAS button
-
--- Store original commands
-local original_ias_button = nav_bindings.original_ias_button
-
--- Function to handle button press based on mode
 function handle_bravo_ias_button()
-    if current_mode == "AUTO" then
-        command_once(original_ias_button) 
-    elseif current_mode == "PFD" then
-		if current_selection == "COM" then
-			cycle_cf_mode()
-		elseif current_selection == "NAV" then
-			cycle_cf_mode()
-		elseif current_selection == "BARO/CRS" then
-			cycle_cf_mode()
-		elseif current_selection == "FMS" then
-			cycle_cf_mode()
-		end
-    elseif current_mode == "MFD" then
-		if current_selection == "COM" then
-			cycle_cf_mode()
-		elseif current_selection == "NAV" then
-			cycle_cf_mode()
-		elseif current_selection == "BARO/CRS" then
-			cycle_cf_mode()
-		elseif current_selection == "FMS" then
-			cycle_cf_mode()
-		end			
+	local command = button_map_actions[current_mode][current_selection]["IAS"]
+	if  command then
+		command_once(command)
 	end
 end
 
@@ -635,36 +646,10 @@ create_command(
 )
 
 -- VS button
-local com1_PFD_vs_button = nav_bindings.com1_PFD_vs_button
-local com1_MFD_vs_button = nav_bindings.com1_MFD_vs_button
-local nav1_PFD_vs_button = nav_bindings.nav1_PFD_vs_button
-local nav1_MFD_vs_button = nav_bindings.nav1_MFD_vs_button
-local fms_PFD_vs_button = nav_bindings.fms_PFD_vs_button
-local fms_MFD_vs_button = nav_bindings.fms_MFD_vs_button
-
--- Store original commands
-local original_vs_button = nav_bindings.original_vs_button
-
--- Function to handle button press based on mode
 function handle_bravo_vs_button()
-    if current_mode == "AUTO" then
-        command_once(original_vs_button) 
-    elseif current_mode == "PFD" then
-		if current_selection == "COM" then
-			command_once(com1_PFD_vs_button)
-		elseif current_selection == "NAV" then
-			command_once(nav1_PFD_vs_button)
-		elseif current_selection == "FMS" then
-			command_once(fms_PFD_vs_button) 
-		end
-    elseif current_mode == "MFD" then
-		if current_selection == "COM" then
-			command_once(com1_MFD_vs_button)
-		elseif current_selection == "NAV" then
-			command_once(nav1_MFD_vs_button)
-		elseif current_selection == "FMS" then
-			command_once(fms_MFD_vs_button)
-		end			
+	local command = button_map_actions[current_mode][current_selection]["VS"]
+	if  command then
+		command_once(command)
 	end
 end
 
@@ -678,38 +663,10 @@ create_command(
 )
 
 -- ALT button
-local com_PFD_alt_button = nav_bindings.com_PFD_alt_button
-local com_MFD_alt_button = nav_bindings.com_MFD_alt_button
-local nav_PFD_alt_button = nav_bindings.nav_PFD_alt_button
-local nav_MFD_alt_button = nav_bindings.nav_MFD_alt_button
-
-local fms_PFD_alt_button = nav_bindings.fms_PFD_alt_button
-local fms_MFD_alt_button = nav_bindings.fms_MFD_alt_button
-
--- Store original commands
-local original_alt_button = nav_bindings.original_alt_button
-
-
--- Function to handle button press based on mode
 function handle_bravo_alt_button()
-    if current_mode == "AUTO" then
-        command_once(original_alt_button) 
-    elseif current_mode == "PFD" then
-		if current_selection == "COM" then
-			command_once(com_PFD_alt_button) 		
-		elseif current_selection == "NAV" then
-			command_once(nav_PFD_alt_button) 
-		elseif current_selection == "FMS" then
-			command_once(fms_PFD_alt_button) 
-		end
-    elseif current_mode == "MFD" then
-		if current_selection == "COM" then
-			command_once(com_MFD_alt_button) 		
-		elseif current_selection == "NAV" then
-			command_once(nav_MFD_alt_button) 
-		elseif current_selection == "FMS" then
-			command_once(fms_MFD_alt_button)
-		end			
+	local command = button_map_actions[current_mode][current_selection]["ALT"]
+	if  command then
+		command_once(command)
 	end
 end
 
@@ -723,24 +680,10 @@ create_command(
 )
 
 -- REV button
-local fms_PFD_rev_button = nav_bindings.fms_PFD_rev_button
-local fms_MFD_rev_button = nav_bindings.fms_MFD_rev_button
-
--- Store original commands
-local original_rev_button = nav_bindings.original_rev_button
-
--- Function to handle button press based on mode
 function handle_bravo_rev_button()
-    if current_mode == "AUTO" then
-        command_once(original_rev_button) 
-    elseif current_mode == "PFD" then
-		if current_selection == "FMS" then
-			command_once(fms_PFD_rev_button) 
-		end
-    elseif current_mode == "MFD" then
-		if current_selection == "FMS" then
-			command_once(fms_MFD_rev_button)
-		end			
+	local command = button_map_actions[current_mode][current_selection]["REV"]
+	if  command then
+		command_once(command)
 	end
 end
 
@@ -754,24 +697,10 @@ create_command(
 )
 
 -- APR button
-local fms_PFD_apr_button = nav_bindings.fms_PFD_apr_button
-local fms_MFD_apr_button = nav_bindings.fms_MFD_apr_button
-
--- Store original commands
-local original_apr_button = nav_bindings.original_apr_button
-
--- Function to handle button press based on mode
 function handle_bravo_apr_button()
-    if current_mode == "AUTO" then
-        command_once(original_apr_button) 
-    elseif current_mode == "PFD" then
-		if current_selection == "FMS" then
-			command_once(fms_PFD_apr_button) 
-		end
-    elseif current_mode == "MFD" then
-		if current_selection == "FMS" then
-			command_once(fms_MFD_apr_button)
-		end			
+	local command = button_map_actions[current_mode][current_selection]["APR"]
+	if  command then
+		command_once(command)
 	end
 end
 
@@ -785,24 +714,10 @@ create_command(
 )
 
 -- NAV button
-local fms_PFD_nav_button = nav_bindings.fms_PFD_nav_button
-local fms_MFD_nav_button = nav_bindings.fms_MFD_nav_button
-
--- Store original commands
-local original_nav_button = nav_bindings.original_nav_button
-
--- Function to handle button press based on mode
 function handle_bravo_nav_button()
-    if current_mode == "AUTO" then
-        command_once(original_nav_button)
-    elseif current_mode == "PFD" then
-		if current_selection == "FMS" then
-			command_once(fms_PFD_nav_button) 
-		end
-    elseif current_mode == "MFD" then
-		if current_selection == "FMS" then
-			command_once(fms_MFD_nav_button)
-		end			
+	local command = button_map_actions[current_mode][current_selection]["NAV"]
+	if  command then
+		command_once(command)
 	end
 end
 
@@ -816,24 +731,10 @@ create_command(
 )
 
 -- HDG button
-local fms_PFD_hdg_button = nav_bindings.fms_PFD_hdg_button
-local fms_MFD_hdg_button = nav_bindings.fms_MFD_hdg_button
-
--- Store original commands
-local original_hdg_button = nav_bindings.original_hdg_button
-
--- Function to handle button press based on mode
 function handle_bravo_hdg_button()
-    if current_mode == "AUTO" then
-        command_once(original_hdg_button)
-    elseif current_mode == "PFD" then
-		if current_selection == "FMS" then
-			command_once(fms_PFD_hdg_button) 
-		end
-    elseif current_mode == "MFD" then
-		if current_selection == "FMS" then
-			command_once(fms_MFD_hdg_button)
-		end			
+	local cmd = button_map_actions[current_mode][current_selection]["HDG"]
+	if cmd then
+		command_once(cmd)
 	end
 end
 
@@ -842,24 +743,6 @@ create_command(
     "FlyWithLua/custom/hdg_button",
     "Bravo++ toggles hdg button",
     "handle_bravo_hdg_button()", -- Call Lua function when pressed
-    "",
-    ""
-)
-
--- Create a custom command for changing mode
-create_command(
-    "FlyWithLua/custom/mode_button",
-    "Bravo++ toggles mode button",
-    "cycle_mode()", -- Call Lua function when pressed
-    "",
-    ""
-)
-
--- Create a custom command for changing cf mode
-create_command(
-    "FlyWithLua/custom/cf_mode_button",
-    "Bravo++ toggles cf mode button",
-    "cycle_cf_mode()", -- Call Lua function when pressed
     "",
     ""
 )
@@ -879,4 +762,3 @@ if bravo then
 else
 	do_every_draw("refresh_selector_mock()")
 end
-
