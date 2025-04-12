@@ -34,6 +34,7 @@ end
 
 -- Assign datarefs from config (with validation)
 local required_keys = {
+    "MODES","PFD_SELECTOR_LABELS","MFD_SELECTOR_LABELS",
     "PFD_ALT_OUTER_UP","PFD_ALT_OUTER_DOWN","PFD_ALT_INNER_UP","PFD_ALT_INNER_DOWN",
     "MFD_ALT_OUTER_UP","MFD_ALT_OUTER_DOWN","MFD_ALT_INNER_UP","MFD_ALT_INNER_DOWN",
     "AUTO_ALT_UP","AUTO_ALT_DOWN",
@@ -59,65 +60,91 @@ local required_keys = {
     "PFD_IAS_HDG_BUTTON","MFD_IAS_HDG_BUTTON","AUTO_HDG_BUTTON"
     }
 
-for _, key in ipairs(required_keys) do
+--[[for _, key in ipairs(required_keys) do
     if not nav_bindings[key] then
         logMsg("FlyWithLua Error: Missing key in bravo_multi-mode.cfg - " .. key)
         return
     end
 end
+]]
+
+local function create_table(value_string)
+    local value_table = {}
+    local idx = 1
+
+    if value_string == nil then
+        return value_table
+    end
+
+    local gmatch_result = string.gmatch(value_string, "[^,]+")
+    if gmatch_result then
+        for value in gmatch_result do
+            value_table[idx] = value
+            idx = idx + 1
+        end
+    else
+        logMsg("Error: " .. value_string .. "is not a valid comma-separated value. Make sure the values only contain alpha-numeric and non-special characters. If you want a blank value, use one or more spaces.")
+    end
+    return value_table
+end
 
 -- Mode management
-local current_mode = "AUTO"
-local modes = {"AUTO", "PFD", "MFD"} -- Add more modes as needed
-local current_cf_mode = "outer"
+-- local modes = {"AUTO", "PFD", "MFD"} -- Add more modes as needed
+local modes = create_table(nav_bindings.MODES)
+local current_mode = modes[1]
 local outer_inner_modes = {"outer", "inner"}
+local current_cf_mode = outer_inner_modes[1]
 
 -- Bindings for the selector knob
-local current_selection = "ALT"
 local default_selections = {"ALT","VS","HDG","CRS","IAS"}
-local current_selection_label = "ALT"
-local selections1 = default_selections
-local selections2 = {"COM","NAV","BARO/CRS","RNG","FMS"}
-local selections3 = {"COM","NAV","BARO/CRS","RNG","FMS"}
+local current_selection = default_selections[1]
+
+local current_selection_label = default_selections[1]
+
+logMsg("Initializing the selector labels map...")
+local selection_map_labels = {}
+for i = 1, #modes  do
+    if modes[i] ~= "AUTO" then
+        local key = modes[i] .. "_SELECTOR_LABELS"
+        selection_map_labels[modes[i]] = create_table(nav_bindings[key])
+        logMsg("Adding " .. key .. " = " .. nav_bindings[key])
+    else
+        selection_map_labels[modes[i]] = default_selections
+        logMsg("Adding default selector labels.")
+    end
+end
 
 -- The button labels that will be displayed on the console
 local default_button_labels = {"HDG","NAV","APR","REV","ALT","VS","IAS","PLT"}
+local no_button_labels = {"   ","   ","   ","   ","   ","   ","   ","   "}
 local current_buttons = default_button_labels
-local com_button_labels = {"   ","   ","   ","   ","1&2","<->","O/I","   "}
-local nav_button_labels = {"   ","   ","   ","   ","1&2","<->","O/I","   "}
-local baro_crs_button_labels = {"   ","   ","   ","   ","   ","   ","O/I","   "}
-local rng_button_labels = {"   ","   ","   ","   ","   ","   ","   ","   "}
-local fms_button_labels = {"MNU","FPL","PRC","CLR","ENT","PSH","O/I","   "}
 
-local button_map_labels = {
-    AUTO = {ALT = default_button_labels, VS = default_button_labels, HDG = default_button_labels, CRS = default_button_labels, IAS = default_button_labels},
-        PFD = {COM = com_button_labels, NAV = nav_button_labels, ["BARO/CRS"] = baro_crs_button_labels, RNG = rng_button_labels, FMS = fms_button_labels},
-        MFD = {COM = com_button_labels, NAV = nav_button_labels, ["BARO/CRS"] = baro_crs_button_labels, RNG = rng_button_labels, FMS = fms_button_labels}
-}
+logMsg("Initializing the button labels map...")
+local button_map_labels = {}
+for i = 1, #modes  do
+    local select_map = {}
+    for j = 1, #default_selections do
+        select_map[default_selections[j]] = {}
+        if modes[i] ~= "AUTO" then
+            local key = modes[i] .. "_" .. default_selections[j] .. "_BUTTON_LABELS"
+            if nav_bindings[key] ~= nil then
+                select_map[default_selections[j]] = create_table(nav_bindings[key])
+                button_map_labels[modes[i]] = select_map
+                logMsg("Adding " .. key .. " = " .. nav_bindings[key])
+            else
+                select_map[default_selections[j]] = no_button_labels
+                button_map_labels[modes[i]] = select_map
+                logMsg("No binding found for " .. key .. ". Using no labels.")
+            end
+        else
+            select_map[default_selections[j]] = default_button_labels
+            button_map_labels[modes[i]] = select_map
+            logMsg("Adding default button labels.")
+        end
+    end
+end
 
 -- The button actions that will be used depending on mode and selection
-local cf_mode_toggle = "FlyWithLua/custom/cf_mode_button"
-local default_button_actions = {HDG = nav_bindings.AUTO_HDG_BUTTON, NAV = nav_bindings.AUTO_NAV_BUTTON, APR = nav_bindings.AUTO_APR_BUTTON, REV = nav_bindings.AUTO_REV_BUTTON, 
-                                ALT = nav_bindings.AUTO_ALT_BUTTON, VS = nav_bindings.AUTO_VS_BUTTON, IAS = nav_bindings.AUTO_IAS_BUTTON, PLT = nav_bindings.AUTO_PLT_BUTTON}
-local com_PFD_button_actions = {HDG = nil, NAV = nil, APR = nil, REV = nil, ALT = nav_bindings.PFD_ALT_ALT_BUTTON, VS = nav_bindings.PFD_ALT_VS_BUTTON, IAS = nav_bindings.PFD_ALT_IAS_BUTTON, PLT = nil}
-local baro_crs_PFD_button_actions = {HDG = nil, NAV = nil, APR = nil, REV = nil, ALT = nil, VS = nil, IAS = nav_bindings.PFD_HDG_IAS_BUTTON, PLT = nil}
-local rng_PFD_button_actions = {HDG = nil, NAV = nil, APR = nil, REV = nil, ALT = nil, VS = nil, IAS = nil, PLT = nil}
-local fms_PFD_button_actions = {HDG = nav_bindings.PFD_IAS_HDG_BUTTON, NAV = nav_bindings.PFD_IAS_NAV_BUTTON, APR = nav_bindings.PFD_IAS_APR_BUTTON, REV = nav_bindings.PFD_IAS_REV_BUTTON, 
-                                ALT = nav_bindings.PFD_IAS_ALT_BUTTON, VS = nav_bindings.PFD_IAS_VS_BUTTON, IAS = nav_bindings.PFD_IAS_IAS_BUTTON, PLT = nav_bindings.PFD_PLT_BUTTON}
-
-local com_MFD_button_actions = {HDG = nil, NAV = nil, APR = nil, REV = nil, ALT = nav_bindings.MFD_ALT_ALT_BUTTON, VS = nav_bindings.MFD_ALT_VS_BUTTON, IAS = nav_bindings.MFD_ALT_IAS_BUTTON, PLT = nil}
-local baro_crs_MFD_button_actions = {HDG = nil, NAV = nil, APR = nil, REV = nil, ALT = nil, VS = nil, IAS = nav_bindings.MFD_HDG_IAS_BUTTON, PLT = nil}
-local rng_MFD_button_actions = {HDG = nil, NAV = nil, APR = nil, REV = nil, ALT = nil, VS = nil, IAS = nil, PLT = nil}
-local fms_MFD_button_actions = {HDG = nav_bindings.MFD_IAS_HDG_BUTTON, NAV = nav_bindings.MFD_IAS_NAV_BUTTON, APR = nav_bindings.MFD_IAS_APR_BUTTON, REV = nav_bindings.MFD_IAS_REV_BUTTON, 
-                                ALT = nav_bindings.MFD_IAS_ALT_BUTTON, VS = nav_bindings.MFD_IAS_VS_BUTTON, IAS = nav_bindings.MFD_IAS_IAS_BUTTON, PLT = nav_bindings.MFD_PLT_BUTTON}
-
-local button_map_actions = {
-    AUTO = {ALT = default_button_actions, VS = default_button_actions, HDG = default_button_actions, CRS = default_button_actions, IAS = default_button_actions},
-        PFD = {COM = com_PFD_button_actions, NAV = com_PFD_button_actions, ["BARO/CRS"] = baro_crs_PFD_button_actions, RNG = rng_PFD_button_actions, FMS = fms_PFD_button_actions},
-        MFD = {COM = com_MFD_button_actions, NAV = com_MFD_button_actions, ["BARO/CRS"] = baro_crs_MFD_button_actions, RNG = rng_MFD_button_actions, FMS = fms_MFD_button_actions},
-}
-
-
 logMsg("Initializing the button action map...")
 local button_map_actions = {}
 for i = 1, #modes  do
@@ -142,17 +169,8 @@ for i = 1, #modes  do
     end
 end
 
-logMsg("Button action: " .. button_map_actions["AUTO"]["ALT"])
-logMsg("Button action: " .. button_map_actions["PFD"]["ALT"]["ALT"])
-logMsg("Button action: " .. button_map_actions["AUTO"]["PLT"])
-logMsg("Button action: " .. button_map_actions["PFD"]["ALT"]["IAS"])
-
-if not button_map_actions["PFD"]["IAS"] then 
-    logMsg("PFD -> IAS is nil")
-end
-
+-- The actions that will be triggered when twisting the right knob depedning on mode and selection
 logMsg("Initializing the twist knob action map...")
--- The actions that will br triggered when twisting the right knob depedning on mode and selection
 local up_down = {"UP","DOWN"}
 local outer_inner = {"OUTER","INNER"}
 local twist_knob_map_actions = {}
@@ -188,7 +206,8 @@ for i = 1, #modes  do
 end
 
 -- imgui only works inside a floating window, so we need to create one first:
-my_floating_wnd = float_wnd_create(380, 120, 1, false)
+local height = 30 + 30*#modes
+my_floating_wnd = float_wnd_create(380, height, 1, false)
 float_wnd_set_title(my_floating_wnd, "Bravo multi-mode")
 -- float_wnd_set_position(my_floating_wnd, SCREEN_WIDTH * 2/3 + 50, SCREEN_HEIGHT * 1/6)
 float_wnd_set_position(my_floating_wnd, SCREEN_WIDTH *0.25, SCREEN_HEIGHT*0.25)
@@ -201,14 +220,14 @@ function on_draw_floating_window(my_floating_wnd, x3, y3)
 	local v_spacing = -30
 	local h_spacing = 50
 	local offset_selection = 10
-	local v_offset = y3 + 120
+	local v_offset = y3 + height
 		
 	for i = 1, #modes  do	
 		if current_mode == modes[i] then
 			glColor3f(0, 1, 0) -- Green for default
 			offset_selection = offset_mode
 		else
-			glColor3f(0.2, 0.2, 0.2) -- Black semitransparent
+			glColor3f(0.2, 0.2, 0.2) -- Grey
 		end	   
 		draw_string_Helvetica_18(x3, v_offset + offset_mode, modes[i])
         offset_mode = offset_mode + v_spacing	
@@ -216,6 +235,21 @@ function on_draw_floating_window(my_floating_wnd, x3, y3)
 	
     glColor3f(1, 1, 1) -- Black semitransparent
     draw_string_Helvetica_18(x3 + 80, v_offset + offset_selection, current_selection_label)
+
+    -- offset_mode = offset_mode + v_spacing	
+	local h_offset = 0
+	for i = 1, #current_buttons do
+        if i ~= #current_buttons then
+            glColor3f(1, 1, 0) -- Yellow
+    		draw_string_Helvetica_18(x3 + h_offset, v_offset + offset_mode, current_buttons[i])
+        else
+            glColor3f(1, 1, 0) -- Yellow
+            -- graphics.draw_rectangle(x3 + h_offset, v_offset + offset_mode - v_spacing, x3 + h_offset + h_spacing, v_offset + offset_mode - 2*v_spacing)
+            -- glColor3f(0, 0, 0) -- Black
+    		draw_string_Times_Roman_24(x3 + h_offset, v_offset + offset_mode - v_spacing, current_buttons[i])
+        end
+		h_offset = h_offset + h_spacing 
+	end
 
     local offset_mode = -20
 
@@ -230,13 +264,6 @@ function on_draw_floating_window(my_floating_wnd, x3, y3)
         offset_mode = offset_mode + v_spacing	
 	end
 	
-    offset_mode = offset_mode + v_spacing	
-	local h_offset = 0
-	for i = 1, #current_buttons do
-		glColor3f(1, 1, 0) -- Yellow
-		draw_string_Helvetica_18(x3 + h_offset, v_offset + offset_mode, current_buttons[i])
-		h_offset = h_offset + h_spacing 
-	end
 end
 
 function on_close_floating_window(demo_floating_wnd)
@@ -278,11 +305,12 @@ end
 
 -- Define button numbers for each selector position
 local alt_selector_button = nav_bindings.ALT_SELECTOR and nav_bindings.ALT_SELECTOR + 0 or 0
-logMsg("ALT_SELECTOR was set to " .. alt_selector_button)
-local selector_buttons = {}-- Replace with actual button numbers
+local selector_buttons = {}
 if alt_selector_button and alt_selector_button > 0 then
-    for i = 1, 6, 1 do
+    logMsg("ALT_SELECTOR was set to " .. alt_selector_button)
+    for i = 1, 5, 1 do
         selector_buttons[i] = alt_selector_button - i + 1
+        logMsg("Selector " .. default_selections[i] .. " set to button " .. selector_buttons[i])
     end
 end
 
@@ -294,16 +322,6 @@ function refresh_selector()
             break
         end
     end
-end
-
-function find_assigned_buttons()
-    local active_buttons = {}
-    for btn = 1, 1024 do
-        if button(btn) then
-            table.insert(active_buttons, btn)
-        end
-    end
-    return active_buttons
 end
 
 local index = 1
@@ -373,33 +391,28 @@ create_command(
 
 function set_current_selector(idx)
     index = idx
-    if current_mode == "AUTO" then
-		current_selection_label	= selections1[index]
-        current_selection = default_selections[index]
-	elseif current_mode == "PFD" then
-		current_selection_label	= selections2[index]
-        current_selection = default_selections[index]
-    elseif current_mode == "MFD" then
-		current_selection_label	= selections3[index]
-        current_selection = default_selections[index]
-	end
+    current_selection_label = selection_map_labels[current_mode][index]
+    current_selection = default_selections[index]
 end
 
 function set_current_buttons()
-	if button_map_labels[current_mode][current_selection_label] then
-		current_buttons = button_map_labels[current_mode][current_selection_label]
+	if button_map_labels[current_mode][current_selection] then
+		current_buttons = button_map_labels[current_mode][current_selection]
 	end
 end
 
 -- Update the currently available buttons
 do_every_draw("set_current_buttons()")
 
+-----------------------------------------------------
+--- HANDLE TWIST-KNOB THAT INCREASES/DECREASES VALUES
+-----------------------------------------------------
 local last_click_time = 0
 local debounce_delay = 0.05 -- 50ms
 
 function handle_bravo_knob_increase()
     local current_time = os.clock()
-    local current_twist_knob_action = twist_knob_map_actions[current_mode][selections1[index]]
+    local current_twist_knob_action = twist_knob_map_actions[current_mode][current_selection]
     if current_time - last_click_time > debounce_delay then
         if current_twist_knob_action["UP"] then
             command_once(current_twist_knob_action["UP"])
@@ -425,7 +438,7 @@ create_command(
 )
 
 function handle_bravo_knob_decrease()
-    local current_twist_knob_action = twist_knob_map_actions[current_mode][selections1[index]]
+    local current_twist_knob_action = twist_knob_map_actions[current_mode][current_selection]
     if current_twist_knob_action["DOWN"] then
         command_once(current_twist_knob_action["DOWN"])
     elseif current_cf_mode == "outer" and current_twist_knob_action["OUTER"] then
@@ -437,6 +450,8 @@ function handle_bravo_knob_decrease()
     end
 end
 
+
+
 create_command(
     "FlyWithLua/custom/knob_decrease_handler",
     "Handle button on bravo that decrements values",
@@ -445,15 +460,16 @@ create_command(
     ""
 )
 
+--------------------------------------
+---- BUTTON HANDLING
+--------------------------------------
 function handle_bravo_button(button_name)
-    logMsg("[" .. current_mode .. "][" .. current_selection .. "][" .. button_name .. "]")
+    -- logMsg("[" .. current_mode .. "][" .. current_selection .. "][" .. button_name .. "]")
     if button_map_actions[current_mode][current_selection][button_name] then
         local command = button_map_actions[current_mode][current_selection][button_name]
-        logMsg("Command: " .. command)
         command_once(command)
     elseif  button_map_actions[current_mode][button_name] then
         local command = button_map_actions[current_mode][button_name]
-        logMsg("Command: " .. command)
         command_once(command)
     else
         logMsg("Do nothing!")
