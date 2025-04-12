@@ -49,15 +49,14 @@ local required_keys = {
     "PFD_IAS_OUTER_UP","PFD_IAS_INNER_UP","PFD_IAS_OUTER_DOWN","PFD_IAS_INNER_DOWN",
     "MFD_IAS_OUTER_UP","MFD_IAS_INNER_UP","MFD_IAS_OUTER_DOWN","MFD_IAS_INNER_DOWN",
     "AUTO_IAS_DOWN","AUTO_IAS_DOWN",
-    "PFD_AUTOPILOT_BUTTON","MFD_AUTOPILOT_BUTTON","AUTO_AUTOPILOT_BUTTON",
-    "original_ias_button",
-    "com_PFD_ias_button","com_MFD_ias_button","nav_PFD_ias_button","nav_MFD_ias_button","baro_crs_PFD_ias_button","baro_crs_MFD_ias_button","fms_PFD_ias_button","fms_MFD_ias_button","original_ias_button",
-    "com_PFD_vs_button","com_MFD_vs_button","nav_PFD_vs_button","nav_MFD_vs_button","fms_PFD_vs_button","fms_MFD_vs_button","original_vs_button",
-    "com_PFD_alt_button","com_MFD_alt_button","nav_PFD_alt_button","nav_MFD_alt_button","fms_PFD_alt_button","fms_MFD_alt_button","original_alt_button",
-    "fms_PFD_rev_button","fms_MFD_rev_button","original_rev_button",
-    "fms_PFD_apr_button","fms_MFD_apr_button","original_apr_button",
-    "fms_PFD_nav_button","fms_MFD_nav_button","original_nav_button",
-    "fms_PFD_hdg_button","fms_MFD_hdg_button","original_hdg_button"
+    "PFD_PLT_BUTTON","MFD_PLT_BUTTON","AUTO_PLT_BUTTON",
+    "PFD_ALT_IAS_BUTTON","MFD_ALT_IAS_BUTTON","PFD_VS_IAS_BUTTON","MFD_VS_IAS_BUTTON","PFD_HDG_IAS_BUTTON","MFD_HDG_IAS_BUTTON","PFD_IAS_IAS_BUTTON","MFD_IAS_IAS_BUTTON","AUTO_IAS_BUTTON",
+    "PFD_ALT_VS_BUTTON","MFD_ALT_VS_BUTTON","PFD_VS_VS_BUTTON","MFD_VS_VS_BUTTON","PFD_IAS_VS_BUTTON","MFD_IAS_VS_BUTTON","AUTO_VS_BUTTON",
+    "PFD_ALT_ALT_BUTTON","MFD_ALT_ALT_BUTTON","PFD_VS_ALT_BUTTON","MFD_VS_ALT_BUTTON","PFD_IAS_ALT_BUTTON","MFD_IAS_ALT_BUTTON","AUTO_ALT_BUTTON",
+    "PFD_IAS_REV_BUTTON","MFD_IAS_REV_BUTTON","AUTO_REV_BUTTON",
+    "PFD_IAS_APR_BUTTON","MFD_IAS_APR_BUTTON","AUTO_APR_BUTTON",
+    "PFD_IAS_NAV_BUTTON","MFD_IAS_NAV_BUTTON","AUTO_NAV_BUTTON",
+    "PFD_IAS_HDG_BUTTON","MFD_IAS_HDG_BUTTON","AUTO_HDG_BUTTON"
     }
 
 for _, key in ipairs(required_keys) do
@@ -73,21 +72,22 @@ local modes = {"AUTO", "PFD", "MFD"} -- Add more modes as needed
 local current_cf_mode = "outer"
 local outer_inner_modes = {"outer", "inner"}
 
-local default_button_labels = {"HDG","NAV","APR","REV","ALT","VS","IAS"}
-local current_buttons = default_button_labels
-
 -- Bindings for the selector knob
 local current_selection = "ALT"
-local selections1 = {"ALT","VS","HDG","CRS","IAS"}
+local default_selections = {"ALT","VS","HDG","CRS","IAS"}
+local current_selection_label = "ALT"
+local selections1 = default_selections
 local selections2 = {"COM","NAV","BARO/CRS","RNG","FMS"}
 local selections3 = {"COM","NAV","BARO/CRS","RNG","FMS"}
 
 -- The button labels that will be displayed on the console
-local com_button_labels = {"   ","   ","   ","   ","1&2","<->","O/I"}
-local nav_button_labels = {"   ","   ","   ","   ","1&2","<->","O/I"}
-local baro_crs_button_labels = {"   ","   ","   ","   ","   ","   ","O/I"}
-local rng_button_labels = {"   ","   ","   ","   ","   ","   ","   "}
-local fms_button_labels = {"MNU","FPL","PRC","CLR","ENT","PSH","O/I"}
+local default_button_labels = {"HDG","NAV","APR","REV","ALT","VS","IAS","PLT"}
+local current_buttons = default_button_labels
+local com_button_labels = {"   ","   ","   ","   ","1&2","<->","O/I","   "}
+local nav_button_labels = {"   ","   ","   ","   ","1&2","<->","O/I","   "}
+local baro_crs_button_labels = {"   ","   ","   ","   ","   ","   ","O/I","   "}
+local rng_button_labels = {"   ","   ","   ","   ","   ","   ","   ","   "}
+local fms_button_labels = {"MNU","FPL","PRC","CLR","ENT","PSH","O/I","   "}
 
 local button_map_labels = {
     AUTO = {ALT = default_button_labels, VS = default_button_labels, HDG = default_button_labels, CRS = default_button_labels, IAS = default_button_labels},
@@ -97,46 +97,80 @@ local button_map_labels = {
 
 -- The button actions that will be used depending on mode and selection
 local cf_mode_toggle = "FlyWithLua/custom/cf_mode_button"
-local default_button_actions = {HDG = nav_bindings.original_hdg_button, NAV = nav_bindings.original_nav_button, APR = nav_bindings.original_apr_button, REV = nav_bindings.original_rev_button, 
-                                ALT = nav_bindings.original_alt_button, VS = nav_bindings.original_vs_button, IAS = nav_bindings.original_ias_button, PLT = nav_bindings.original_autopilot_button}
-local com_PFD_button_actions = {HDG = nil, NAV = nil, APR = nil, REV = nil, ALT = nav_bindings.com_PFD_alt_button, VS = nav_bindings.com_PFD_vs_button, IAS = nav_bindings.com_PFD_ias_button, PLT = nil}
-local baro_crs_PFD_button_actions = {HDG = nil, NAV = nil, APR = nil, REV = nil, ALT = nil, VS = nil, IAS = nav_bindings.baro_crs_PFD_ias_button, PLT = nil}
+local default_button_actions = {HDG = nav_bindings.AUTO_HDG_BUTTON, NAV = nav_bindings.AUTO_NAV_BUTTON, APR = nav_bindings.AUTO_APR_BUTTON, REV = nav_bindings.AUTO_REV_BUTTON, 
+                                ALT = nav_bindings.AUTO_ALT_BUTTON, VS = nav_bindings.AUTO_VS_BUTTON, IAS = nav_bindings.AUTO_IAS_BUTTON, PLT = nav_bindings.AUTO_PLT_BUTTON}
+local com_PFD_button_actions = {HDG = nil, NAV = nil, APR = nil, REV = nil, ALT = nav_bindings.PFD_ALT_ALT_BUTTON, VS = nav_bindings.PFD_ALT_VS_BUTTON, IAS = nav_bindings.PFD_ALT_IAS_BUTTON, PLT = nil}
+local baro_crs_PFD_button_actions = {HDG = nil, NAV = nil, APR = nil, REV = nil, ALT = nil, VS = nil, IAS = nav_bindings.PFD_HDG_IAS_BUTTON, PLT = nil}
 local rng_PFD_button_actions = {HDG = nil, NAV = nil, APR = nil, REV = nil, ALT = nil, VS = nil, IAS = nil, PLT = nil}
-local fms_PFD_button_actions = {HDG = nav_bindings.fms_PFD_hdg_button, NAV = nav_bindings.fms_PFD_nav_button, APR = nav_bindings.fms_PFD_apr_button, REV = nav_bindings.fms_PFD_rev_button, 
-                                ALT = nav_bindings.fms_PFD_alt_button, VS = nav_bindings.fms_PFD_vs_button, IAS = nav_bindings.fms_PFD_ias_button, PLT = nav_bindings.PFD_AUTOPILOT_BUTTON}
+local fms_PFD_button_actions = {HDG = nav_bindings.PFD_IAS_HDG_BUTTON, NAV = nav_bindings.PFD_IAS_NAV_BUTTON, APR = nav_bindings.PFD_IAS_APR_BUTTON, REV = nav_bindings.PFD_IAS_REV_BUTTON, 
+                                ALT = nav_bindings.PFD_IAS_ALT_BUTTON, VS = nav_bindings.PFD_IAS_VS_BUTTON, IAS = nav_bindings.PFD_IAS_IAS_BUTTON, PLT = nav_bindings.PFD_PLT_BUTTON}
 
-local com_MFD_button_actions = {HDG = nil, NAV = nil, APR = nil, REV = nil, ALT = nav_bindings.com_MFD_alt_button, VS = nav_bindings.com1_MFD_vs_button, IAS = nav_bindings.com_MFD_ias_button, PLT = nil}
-local baro_crs_MFD_button_actions = {HDG = nil, NAV = nil, APR = nil, REV = nil, ALT = nil, VS = nil, IAS = nav_bindings.baro_crs_MFD_ias_button, PLT = nil}
+local com_MFD_button_actions = {HDG = nil, NAV = nil, APR = nil, REV = nil, ALT = nav_bindings.MFD_ALT_ALT_BUTTON, VS = nav_bindings.MFD_ALT_VS_BUTTON, IAS = nav_bindings.MFD_ALT_IAS_BUTTON, PLT = nil}
+local baro_crs_MFD_button_actions = {HDG = nil, NAV = nil, APR = nil, REV = nil, ALT = nil, VS = nil, IAS = nav_bindings.MFD_HDG_IAS_BUTTON, PLT = nil}
 local rng_MFD_button_actions = {HDG = nil, NAV = nil, APR = nil, REV = nil, ALT = nil, VS = nil, IAS = nil, PLT = nil}
-local fms_MFD_button_actions = {HDG = nav_bindings.fms_MFD_hdg_button, NAV = nav_bindings.fms_MFD_nav_button, APR = nav_bindings.fms_MFD_apr_button, REV = nav_bindings.fms_MFD_rev_button, 
-                                ALT = nav_bindings.fms_MFD_alt_button, VS = nav_bindings.fms_MFD_vs_button, IAS = nav_bindings.fms_MFD_ias_button, PLT = nav_bindings.MFD_AUTOPILOT_BUTTON}
+local fms_MFD_button_actions = {HDG = nav_bindings.MFD_IAS_HDG_BUTTON, NAV = nav_bindings.MFD_IAS_NAV_BUTTON, APR = nav_bindings.MFD_IAS_APR_BUTTON, REV = nav_bindings.MFD_IAS_REV_BUTTON, 
+                                ALT = nav_bindings.MFD_IAS_ALT_BUTTON, VS = nav_bindings.MFD_IAS_VS_BUTTON, IAS = nav_bindings.MFD_IAS_IAS_BUTTON, PLT = nav_bindings.MFD_PLT_BUTTON}
 
 local button_map_actions = {
     AUTO = {ALT = default_button_actions, VS = default_button_actions, HDG = default_button_actions, CRS = default_button_actions, IAS = default_button_actions},
         PFD = {COM = com_PFD_button_actions, NAV = com_PFD_button_actions, ["BARO/CRS"] = baro_crs_PFD_button_actions, RNG = rng_PFD_button_actions, FMS = fms_PFD_button_actions},
         MFD = {COM = com_MFD_button_actions, NAV = com_MFD_button_actions, ["BARO/CRS"] = baro_crs_MFD_button_actions, RNG = rng_MFD_button_actions, FMS = fms_MFD_button_actions},
 }
-    
--- The actions that will br triggred when twisting the right knob depedning on mode and selection
---local auto_alt_twist = {nav_bindings.original_altitude_up, nav_bindings.original_altitude_down}
+
+
+logMsg("Initializing the button action map...")
+local button_map_actions = {}
+for i = 1, #modes  do
+    button_map_actions[modes[i]] = {}
+    local select_map = {}
+    for j = 1, #default_selections do
+        select_map[default_selections[j]] = {}
+        for k = 1, #default_button_labels do
+            local full_key = modes[i] .. "_" .. default_button_labels[k] .. "_BUTTON"
+            if default_selections[j] == "ALT" and nav_bindings[full_key] then
+                button_map_actions[modes[i]][default_button_labels[k]] = nav_bindings[full_key]
+                logMsg("Adding " .. full_key .. " = " .. nav_bindings[full_key])
+            end
+            local key = modes[i] .. "_" .. default_selections[j]
+            full_key = key .. "_" .. default_button_labels[k] .. "_BUTTON"
+            if nav_bindings[full_key] then
+                select_map[default_selections[j]][default_button_labels[k]] = nav_bindings[full_key]
+                button_map_actions[modes[i]] = select_map
+                logMsg("Adding " .. full_key .. " = " .. nav_bindings[full_key])
+            end
+        end
+    end
+end
+
+logMsg("Button action: " .. button_map_actions["AUTO"]["ALT"])
+logMsg("Button action: " .. button_map_actions["PFD"]["ALT"]["ALT"])
+logMsg("Button action: " .. button_map_actions["AUTO"]["PLT"])
+logMsg("Button action: " .. button_map_actions["PFD"]["ALT"]["IAS"])
+
+if not button_map_actions["PFD"]["IAS"] then 
+    logMsg("PFD -> IAS is nil")
+end
+
+logMsg("Initializing the twist knob action map...")
+-- The actions that will br triggered when twisting the right knob depedning on mode and selection
 local up_down = {"UP","DOWN"}
 local outer_inner = {"OUTER","INNER"}
 local twist_knob_map_actions = {}
 for i = 1, #modes  do
     twist_knob_map_actions[modes[i]] = {}
     local select_map = {}
-    for j = 1, #selections1 do
-        select_map[selections1[j]] = {}
+    for j = 1, #default_selections do
+        select_map[default_selections[j]] = {}
         local outer_map = {}
         for l = 1, #outer_inner do
             local oi = outer_inner[l]
             outer_map[oi] = {}
             for k = 1, #up_down do
-                local key = modes[i] .. "_" .. selections1[j]
+                local key = modes[i] .. "_" .. default_selections[j]
                 if outer_inner[l] == "INNER" and nav_bindings[key .. "_" .. up_down[k]] then
                     local dir = up_down[k]
                     local full_key = key .. "_" .. dir
-                    select_map[selections1[j]][dir] = nav_bindings[full_key]
+                    select_map[default_selections[j]][dir] = nav_bindings[full_key]
                     twist_knob_map_actions[modes[i]] = select_map
                     logMsg("Adding " .. full_key .. " = " .. nav_bindings[full_key])
                 end
@@ -144,7 +178,7 @@ for i = 1, #modes  do
                     local dir = up_down[k]
                     local full_key = key .. "_" .. oi .. "_" .. dir
                     outer_map[oi][dir] = nav_bindings[full_key]
-                    select_map[selections1[j]] = outer_map
+                    select_map[default_selections[j]] = outer_map
                     twist_knob_map_actions[modes[i]] = select_map
                     logMsg("Adding " .. full_key .. " = " .. nav_bindings[full_key] .. " to " .. oi)
                 end
@@ -154,7 +188,7 @@ for i = 1, #modes  do
 end
 
 -- imgui only works inside a floating window, so we need to create one first:
-my_floating_wnd = float_wnd_create(330, 120, 1, false)
+my_floating_wnd = float_wnd_create(380, 120, 1, false)
 float_wnd_set_title(my_floating_wnd, "Bravo multi-mode")
 -- float_wnd_set_position(my_floating_wnd, SCREEN_WIDTH * 2/3 + 50, SCREEN_HEIGHT * 1/6)
 float_wnd_set_position(my_floating_wnd, SCREEN_WIDTH *0.25, SCREEN_HEIGHT*0.25)
@@ -181,7 +215,7 @@ function on_draw_floating_window(my_floating_wnd, x3, y3)
 	end
 	
     glColor3f(1, 1, 1) -- Black semitransparent
-    draw_string_Helvetica_18(x3 + 80, v_offset + offset_selection, current_selection)
+    draw_string_Helvetica_18(x3 + 80, v_offset + offset_selection, current_selection_label)
 
     local offset_mode = -20
 
@@ -340,17 +374,20 @@ create_command(
 function set_current_selector(idx)
     index = idx
     if current_mode == "AUTO" then
-		current_selection	= selections1[index]
+		current_selection_label	= selections1[index]
+        current_selection = default_selections[index]
 	elseif current_mode == "PFD" then
-		current_selection	= selections2[index]
+		current_selection_label	= selections2[index]
+        current_selection = default_selections[index]
     elseif current_mode == "MFD" then
-		current_selection	= selections3[index]
+		current_selection_label	= selections3[index]
+        current_selection = default_selections[index]
 	end
 end
 
 function set_current_buttons()
-	if button_map_labels[current_mode][current_selection] then
-		current_buttons = button_map_labels[current_mode][current_selection]
+	if button_map_labels[current_mode][current_selection_label] then
+		current_buttons = button_map_labels[current_mode][current_selection_label]
 	end
 end
 
@@ -408,12 +445,24 @@ create_command(
     ""
 )
 
+function handle_bravo_button(button_name)
+    logMsg("[" .. current_mode .. "][" .. current_selection .. "][" .. button_name .. "]")
+    if button_map_actions[current_mode][current_selection][button_name] then
+        local command = button_map_actions[current_mode][current_selection][button_name]
+        logMsg("Command: " .. command)
+        command_once(command)
+    elseif  button_map_actions[current_mode][button_name] then
+        local command = button_map_actions[current_mode][button_name]
+        logMsg("Command: " .. command)
+        command_once(command)
+    else
+        logMsg("Do nothing!")
+    end
+end
+
 -- Autopilot button
-function handle_bravo_ias_button()
-	local command = button_map_actions[current_mode][current_selection]["PLT"]
-	if  command then
-		command_once(command)
-	end
+function handle_bravo_autopilot_button()
+    handle_bravo_button("PLT")
 end
 
 -- Create a custom command for bravo knob increase
@@ -427,10 +476,7 @@ create_command(
 
 -- IAS button
 function handle_bravo_ias_button()
-	local command = button_map_actions[current_mode][current_selection]["IAS"]
-	if  command then
-		command_once(command)
-	end
+    handle_bravo_button("IAS")
 end
 
 -- Create a custom command for bravo knob increase
@@ -444,10 +490,7 @@ create_command(
 
 -- VS button
 function handle_bravo_vs_button()
-	local command = button_map_actions[current_mode][current_selection]["VS"]
-	if  command then
-		command_once(command)
-	end
+    handle_bravo_button("VS")
 end
 
 -- Create a custom command for bravo knob increase
@@ -461,10 +504,7 @@ create_command(
 
 -- ALT button
 function handle_bravo_alt_button()
-	local command = button_map_actions[current_mode][current_selection]["ALT"]
-	if  command then
-		command_once(command)
-	end
+    handle_bravo_button("ALT")
 end
 
 -- Create a custom command for bravo knob increase
@@ -478,10 +518,7 @@ create_command(
 
 -- REV button
 function handle_bravo_rev_button()
-	local command = button_map_actions[current_mode][current_selection]["REV"]
-	if  command then
-		command_once(command)
-	end
+    handle_bravo_button("REV")
 end
 
 -- Create a custom command for bravo knob increase
@@ -495,10 +532,7 @@ create_command(
 
 -- APR button
 function handle_bravo_apr_button()
-	local command = button_map_actions[current_mode][current_selection]["APR"]
-	if  command then
-		command_once(command)
-	end
+    handle_bravo_button("APR")
 end
 
 -- Create a custom command for bravo knob increase
@@ -512,10 +546,7 @@ create_command(
 
 -- NAV button
 function handle_bravo_nav_button()
-	local command = button_map_actions[current_mode][current_selection]["NAV"]
-	if  command then
-		command_once(command)
-	end
+    handle_bravo_button("NAV")
 end
 
 -- Create a custom command for bravo knob increase
@@ -529,10 +560,7 @@ create_command(
 
 -- HDG button
 function handle_bravo_hdg_button()
-	local cmd = button_map_actions[current_mode][current_selection]["HDG"]
-	if cmd then
-		command_once(cmd)
-	end
+    handle_bravo_button("HDG")
 end
 
 -- Create a custom command for bravo knob increase
