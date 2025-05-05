@@ -7,30 +7,50 @@ if not SUPPORTS_FLOATING_WINDOWS then
     return
 end
 
--- Get aircraft directory from X-Plane's AIRCRAFT_FILENAME
+local function read_config_file(nav_cfg_path, nav_bindings)
+    local cfg_file = io.open(nav_cfg_path, "r")
+    if cfg_file then
+        for line in cfg_file:lines() do
+            -- Skip comments/empty lines and parse key=value
+            if not line:match("^%s*#") and line:match("=") then
+                local key, value = line:match("%s*([%w_]+)%s*=%s*(.+)%s*")
+                if key and value then
+                    nav_bindings[key] = value:gsub("^\"(.*)\"$", "%1") -- Remove quotes if present
+                end
+            end
+        end
+        cfg_file:close()
+        return true
+    else
+        return false
+    end
+end
+
+-- Get aircraft directory from X-Plane's AIRCRAFT_PATH and AIRCRAFT_FILENAME if there are more than one .acf file
 local aircraft_dir = string.match(AIRCRAFT_PATH, "(.*[/\\])")
-local nav_cfg_path = aircraft_dir .. "bravo_multi-mode.cfg"
+local aircraft_name = string.sub(AIRCRAFT_FILENAME, 1, string.len(AIRCRAFT_FILENAME) - 4)
 
 -- Table to hold dataref assignments
 local nav_bindings = {}
-
+local nav_cfg_file_full_path = aircraft_dir .. "bravo_multi-mode.cfg" 
 -- Check if config file exists
-local cfg_file = io.open(nav_cfg_path, "r")
-if cfg_file then
-    for line in cfg_file:lines() do
-        -- Skip comments/empty lines and parse key=value
-        if not line:match("^%s*#") and line:match("=") then
-            local key, value = line:match("%s*([%w_]+)%s*=%s*(.+)%s*")
-            if key and value then
-                nav_bindings[key] = value:gsub("^\"(.*)\"$", "%1") -- Remove quotes if present
-            end
-        end
-    end
-    cfg_file:close()
+local file_ok =  read_config_file(nav_cfg_file_full_path, nav_bindings)
+
+if file_ok then 
+    logMsg("Successfully parsed config file")
 else
-    logMsg("FlyWithLua Error: bravo_multi-mode.cfg not found in " .. aircraft_dir)
-    return -- Stop script if config is missing
+    local nav_cfg_file_name = "bravo_multi-mode." .. aircraft_name .. ".cfg"
+    local nav_cfg_file_full_path = aircraft_dir .. nav_cfg_file_name
+    logMsg("nav_cfg_file: " .. nav_cfg_file_full_path)
+    file_ok = read_config_file(nav_cfg_file_full_path, nav_bindings)
+    if file_ok then
+        logMsg("Successfully parsed config file specific for " .. aircraft_name)        
+    else
+        logMsg("No config file found in  " .. aircraft_dir .. " with name bravo_multi-mode.cfg or " .. nav_cfg_file_name .. ". Bravo script will be stopped.")
+        return -- Stop script if config is missing
+    end
 end
+
 
 -- Assign datarefs from config (with validation)
 local required_keys = {
@@ -250,7 +270,11 @@ for i = 1, #modes do
     end
 end
 
+-----------------------------------------------------
+--- CREATE THE GUI PANEL
+-----------------------------------------------------
 -- imgui only works inside a floating window, so we need to create one first:
+
 local height = 30 + 30 * #modes
 my_floating_wnd = float_wnd_create(400, height, 1, false)
 float_wnd_set_title(my_floating_wnd, "Bravo multi-mode")
@@ -289,12 +313,12 @@ function on_draw_floating_window(my_floating_wnd, x3, y3)
             if button_map_leds_state[current_mode][default_button_labels[i]] == true then
                 glColor3f(1, 1, 1)       -- White
             else
-                glColor3f(0.6, 0.6, 0.6) -- Yellow
+				glColor3f(0.2, 0.2, 0.2) -- Balck semitransparent
             end
         elseif is_table(button_map_leds_state[current_mode][current_selection]) and button_map_leds_state[current_mode][current_selection][default_button_labels[i]] == true then
             glColor3f(1, 1, 1)       -- White
         else
-            glColor3f(0.6, 0.6, 0.6) -- Yellow
+            glColor3f(0.2, 0.2, 0.2) -- Balck semitransparent
         end
         if i ~= #current_buttons then
             draw_string_Helvetica_18(x3 + h_offset, v_offset + offset_mode, current_buttons[i])
@@ -326,6 +350,9 @@ function on_close_floating_window(my_floating_wnd)
     end
 end
 
+--------------------------------------------------------------
+--- CREATE THE FUNCTIONS FOR REFRESHING THE MODE AND SELECTOR
+--------------------------------------------------------------
 -- Determine the position of the selector knob
 local bravo = hid_open(0x294B, 0x1901) -- Honeycomb Bravo VID/PID
 
@@ -468,7 +495,7 @@ do_every_draw("set_current_buttons()")
 --- HANDLE TWIST-KNOB THAT INCREASES/DECREASES VALUES
 -----------------------------------------------------
 local last_click_time = 0
-local debounce_delay = 0.05 -- 50ms
+local debounce_delay = 0.02 -- 20ms
 
 function handle_bravo_knob_increase()
     local current_time = os.clock()
@@ -498,16 +525,22 @@ create_command(
 )
 
 function handle_bravo_knob_decrease()
+    local current_time = os.clock()
     local current_twist_knob_action = twist_knob_map_actions[current_mode][current_selection]
-    if current_twist_knob_action["DOWN"] then
-        command_once(current_twist_knob_action["DOWN"])
-    elseif current_cf_mode == "outer" and current_twist_knob_action["OUTER"] then
-        command_once(current_twist_knob_action["OUTER"]["DOWN"])
-    elseif current_cf_mode == "inner" and current_twist_knob_action["INNER"] then
-        command_once(current_twist_knob_action["INNER"]["DOWN"])
-    else
-        logMsg("Nothing to do.")
-    end
+    if current_time - last_click_time > debounce_delay then
+		if current_twist_knob_action["DOWN"] then
+			command_once(current_twist_knob_action["DOWN"])
+            last_click_time = current_time
+		elseif current_cf_mode == "outer" and current_twist_knob_action["OUTER"] then
+			command_once(current_twist_knob_action["OUTER"]["DOWN"])
+            last_click_time = current_time
+		elseif current_cf_mode == "inner" and current_twist_knob_action["INNER"] then
+			command_once(current_twist_knob_action["INNER"]["DOWN"])
+            last_click_time = current_time
+		else
+			logMsg("Nothing to do.")
+		end
+	end
 end
 
 create_command(
@@ -646,10 +679,31 @@ create_command(
     ""
 )
 
-local button_state_modified = false
+--------------------------------------
+---- LED HANDLING
+--------------------------------------
+local LED_LDG_L_GREEN =		{2, 1}
+local LED_LDG_L_RED =		{2, 2}
+local LED_LDG_N_GREEN =		{2, 3}
+local LED_LDG_N_RED =		{2, 4}
+local LED_LDG_R_GREEN =		{2, 5}
+local LED_LDG_R_RED =		{2, 6}
+
+local gear_map_leds_state = {}
+gear_map_leds_state[1] = {}
+gear_map_leds_state[2] = {}
+gear_map_leds_state[3] = {}
+gear_map_leds_state[1]["GREEN"] = false
+gear_map_leds_state[1]["RED"] = false
+gear_map_leds_state[2]["GREEN"] = false
+gear_map_leds_state[2]["RED"] = false
+gear_map_leds_state[3]["GREEN"] = false
+gear_map_leds_state[3]["RED"] = false
+
+local led_state_modified = false
 
 -- BUTTON LED handling
-function get_led_state(button_name)
+function get_button_led_state(button_name)
     if is_boolean(button_map_leds_state[current_mode][button_name]) then
         logMsg("get_led_state for mode " .. current_mode .. " and button name " .. button_name)
         return button_map_leds_state[current_mode][button_name]
@@ -663,17 +717,17 @@ function get_led_state(button_name)
     end
 end
 
-function set_led_state(button_name, state)
-    if get_led_state(button_name) ~= nil and state ~= get_led_state(button_name) then
-        logMsg("get_led_state for " .. button_name .. " = " .. tostring(get_led_state(button_name)))
+function set_button_led_state(button_name, state)
+    if get_button_led_state(button_name) ~= nil and state ~= get_button_led_state(button_name) then
+        logMsg("get_led_state for " .. button_name .. " = " .. tostring(get_button_led_state(button_name)))
         if is_boolean(button_map_leds_state[current_mode][button_name]) then
             button_map_leds_state[current_mode][button_name] = state
         elseif is_table(button_map_leds_state[current_mode][current_selection]) and  is_boolean(button_map_leds_state[current_mode][current_selection][button_name]) then
             button_map_leds_state[current_mode][current_selection][button_name] = state
         end
-        button_state_modified = true
+        led_state_modified = true
     else
-        if get_led_state(button_name) ~= nil then
+        if get_button_led_state(button_name) ~= nil then
             logMsg("state did not change for mode " .. current_mode .. " and button " .. button_name)
         else
             logMsg("state does not exist for mode " .. current_mode .. " and button " .. button_name)
@@ -684,10 +738,15 @@ end
 function all_leds_off()
     for i = 1, #default_button_labels do
         logMsg("Set button led " .. default_button_labels[i] .. " to off.")
-        set_led_state(default_button_labels[i], false)
+        set_button_led_state(default_button_labels[i], false)
     end
 
-    button_state_modified = true
+    for i = 1, #gear_map_leds_state do
+        gear_map_leds_state[i]["GREEN"] = false
+        gear_map_leds_state[i]["RED"] = false
+    end
+
+    led_state_modified = true
     logMsg("Set all leds to off")
 end
 
@@ -716,8 +775,17 @@ function send_hid_data()
             if button_map_leds_state[current_mode][button_name] == true then
                 data[1] = bit.bor(data[1], bit.lshift(1, i - 1))
             end
-        elseif not is_boolean(button_map_leds_state[current_mode][current_selection]) and button_map_leds_state[current_mode][current_selection] ~= nil and button_map_leds_state[current_mode][current_selection][button_name] == true then
+        elseif is_table(button_map_leds_state[current_mode][current_selection]) and button_map_leds_state[current_mode][current_selection][button_name] == true then
             data[1] = bit.bor(data[1], bit.lshift(1, i - 1))
+        end
+    end
+
+    for i = 1, #gear_map_leds_state do
+        local offset = (i - 1)*2
+        if gear_map_leds_state[i]["GREEN"] == true then 
+            data[2] = bit.bor(data[2], bit.lshift(1, offset))
+        elseif  gear_map_leds_state[i]["RED"] == true then
+            data[2] = bit.bor(data[2], bit.lshift(1, offset + 1))
         end
     end
 
@@ -727,7 +795,7 @@ function send_hid_data()
     elseif bytes_written < 65 then
         logMsg('ERROR Feature report write failed, only ' .. bytes_written .. ' bytes written')
     else
-        button_state_modified = false
+        led_state_modified = false
     end
 end
 
@@ -742,6 +810,9 @@ function get_ap_state(array)
     end
 end
 
+local gear_led_response_lag = 0.05
+local gear = dataref_table(nav_bindings["GEAR_DEPLOYMENT_LED"])
+
 function handle_led_changes()
     if bus_voltage[0] > 0 then
         master_state = true
@@ -752,15 +823,53 @@ function handle_led_changes()
             if is_string(button_map_leds[current_mode][button_label]) then
                 local dataref = dataref_table(button_map_leds[current_mode][button_label])
                 if get_ap_state(dataref) ~= button_map_leds_state[current_mode][button_label] then
-                    set_led_state(button_label, get_ap_state(dataref))
+                    set_button_led_state(button_label, get_ap_state(dataref))
                 end
             elseif is_table(button_map_leds[current_mode][current_selection]) and button_map_leds[current_mode][current_selection][button_label] then
                 local dataref = dataref_table(button_map_leds[current_mode][current_selection][button_label])
                 if get_ap_state(dataref) ~= button_map_leds_state[current_mode][current_selection][button_label] then
-                    set_led_state(button_label, get_ap_state(dataref))
+                    set_button_led_state(button_label, get_ap_state(dataref))
                 end
             end
         end
+        
+        -- Handle the remainng leds
+        -- Landing gear
+
+        for i = 1, #gear_map_leds_state do
+            if gear[i - 1] < gear_led_response_lag then
+                -- Gear stowed
+                if gear_map_leds_state[i]["GREEN"] == true then
+                    gear_map_leds_state[i]["GREEN"] = false
+                    led_state_modified = true
+                end
+                if gear_map_leds_state[i]["RED"] == true then
+                    gear_map_leds_state[i]["RED"] = false
+                    led_state_modified = true
+                end
+            elseif gear[i - 1] >= (1 - gear_led_response_lag) then
+                -- Gear deployed
+                if gear_map_leds_state[i]["GREEN"] == false then
+                    gear_map_leds_state[i]["GREEN"] = true
+                    led_state_modified = true
+                end
+                if gear_map_leds_state[i]["RED"] == true then
+                    gear_map_leds_state[i]["RED"] = false
+                    led_state_modified = true
+                end
+            else
+                -- Gear moving
+                if gear_map_leds_state[i]["GREEN"] == true then
+                    gear_map_leds_state[i]["GREEN"] = false
+                    led_state_modified = true
+                end
+                if gear_map_leds_state[i]["RED"] == false then
+                    gear_map_leds_state[i]["RED"] = true
+                    led_state_modified= true
+                end
+            end
+        end
+        
     elseif master_state == true then
         -- No bus voltage, disable all LEDs
         master_state = false
@@ -768,7 +877,7 @@ function handle_led_changes()
     end
 
     -- If we have any LED changes, send them to the device
-    if button_state_modified == true then
+    if led_state_modified == true then
         send_hid_data()
     end
 end
