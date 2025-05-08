@@ -688,17 +688,20 @@ local LED_LDG_N_GREEN =		{2, 3}
 local LED_LDG_N_RED =		{2, 4}
 local LED_LDG_R_GREEN =		{2, 5}
 local LED_LDG_R_RED =		{2, 6}
-
-local gear_map_leds_state = {}
-gear_map_leds_state[1] = {}
-gear_map_leds_state[2] = {}
-gear_map_leds_state[3] = {}
-gear_map_leds_state[1]["GREEN"] = false
-gear_map_leds_state[1]["RED"] = false
-gear_map_leds_state[2]["GREEN"] = false
-gear_map_leds_state[2]["RED"] = false
-gear_map_leds_state[3]["GREEN"] = false
-gear_map_leds_state[3]["RED"] = false
+local LED_ANC_MSTR_WARNG =	{2, 7}
+local LED_ANC_ENG_FIRE =	{2, 8}
+local LED_ANC_OIL =			{3, 1}
+local LED_ANC_FUEL =		{3, 2}
+local LED_ANC_ANTI_ICE =	{3, 3}
+local LED_ANC_STARTER =		{3, 4}
+local LED_ANC_APU =			{3, 5}
+local LED_ANC_MSTR_CTN =	{3, 6}
+local LED_ANC_VACUUM =		{3, 7}
+local LED_ANC_HYD =			{3, 8}
+local LED_ANC_AUX_FUEL =	{4, 1}
+local LED_ANC_PRK_BRK =		{4, 2}
+local LED_ANC_VOLTS =		{4, 3}
+local LED_ANC_DOOR =		{4, 4}
 
 local led_state_modified = false
 
@@ -735,15 +738,30 @@ function set_button_led_state(button_name, state)
     end
 end
 
+local buffer = {}
+
+function get_led(led)
+    -- logMsg("buffer[" .. led[1] .. "][" .. led[2] .. "]")
+    return buffer[led[1]][led[2]]
+end
+
+function set_led(led, state)
+    if state ~= get_led(led) then
+        buffer[led[1]][led[2]] = state
+        led_state_modified = true
+    end
+end
+
 function all_leds_off()
     for i = 1, #default_button_labels do
-        logMsg("Set button led " .. default_button_labels[i] .. " to off.")
         set_button_led_state(default_button_labels[i], false)
     end
 
-    for i = 1, #gear_map_leds_state do
-        gear_map_leds_state[i]["GREEN"] = false
-        gear_map_leds_state[i]["RED"] = false
+    for bank = 2, 4 do
+        buffer[bank] = {}
+        for bit = 1, 8 do
+            buffer[bank][bit] = false
+        end
     end
 
     led_state_modified = true
@@ -780,12 +798,11 @@ function send_hid_data()
         end
     end
 
-    for i = 1, #gear_map_leds_state do
-        local offset = (i - 1)*2
-        if gear_map_leds_state[i]["GREEN"] == true then 
-            data[2] = bit.bor(data[2], bit.lshift(1, offset))
-        elseif  gear_map_leds_state[i]["RED"] == true then
-            data[2] = bit.bor(data[2], bit.lshift(1, offset + 1))
+    for bank = 2, 4 do
+        for abit = 1, 8 do
+            if buffer[bank][abit] == true then
+                data[bank] = bit.bor(data[bank], bit.lshift(1, abit - 1))
+            end
         end
     end
 
@@ -799,19 +816,82 @@ function send_hid_data()
     end
 end
 
-local bus_voltage = dataref_table('sim/cockpit2/electrical/bus_volts')
-local master_state = false
-
-function get_ap_state(array)
-    if array[0] == 0 then
+function get_led_state_for_dataref(array)
+    if array == nil then
+        return false
+    end
+    if #array > 1 then
+        for i = 0, 7 do
+            if array[i] == 1 then
+                return true
+            end
+        end
+        return false
+    elseif array[0] == 0 then
         return false
     else
         return true
     end
 end
 
-local gear_led_response_lag = 0.05
-local gear = dataref_table(nav_bindings["GEAR_DEPLOYMENT_LED"])
+local bus_voltage = dataref_table('sim/cockpit2/electrical/bus_volts')
+local master_state = false
+
+-- Landing gear LEDs
+local gear = nil
+if nav_bindings["GEAR_DEPLOYMENT_LED"] ~= nil then
+    gear = dataref_table(nav_bindings["GEAR_DEPLOYMENT_LED"])
+end
+
+-- Read in the dataref values
+local annunciator_labels = {
+    "MASTER_WARNING", "FIRE_WARNING", "OIL_LOW_PRESSURE", "FUEL_LOW_PRESSURE", "ANTI_ICE", "STARTER_ENGAGED", "APU", 
+    "MASTER_CAUTION", "VACUUM", "HYD_LOW_PRESSURE", "AUX_FUEL_PUMP", "AUX_FUEL_PUMP", "PARKING_BRAKE", "VOLTS_LOW", "DOOR"
+}
+
+local annunciator_map_leds = {}
+local annunciator_map_leds_state = {}
+
+for i = 1, #annunciator_labels do
+    local key = annunciator_labels[i] .. "_LED"
+    if is_string(nav_bindings[key]) then
+        annunciator_map_leds[annunciator_labels[i]] = nav_bindings[key]
+    elseif is_string(nav_bindings[annunciator_labels[i] .. "_1_LED"]) then
+        annunciator_map_leds[annunciator_labels[i]] = {}
+        local idx = 1
+        local key = annunciator_labels[i] .. "_" .. tostring(idx) .. "_LED"
+        -- logMsg("key: " .. key)
+        while is_string(nav_bindings[key]) do
+            annunciator_map_leds[annunciator_labels[i]][idx] = nav_bindings[key]
+            idx = idx + 1
+            key = annunciator_labels[i] .. "_" .. tostring(idx) .. "_LED"
+            -- logMsg("key: " .. key)
+        end
+    end 
+end
+
+function get_led_state(annunciator_label)
+    local dataref = annunciator_map_leds[annunciator_label]
+    -- logMsg("get dataref for: " .. annunciator_label)
+    if is_string(dataref) then
+        -- logMsg("dataref: " .. dataref)
+        local dataref_table = dataref_table(dataref)
+        return get_led_state_for_dataref(dataref_table)
+    elseif is_table(dataref) then
+        for i = 1, #dataref do
+            -- logMsg("dataref: " .. dataref[i])
+            local dr = dataref_table(dataref[i])
+            if get_led_state_for_dataref(dr) == true then
+                return true
+            end
+        end
+        return false
+    end
+end
+
+-- Initialize the initial state
+all_leds_off()
+send_hid_data()
 
 function handle_led_changes()
     if bus_voltage[0] > 0 then
@@ -822,54 +902,101 @@ function handle_led_changes()
             -- logMsg("Button name: " .. button_label)
             if is_string(button_map_leds[current_mode][button_label]) then
                 local dataref = dataref_table(button_map_leds[current_mode][button_label])
-                if get_ap_state(dataref) ~= button_map_leds_state[current_mode][button_label] then
-                    set_button_led_state(button_label, get_ap_state(dataref))
+                if get_led_state_for_dataref(dataref) ~= button_map_leds_state[current_mode][button_label] then
+                    set_button_led_state(button_label, get_led_state_for_dataref(dataref))
                 end
             elseif is_table(button_map_leds[current_mode][current_selection]) and button_map_leds[current_mode][current_selection][button_label] then
                 local dataref = dataref_table(button_map_leds[current_mode][current_selection][button_label])
-                if get_ap_state(dataref) ~= button_map_leds_state[current_mode][current_selection][button_label] then
-                    set_button_led_state(button_label, get_ap_state(dataref))
+                if get_led_state_for_dataref(dataref) ~= button_map_leds_state[current_mode][current_selection][button_label] then
+                    set_button_led_state(button_label, get_led_state_for_dataref(dataref))
                 end
             end
         end
         
         -- Handle the remainng leds
         -- Landing gear
+        local gear_leds = {}
 
-        for i = 1, #gear_map_leds_state do
-            if gear[i - 1] < gear_led_response_lag then
-                -- Gear stowed
-                if gear_map_leds_state[i]["GREEN"] == true then
-                    gear_map_leds_state[i]["GREEN"] = false
-                    led_state_modified = true
+        if gear ~= nil then
+            for i = 1, 3 do
+                gear_leds[i] = {nil, nil} -- green, red
+
+                if gear[i - 1] == 0 then
+                    -- Gear stowed
+                    gear_leds[i][1] = false
+                    gear_leds[i][2] = false
+                elseif gear[i - 1] == 1 then
+                    -- Gear deployed
+                    gear_leds[i][1] = true
+                    gear_leds[i][2] = false
+                else
+                    -- Gear moving
+                    gear_leds[i][1] = false
+                    gear_leds[i][2] = true
                 end
-                if gear_map_leds_state[i]["RED"] == true then
-                    gear_map_leds_state[i]["RED"] = false
-                    led_state_modified = true
-                end
-            elseif gear[i - 1] >= (1 - gear_led_response_lag) then
+            end
+        else
+            -- Fixed gear
+            for i = 1, 3 do
+                gear_leds[i] = {nil, nil} -- green, red
+
                 -- Gear deployed
-                if gear_map_leds_state[i]["GREEN"] == false then
-                    gear_map_leds_state[i]["GREEN"] = true
-                    led_state_modified = true
-                end
-                if gear_map_leds_state[i]["RED"] == true then
-                    gear_map_leds_state[i]["RED"] = false
-                    led_state_modified = true
-                end
-            else
-                -- Gear moving
-                if gear_map_leds_state[i]["GREEN"] == true then
-                    gear_map_leds_state[i]["GREEN"] = false
-                    led_state_modified = true
-                end
-                if gear_map_leds_state[i]["RED"] == false then
-                    gear_map_leds_state[i]["RED"] = true
-                    led_state_modified= true
-                end
+                gear_leds[i][1] = true
+                gear_leds[i][2] = false
             end
         end
         
+        set_led(LED_LDG_N_GREEN, gear_leds[1][1])
+        set_led(LED_LDG_N_RED, gear_leds[1][2])
+        set_led(LED_LDG_L_GREEN, gear_leds[2][1])
+        set_led(LED_LDG_L_RED, gear_leds[2][2])
+        set_led(LED_LDG_R_GREEN, gear_leds[3][1])
+        set_led(LED_LDG_R_RED, gear_leds[3][2])
+
+
+        -- MASTER WARNING
+        -- set_led(LED_ANC_MSTR_WARNG, get_ap_state(master_warn))
+        set_led(LED_ANC_MSTR_WARNG, get_led_state("MASTER_WARNING"))
+
+        -- ENGINE FIRE
+        set_led(LED_ANC_ENG_FIRE, get_led_state("FIRE_WARNING"))
+
+        -- LOW OIL PRESSURE
+        set_led(LED_ANC_OIL, get_led_state("OIL_LOW_PRESSURE"))
+
+        -- LOW FUEL PRESSURE
+        set_led(LED_ANC_FUEL, get_led_state("FUEL_LOW_PRESSURE"))
+
+        -- ANTI ICE
+        set_led(LED_ANC_ANTI_ICE, get_led_state("ANTI_ICE"))
+
+        -- STARTER ENGAGED
+        set_led(LED_ANC_STARTER, get_led_state("STARTER_ENGAGED"))
+
+        -- APU
+        set_led(LED_ANC_APU, get_led_state("APU"))
+
+        -- MASTER CAUTION
+        set_led(LED_ANC_MSTR_CTN, get_led_state("MASTER_CAUTION"))
+
+        -- VACUUM
+        set_led(LED_ANC_VACUUM, get_led_state("VACUUM"))
+
+        -- LOW HYD PRESSURE
+        set_led(LED_ANC_HYD, get_led_state("HYD_LOW_PRESSURE"))
+
+        -- AUX FUEL PUMP
+        set_led(LED_ANC_AUX_FUEL, get_led_state("AUX_FUEL_PUMP"))
+
+        -- PARKING BRAKE
+        set_led(LED_ANC_PRK_BRK, get_led_state("PARKING_BRAKE"))
+
+        -- LOW VOLTS
+        set_led(LED_ANC_VOLTS, get_led_state("VOLTS_LOW"))
+
+        -- DOOR
+        set_led(LED_ANC_DOOR, get_led_state("DOOR"))
+    
     elseif master_state == true then
         -- No bus voltage, disable all LEDs
         master_state = false
