@@ -306,26 +306,26 @@ function on_draw_floating_window(my_floating_wnd, x3, y3)
     draw_string_Helvetica_18(x3 + 80, v_offset + offset_selection, current_selection_label)
 
     -- offset_mode = offset_mode + v_spacing	
-    local h_offset = 0
+    local h_offset = 60
     for i = 1, #current_buttons do
         -- logMsg("current mode: " .. "[" .. current_mode .. "][" .. current_selection .. "][" .. default_button_labels[i] .. "]")
         if is_boolean(button_map_leds_state[current_mode][default_button_labels[i]]) then
             if button_map_leds_state[current_mode][default_button_labels[i]] == true then
                 glColor3f(1, 1, 1)       -- White
             else
-				glColor3f(0.2, 0.2, 0.2) -- Balck semitransparent
+				glColor3f(0, 0.75, 0.75)
             end
         elseif is_table(button_map_leds_state[current_mode][current_selection]) and button_map_leds_state[current_mode][current_selection][default_button_labels[i]] == true then
             glColor3f(1, 1, 1)       -- White
         else
-            glColor3f(0.2, 0.2, 0.2) -- Balck semitransparent
+            glColor3f(0, 0.75, 0.75)
         end
         if i ~= #current_buttons then
             draw_string_Helvetica_18(x3 + h_offset, v_offset + offset_mode, current_buttons[i])
         else
             -- graphics.draw_rectangle(x3 + h_offset, v_offset + offset_mode - v_spacing, x3 + h_offset + h_spacing, v_offset + offset_mode - 2*v_spacing)
             -- glColor3f(0, 0, 0) -- Black
-            draw_string_Times_Roman_24(x3 + h_offset, v_offset + offset_mode - v_spacing, current_buttons[i])
+            draw_string_Times_Roman_24(x3 + h_offset - h_spacing, v_offset + offset_mode - v_spacing, current_buttons[i])
         end
         h_offset = h_offset + h_spacing
     end
@@ -339,7 +339,7 @@ function on_draw_floating_window(my_floating_wnd, x3, y3)
         else
             glColor3f(0.2, 0.2, 0.2) -- Balck semitransparent
         end
-        draw_string_Helvetica_18(x3 + 290, v_offset + offset_mode, outer_inner_modes[i])
+        draw_string_Helvetica_18(x3 + h_offset - 2*h_spacing, v_offset + offset_mode, outer_inner_modes[i])
         offset_mode = offset_mode + v_spacing
     end
 end
@@ -816,22 +816,32 @@ function send_hid_data()
     end
 end
 
-function get_led_state_for_dataref(array)
-    if array == nil then
+function get_led_state_for_dataref(dr_table)
+    if dr_table == nil then
         return false
     end
-    if #array > 1 then
-        for i = 0, 7 do
-            if array[i] == 1 then
+    if is_dataref_array(dr_table) then
+        for i = 0, 19 do
+            if dr_table[i] > 0 and dr_table[i] < 12102701 then
                 return true
             end
         end
-        return false
-    elseif array[0] == 0 then
-        return false
     else
-        return true
+        if dr_table[0] > 0 then
+            return true
+        end
     end
+    return false
+end
+
+-- Must determine if it's an array using reftype
+function is_dataref_array(dr_table)
+    for k,v in pairs(dr_table) do
+        if tostring(k) == "reftype" and (tostring(v) == "8" or tostring(v) == "16") then
+            return true
+        end
+    end
+    return false
 end
 
 local bus_voltage = dataref_table('sim/cockpit2/electrical/bus_volts')
@@ -874,12 +884,13 @@ function get_led_state(annunciator_label)
     local dataref = annunciator_map_leds[annunciator_label]
     -- logMsg("get dataref for: " .. annunciator_label)
     if is_string(dataref) then
-        -- logMsg("dataref: " .. dataref)
-        local dataref_table = dataref_table(dataref)
-        return get_led_state_for_dataref(dataref_table)
+        local dr_table = dataref_table(dataref)
+        if annunciator_label == "STARTER_ENGAGED" then
+            logMsg(annunciator_label .. " = " .. dataref .. " contains multiple values " .. tostring(is_dataref_array(dr_table)) .. " and led state should be " .. tostring(get_led_state_for_dataref(dr_table)))
+        end
+        return get_led_state_for_dataref(dr_table)
     elseif is_table(dataref) then
         for i = 1, #dataref do
-            -- logMsg("dataref: " .. dataref[i])
             local dr = dataref_table(dataref[i])
             if get_led_state_for_dataref(dr) == true then
                 return true
