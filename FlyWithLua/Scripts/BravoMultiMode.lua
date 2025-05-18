@@ -1,9 +1,12 @@
 require("bit")
 require("graphics")
+local log = require("log")
+
+log.LOG_LEVEL = log.LOG_DEBUG
 
 if not SUPPORTS_FLOATING_WINDOWS then
     -- to make sure the script doesn't stop old FlyWithLua versions
-    logMsg("floating windows not supported by your FlyWithLua version")
+    log.error("floating windows not supported by your FlyWithLua version")
     return
 end
 
@@ -37,16 +40,16 @@ local nav_cfg_file_full_path = aircraft_dir .. "bravo_multi-mode.cfg"
 local file_ok =  read_config_file(nav_cfg_file_full_path, nav_bindings)
 
 if file_ok then 
-    logMsg("Successfully parsed config file")
+    log.info("Successfully parsed config file")
 else
     local nav_cfg_file_name = "bravo_multi-mode." .. aircraft_name .. ".cfg"
     local nav_cfg_file_full_path = aircraft_dir .. nav_cfg_file_name
-    logMsg("nav_cfg_file: " .. nav_cfg_file_full_path)
+    log.info("nav_cfg_file: " .. nav_cfg_file_full_path)
     file_ok = read_config_file(nav_cfg_file_full_path, nav_bindings)
     if file_ok then
-        logMsg("Successfully parsed config file specific for " .. aircraft_name)        
+        log.info("Successfully parsed config file specific for " .. aircraft_name)        
     else
-        logMsg("No config file found in  " .. aircraft_dir .. " with name bravo_multi-mode.cfg or " .. nav_cfg_file_name .. ". Bravo script will be stopped.")
+        log.warning("No config file found in  " .. aircraft_dir .. " with name bravo_multi-mode.cfg or " .. nav_cfg_file_name .. ". Bravo script will be stopped.")
         return -- Stop script if config is missing
     end
 end
@@ -106,7 +109,7 @@ local function create_table(value_string)
             idx = idx + 1
         end
     else
-        logMsg("Error: " ..
+        log.error("Error: " ..
             value_string ..
             "is not a valid comma-separated value. Make sure the values only contain alpha-numeric and non-special characters. If you want a blank value, use one or more spaces.")
     end
@@ -126,16 +129,16 @@ local current_selection = default_selections[1]
 
 local current_selection_label = default_selections[1]
 
-logMsg("Initializing the selector labels map...")
+log.info("Initializing the selector labels map...")
 local selection_map_labels = {}
 for i = 1, #modes do
     if modes[i] ~= "AUTO" then
         local key = modes[i] .. "_SELECTOR_LABELS"
         selection_map_labels[modes[i]] = create_table(nav_bindings[key])
-        logMsg("Adding " .. key .. " = " .. nav_bindings[key])
+        log.info("Adding " .. key .. " = " .. nav_bindings[key])
     else
         selection_map_labels[modes[i]] = default_selections
-        logMsg("Adding default selector labels.")
+        log.info("Adding default selector labels.")
     end
 end
 
@@ -144,7 +147,7 @@ local default_button_labels = { "HDG", "NAV", "APR", "REV", "ALT", "VS", "IAS", 
 local no_button_labels = { "   ", "   ", "   ", "   ", "   ", "   ", "   ", "   " }
 local current_buttons = default_button_labels
 
-logMsg("Initializing the button labels map...")
+log.info("Initializing the button labels map...")
 local button_map_labels = {}
 for i = 1, #modes do
     local select_map = {}
@@ -155,22 +158,22 @@ for i = 1, #modes do
             if nav_bindings[key] ~= nil then
                 select_map[default_selections[j]] = create_table(nav_bindings[key])
                 button_map_labels[modes[i]] = select_map
-                logMsg("Adding " .. key .. " = " .. nav_bindings[key])
+                log.info("Adding " .. key .. " = " .. nav_bindings[key])
             else
                 select_map[default_selections[j]] = no_button_labels
                 button_map_labels[modes[i]] = select_map
-                logMsg("No binding found for " .. key .. ". Using no labels.")
+                log.warning("No binding found for " .. key .. ". Using no labels.")
             end
         else
             select_map[default_selections[j]] = default_button_labels
             button_map_labels[modes[i]] = select_map
-            logMsg("Adding default button labels.")
+            log.info("Adding default button labels.")
         end
     end
 end
 
 -- The button actions that will be used depending on mode and selection
-logMsg("Initializing the button action map...")
+log.info("Initializing the button action map...")
 local button_map_actions = {}
 for i = 1, #modes do
     button_map_actions[modes[i]] = {}
@@ -181,21 +184,21 @@ for i = 1, #modes do
             local full_key = modes[i] .. "_" .. default_button_labels[k] .. "_BUTTON"
             if default_selections[j] == "ALT" and nav_bindings[full_key] then
                 button_map_actions[modes[i]][default_button_labels[k]] = nav_bindings[full_key]
-                logMsg("Adding " .. full_key .. " = " .. nav_bindings[full_key])
+                log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
             end
             local key = modes[i] .. "_" .. default_selections[j]
             full_key = key .. "_" .. default_button_labels[k] .. "_BUTTON"
             if nav_bindings[full_key] then
                 select_map[default_selections[j]][default_button_labels[k]] = nav_bindings[full_key]
                 button_map_actions[modes[i]] = select_map
-                logMsg("Adding " .. full_key .. " = " .. nav_bindings[full_key])
+                log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
             end
         end
     end
 end
 
 -- The button led that will be displayed depending on mode and selection
-logMsg("Initializing the button led map...")
+log.info("Initializing the button led map...")
 local button_map_leds = {}
 local button_map_leds_state = {}
 for i = 1, #modes do
@@ -211,7 +214,7 @@ for i = 1, #modes do
             if default_selections[j] == "ALT" and nav_bindings[full_key] then
                 button_map_leds[modes[i]][default_button_labels[k]] = nav_bindings[full_key]
                 button_map_leds_state[modes[i]][default_button_labels[k]] = false
-                logMsg("Adding " .. full_key .. " = " .. nav_bindings[full_key])
+                log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
             end
             local key = modes[i] .. "_" .. default_selections[j]
             full_key = key .. "_" .. default_button_labels[k] .. "_BUTTON_LED"
@@ -220,7 +223,7 @@ for i = 1, #modes do
                 button_map_leds[modes[i]] = select_map
                 select_map2[default_selections[j]][default_button_labels[k]] = false
                 button_map_leds_state[modes[i]] = select_map2
-                logMsg("Adding " .. full_key .. " = " .. nav_bindings[full_key])
+                log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
             end
         end
     end
@@ -235,7 +238,7 @@ end
 logMsg("button_map_leds_state[SYS][ALT][PLT]: " .. value)]]
 
 -- The actions that will be triggered when twisting the right knob depedning on mode and selection
-logMsg("Initializing the twist knob action map...")
+log.info("Initializing the twist knob action map...")
 local up_down = { "UP", "DOWN" }
 local outer_inner = { "OUTER", "INNER" }
 local twist_knob_map_actions = {}
@@ -255,7 +258,7 @@ for i = 1, #modes do
                     local full_key = key .. "_" .. dir
                     select_map[default_selections[j]][dir] = nav_bindings[full_key]
                     twist_knob_map_actions[modes[i]] = select_map
-                    logMsg("Adding " .. full_key .. " = " .. nav_bindings[full_key])
+                    log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
                 end
                 if nav_bindings[key .. "_" .. outer_inner[l] .. "_" .. up_down[k]] then
                     local dir = up_down[k]
@@ -263,7 +266,7 @@ for i = 1, #modes do
                     outer_map[oi][dir] = nav_bindings[full_key]
                     select_map[default_selections[j]] = outer_map
                     twist_knob_map_actions[modes[i]] = select_map
-                    logMsg("Adding " .. full_key .. " = " .. nav_bindings[full_key] .. " to " .. oi)
+                    log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key] .. " to " .. oi)
                 end
             end
         end
@@ -390,10 +393,10 @@ end
 local alt_selector_button = nav_bindings.ALT_SELECTOR and nav_bindings.ALT_SELECTOR + 0 or 0
 local selector_buttons = {}
 if alt_selector_button and alt_selector_button > 0 then
-    logMsg("ALT_SELECTOR was set to " .. alt_selector_button)
+    log.debug("ALT_SELECTOR was set to " .. alt_selector_button)
     for i = 1, 5, 1 do
         selector_buttons[i] = alt_selector_button - i + 1
-        logMsg("Selector " .. default_selections[i] .. " set to button " .. selector_buttons[i])
+        log.debug("Selector " .. default_selections[i] .. " set to button " .. selector_buttons[i])
     end
 end
 
@@ -511,7 +514,7 @@ function handle_bravo_knob_increase()
             command_once(current_twist_knob_action["INNER"]["UP"])
             last_click_time = current_time
         else
-            logMsg("Nothing to do.")
+            log.debug("Nothing to do.")
         end
     end
 end
@@ -538,7 +541,7 @@ function handle_bravo_knob_decrease()
 			command_once(current_twist_knob_action["INNER"]["DOWN"])
             last_click_time = current_time
 		else
-			logMsg("Nothing to do.")
+			log.debug("Nothing to do.")
 		end
 	end
 end
@@ -563,7 +566,7 @@ function handle_bravo_button(button_name)
         local command = button_map_actions[current_mode][button_name]
         command_once(command)
     else
-        logMsg("Do nothing!")
+        log.debug("Do nothing!")
     end
 end
 
@@ -708,21 +711,21 @@ local led_state_modified = false
 -- BUTTON LED handling
 function get_button_led_state(button_name)
     if is_boolean(button_map_leds_state[current_mode][button_name]) then
-        logMsg("get_led_state for mode " .. current_mode .. " and button name " .. button_name)
+        log.debug("get_led_state for mode " .. current_mode .. " and button name " .. button_name)
         return button_map_leds_state[current_mode][button_name]
     elseif is_table(button_map_leds_state[current_mode][current_selection]) and is_boolean(button_map_leds_state[current_mode][current_selection][button_name]) then
-        logMsg("get_led_state for mode " ..
+        log.debug("get_led_state for mode " ..
             current_mode .. ", current selection " .. current_selection .. " and button name " .. button_name)
         return button_map_leds_state[current_mode][current_selection][button_name]
     else
-        logMsg("Return nil for mode " .. current_mode .. " and button_name " .. button_name)
+        log.debug("Return nil for mode " .. current_mode .. " and button_name " .. button_name)
         return nil
     end
 end
 
 function set_button_led_state(button_name, state)
     if get_button_led_state(button_name) ~= nil and state ~= get_button_led_state(button_name) then
-        logMsg("get_led_state for " .. button_name .. " = " .. tostring(get_button_led_state(button_name)))
+        log.debug("get_led_state for " .. button_name .. " = " .. tostring(get_button_led_state(button_name)))
         if is_boolean(button_map_leds_state[current_mode][button_name]) then
             button_map_leds_state[current_mode][button_name] = state
         elseif is_table(button_map_leds_state[current_mode][current_selection]) and  is_boolean(button_map_leds_state[current_mode][current_selection][button_name]) then
@@ -731,9 +734,9 @@ function set_button_led_state(button_name, state)
         led_state_modified = true
     else
         if get_button_led_state(button_name) ~= nil then
-            logMsg("state did not change for mode " .. current_mode .. " and button " .. button_name)
+            log.debug("state did not change for mode " .. current_mode .. " and button " .. button_name)
         else
-            logMsg("state does not exist for mode " .. current_mode .. " and button " .. button_name)
+            log.debug("state does not exist for mode " .. current_mode .. " and button " .. button_name)
         end
     end
 end
@@ -765,7 +768,7 @@ function all_leds_off()
     end
 
     led_state_modified = true
-    logMsg("Set all leds to off")
+    log.debug("Set all leds to off")
 end
 
 function is_boolean(cand)
@@ -808,9 +811,9 @@ function send_hid_data()
 
     local bytes_written = hid_send_filled_feature_report(bravo, 0, 65, data[1], data[2], data[3], data[4]) -- 65 = 1 byte (report ID) + 64 bytes (data)
     if bytes_written == -1 then
-        logMsg('ERROR Feature report write failed, an error occurred')
+        log.error('ERROR Feature report write failed, an error occurred')
     elseif bytes_written < 65 then
-        logMsg('ERROR Feature report write failed, only ' .. bytes_written .. ' bytes written')
+        log.error('ERROR Feature report write failed, only ' .. bytes_written .. ' bytes written')
     else
         led_state_modified = false
     end
@@ -885,9 +888,6 @@ function get_led_state(annunciator_label)
     -- logMsg("get dataref for: " .. annunciator_label)
     if is_string(dataref) then
         local dr_table = dataref_table(dataref)
-        if annunciator_label == "STARTER_ENGAGED" then
-            logMsg(annunciator_label .. " = " .. dataref .. " contains multiple values " .. tostring(is_dataref_array(dr_table)) .. " and led state should be " .. tostring(get_led_state_for_dataref(dr_table)))
-        end
         return get_led_state_for_dataref(dr_table)
     elseif is_table(dataref) then
         for i = 1, #dataref do
@@ -922,9 +922,9 @@ function handle_led_changes()
                     set_button_led_state(button_label, get_led_state_for_dataref(dataref))
                 end
             end
-        end
-        
-        -- Handle the remainng leds
+        end            
+
+        -- Handle the remaining leds
         -- Landing gear
         local gear_leds = {}
 
@@ -1007,7 +1007,7 @@ function handle_led_changes()
 
         -- DOOR
         set_led(LED_ANC_DOOR, get_led_state("DOOR"))
-    
+
     elseif master_state == true then
         -- No bus voltage, disable all LEDs
         master_state = false
