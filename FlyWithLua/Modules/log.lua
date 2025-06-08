@@ -10,26 +10,30 @@ log.LOG_LEVEL = log.LOG_DEBUG
 
 function log.debug(message)
     if log.LOG_LEVEL >= log.LOG_DEBUG then
-        logMsg("[DEBUG]: " .. message)
+        logMsg(get_formatted_message("DEBUG", message))
     end    
 end
 
 function log.info(message)
     if log.LOG_LEVEL >= log.LOG_INFO then
-        logMsg("[INFO]: " .. message)
+        logMsg(get_formatted_message("INFO", message))
     end    
 end
 
 function log.warning(message)
     if log.LOG_LEVEL >= log.LOG_WARNING then
-        logMsg("[WARN]: " .. message)
+        logMsg(get_formatted_message("WARN", message))
     end    
 end
 
 function log.error(message)
     if log.LOG_LEVEL >= log.LOG_ERROR then
-        logMsg("[ERROR]: " .. message)
+        logMsg(get_formatted_message("ERROR", message))
     end    
+end
+
+function get_formatted_message(level, message)
+    return string.format("[%.3f][BRAVO++ %s]: %s", os.clock(), level, message)
 end
 
 return log

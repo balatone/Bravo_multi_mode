@@ -288,63 +288,65 @@ float_wnd_set_ondraw(my_floating_wnd, "on_draw_floating_window")
 float_wnd_set_onclose(my_floating_wnd, "on_close_floating_window")
 
 function on_draw_floating_window(my_floating_wnd, x3, y3)
-    local offset_mode = -20
-    local v_spacing = -30
-    local h_spacing = 50
-    local offset_selection = 10
-    local v_offset = y3 + height
+    tryCatch(function()
+        local offset_mode = -20
+        local v_spacing = -30
+        local h_spacing = 50
+        local offset_selection = 10
+        local v_offset = y3 + height
 
-    for i = 1, #modes do
-        if current_mode == modes[i] then
-            glColor3f(0, 1, 0) -- Green for default
-            offset_selection = offset_mode
-        else
-            glColor3f(0.2, 0.2, 0.2) -- Grey
+        for i = 1, #modes do
+            if current_mode == modes[i] then
+                glColor3f(0, 1, 0) -- Green for default
+                offset_selection = offset_mode
+            else
+                glColor3f(0.2, 0.2, 0.2) -- Grey
+            end
+            draw_string_Helvetica_18(x3, v_offset + offset_mode, modes[i])
+            offset_mode = offset_mode + v_spacing
         end
-        draw_string_Helvetica_18(x3, v_offset + offset_mode, modes[i])
-        offset_mode = offset_mode + v_spacing
-    end
 
-    glColor3f(1, 1, 1) -- White
-    draw_string_Helvetica_18(x3 + 80, v_offset + offset_selection, current_selection_label)
+        glColor3f(1, 1, 1) -- White
+        draw_string_Helvetica_18(x3 + 80, v_offset + offset_selection, current_selection_label)
 
-    -- offset_mode = offset_mode + v_spacing	
-    local h_offset = 60
-    for i = 1, #current_buttons do
-        -- logMsg("current mode: " .. "[" .. current_mode .. "][" .. current_selection .. "][" .. default_button_labels[i] .. "]")
-        if is_boolean(button_map_leds_state[current_mode][default_button_labels[i]]) then
-            if button_map_leds_state[current_mode][default_button_labels[i]] == true then
+        -- offset_mode = offset_mode + v_spacing	
+        local h_offset = 60
+        for i = 1, #current_buttons do
+            -- logMsg("current mode: " .. "[" .. current_mode .. "][" .. current_selection .. "][" .. default_button_labels[i] .. "]")
+            if is_boolean(button_map_leds_state[current_mode][default_button_labels[i]]) then
+                if button_map_leds_state[current_mode][default_button_labels[i]] == true then
+                    glColor3f(1, 1, 1)       -- White
+                else
+                    glColor3f(0, 0.75, 0.75)
+                end
+            elseif is_table(button_map_leds_state[current_mode][current_selection]) and button_map_leds_state[current_mode][current_selection][default_button_labels[i]] == true then
                 glColor3f(1, 1, 1)       -- White
             else
-				glColor3f(0, 0.75, 0.75)
+                glColor3f(0, 0.75, 0.75)
             end
-        elseif is_table(button_map_leds_state[current_mode][current_selection]) and button_map_leds_state[current_mode][current_selection][default_button_labels[i]] == true then
-            glColor3f(1, 1, 1)       -- White
-        else
-            glColor3f(0, 0.75, 0.75)
+            if i ~= #current_buttons then
+                draw_string_Helvetica_18(x3 + h_offset, v_offset + offset_mode, current_buttons[i])
+            else
+                -- graphics.draw_rectangle(x3 + h_offset, v_offset + offset_mode - v_spacing, x3 + h_offset + h_spacing, v_offset + offset_mode - 2*v_spacing)
+                -- glColor3f(0, 0, 0) -- Black
+                draw_string_Times_Roman_24(x3 + h_offset - h_spacing, v_offset + offset_mode - v_spacing, current_buttons[i])
+            end
+            h_offset = h_offset + h_spacing
         end
-        if i ~= #current_buttons then
-            draw_string_Helvetica_18(x3 + h_offset, v_offset + offset_mode, current_buttons[i])
-        else
-            -- graphics.draw_rectangle(x3 + h_offset, v_offset + offset_mode - v_spacing, x3 + h_offset + h_spacing, v_offset + offset_mode - 2*v_spacing)
-            -- glColor3f(0, 0, 0) -- Black
-            draw_string_Times_Roman_24(x3 + h_offset - h_spacing, v_offset + offset_mode - v_spacing, current_buttons[i])
-        end
-        h_offset = h_offset + h_spacing
-    end
 
-    local offset_mode = -20
+        local offset_mode = -20
 
-    for i = 1, #outer_inner_modes do
-        if current_cf_mode == outer_inner_modes[i] then
-            glColor3f(0, 1, 0) -- Green for default
-            offset_selection = offset_mode
-        else
-            glColor3f(0.2, 0.2, 0.2) -- Balck semitransparent
+        for i = 1, #outer_inner_modes do
+            if current_cf_mode == outer_inner_modes[i] then
+                glColor3f(0, 1, 0) -- Green for default
+                offset_selection = offset_mode
+            else
+                glColor3f(0.2, 0.2, 0.2) -- Balck semitransparent
+            end
+            draw_string_Helvetica_18(x3 + h_offset - 2*h_spacing, v_offset + offset_mode, outer_inner_modes[i])
+            offset_mode = offset_mode + v_spacing
         end
-        draw_string_Helvetica_18(x3 + h_offset - 2*h_spacing, v_offset + offset_mode, outer_inner_modes[i])
-        offset_mode = offset_mode + v_spacing
-    end
+    end, "on_draw_floating_window")
 end
 
 function on_close_floating_window(my_floating_wnd)
@@ -378,13 +380,11 @@ function find_position(n)
 end
 
 function refresh_selector_hid()
-    local pos = 0
-    local start_time = os.clock()
     local num, data1, data2, data3, data4, data5, data6, data7, data8, data9, data10, data11, data12, data13, data14, data15, data16, data17, data18 =
         hid_read(bravo, 64)
     selector = data15
     if selector and selector > 0 then
-        idx = 6 - find_position(selector)
+        local idx = 6 - find_position(selector)
         set_current_selector(idx)
     end
 end
@@ -435,12 +435,12 @@ end
 -- Choose the available method for updating the selector
 if bravo then
     if alt_selector_button > 0 then
-        do_every_draw("refresh_selector()")
+        do_every_draw("tryCatch(refresh_selector)")
     else
-        do_every_draw("refresh_selector_hid()")
+        do_every_draw("tryCatch(refresh_selector_hid)")
     end
 else
-    do_every_draw("refresh_selector_mock()")
+    do_every_draw("tryCatch(refresh_selector_mock)")
 end
 
 -- Function to cycle through modes
@@ -486,13 +486,14 @@ function set_current_selector(idx)
 end
 
 function set_current_buttons()
-    if button_map_labels[current_mode][current_selection] then
+    if button_map_labels[current_mode][current_selection] ~= nil then
         current_buttons = button_map_labels[current_mode][current_selection]
     end
 end
 
 -- Update the currently available buttons
-do_every_draw("set_current_buttons()")
+do_every_draw("tryCatch(set_current_buttons,'set_current_buttons')")
+-- do_every_draw("set_current_buttons()")
 
 -----------------------------------------------------
 --- HANDLE TWIST-KNOB THAT INCREASES/DECREASES VALUES
@@ -790,6 +791,7 @@ function send_hid_data()
         data[bank] = 0
     end
 
+	log.debug('Setting button leds')
     for i = 1, #default_button_labels do
         local button_name = default_button_labels[i]
         if is_boolean(button_map_leds_state[current_mode][button_name]) then
@@ -800,7 +802,9 @@ function send_hid_data()
             data[1] = bit.bor(data[1], bit.lshift(1, i - 1))
         end
     end
+	log.debug('Button leds set')
 
+	log.debug('Setting annunciator leds')
     for bank = 2, 4 do
         for abit = 1, 8 do
             if buffer[bank][abit] == true then
@@ -808,15 +812,19 @@ function send_hid_data()
             end
         end
     end
+	log.debug('Annunciator leds set')
 
     local bytes_written = hid_send_filled_feature_report(bravo, 0, 65, data[1], data[2], data[3], data[4]) -- 65 = 1 byte (report ID) + 64 bytes (data)
-    if bytes_written == -1 then
+	log.debug('sendingn hid data')
+
+    if bytes_written == 65 then
+        led_state_modified = false
+    elseif bytes_written == -1 then
         log.error('ERROR Feature report write failed, an error occurred')
     elseif bytes_written < 65 then
         log.error('ERROR Feature report write failed, only ' .. bytes_written .. ' bytes written')
-    else
-        led_state_modified = false
     end
+	log.debug('Done send_hid_data')
 end
 
 function get_led_state_for_dataref(dr_table)
@@ -904,123 +912,136 @@ end
 all_leds_off()
 send_hid_data()
 
+function handle_button_led_changes()
+	for i = 1, #default_button_labels do
+		local button_label = default_button_labels[i]
+		-- logMsg("Button name: " .. button_label)
+		if is_string(button_map_leds[current_mode][button_label]) then
+			local dataref = dataref_table(button_map_leds[current_mode][button_label])
+			if get_led_state_for_dataref(dataref) ~= button_map_leds_state[current_mode][button_label] then
+				set_button_led_state(button_label, get_led_state_for_dataref(dataref))
+			end
+		elseif is_table(button_map_leds[current_mode][current_selection]) and button_map_leds[current_mode][current_selection][button_label] then
+			local dataref = dataref_table(button_map_leds[current_mode][current_selection][button_label])
+			if get_led_state_for_dataref(dataref) ~= button_map_leds_state[current_mode][current_selection][button_label] then
+				set_button_led_state(button_label, get_led_state_for_dataref(dataref))
+			end
+		end
+	end            
+end
+
+function handle_gear_led_changes()
+	-- Landing gear
+	local gear_leds = {}
+
+	if gear ~= nil then
+		for i = 1, 3 do
+			gear_leds[i] = {nil, nil} -- green, red
+
+			if gear[i - 1] == 0 then
+				-- Gear stowed
+				gear_leds[i][1] = false
+				gear_leds[i][2] = false
+			elseif gear[i - 1] == 1 then
+				-- Gear deployed
+				gear_leds[i][1] = true
+				gear_leds[i][2] = false
+			else
+				-- Gear moving
+				gear_leds[i][1] = false
+				gear_leds[i][2] = true
+			end
+		end
+	else
+		-- Fixed gear
+		for i = 1, 3 do
+			gear_leds[i] = {nil, nil} -- green, red
+
+			-- Gear deployed
+			gear_leds[i][1] = true
+			gear_leds[i][2] = false
+		end
+	end
+	
+	set_led(LED_LDG_N_GREEN, gear_leds[1][1])
+	set_led(LED_LDG_N_RED, gear_leds[1][2])
+	set_led(LED_LDG_L_GREEN, gear_leds[2][1])
+	set_led(LED_LDG_L_RED, gear_leds[2][2])
+	set_led(LED_LDG_R_GREEN, gear_leds[3][1])
+	set_led(LED_LDG_R_RED, gear_leds[3][2])
+end
+
+function handle_annunciator_row1_led_changes()
+	-- MASTER WARNING
+	set_led(LED_ANC_MSTR_WARNG, get_led_state("MASTER_WARNING"))
+
+	-- ENGINE FIRE
+	set_led(LED_ANC_ENG_FIRE, get_led_state("FIRE_WARNING"))
+
+	-- LOW OIL PRESSURE
+	set_led(LED_ANC_OIL, get_led_state("OIL_LOW_PRESSURE"))
+
+	-- LOW FUEL PRESSURE
+	set_led(LED_ANC_FUEL, get_led_state("FUEL_LOW_PRESSURE"))
+
+	-- ANTI ICE
+	set_led(LED_ANC_ANTI_ICE, get_led_state("ANTI_ICE"))
+
+	-- STARTER ENGAGED
+	set_led(LED_ANC_STARTER, get_led_state("STARTER_ENGAGED"))
+
+	-- APU
+	set_led(LED_ANC_APU, get_led_state("APU"))
+end
+
+function handle_annunciator_row2_led_changes()
+	-- MASTER CAUTION
+	set_led(LED_ANC_MSTR_CTN, get_led_state("MASTER_CAUTION"))
+
+	-- VACUUM
+	set_led(LED_ANC_VACUUM, get_led_state("VACUUM"))
+
+	-- LOW HYD PRESSURE
+	set_led(LED_ANC_HYD, get_led_state("HYD_LOW_PRESSURE"))
+
+	-- AUX FUEL PUMP
+	set_led(LED_ANC_AUX_FUEL, get_led_state("AUX_FUEL_PUMP"))
+
+	-- PARKING BRAKE
+	set_led(LED_ANC_PRK_BRK, get_led_state("PARKING_BRAKE"))
+
+	-- LOW VOLTS
+	set_led(LED_ANC_VOLTS, get_led_state("VOLTS_LOW"))
+
+	-- DOOR
+	set_led(LED_ANC_DOOR, get_led_state("DOOR"))
+end
+
 function handle_led_changes()
     if bus_voltage[0] > 0 then
         master_state = true
 
-        for i = 1, #default_button_labels do
-            local button_label = default_button_labels[i]
-            -- logMsg("Button name: " .. button_label)
-            if is_string(button_map_leds[current_mode][button_label]) then
-                local dataref = dataref_table(button_map_leds[current_mode][button_label])
-                if get_led_state_for_dataref(dataref) ~= button_map_leds_state[current_mode][button_label] then
-                    set_button_led_state(button_label, get_led_state_for_dataref(dataref))
-                end
-            elseif is_table(button_map_leds[current_mode][current_selection]) and button_map_leds[current_mode][current_selection][button_label] then
-                local dataref = dataref_table(button_map_leds[current_mode][current_selection][button_label])
-                if get_led_state_for_dataref(dataref) ~= button_map_leds_state[current_mode][current_selection][button_label] then
-                    set_button_led_state(button_label, get_led_state_for_dataref(dataref))
-                end
-            end
-        end            
-
+		tryCatch(handle_button_led_changes, "handle_button_led_changes")
+		
         -- Handle the remaining leds
-        -- Landing gear
-        local gear_leds = {}
-
-        if gear ~= nil then
-            for i = 1, 3 do
-                gear_leds[i] = {nil, nil} -- green, red
-
-                if gear[i - 1] == 0 then
-                    -- Gear stowed
-                    gear_leds[i][1] = false
-                    gear_leds[i][2] = false
-                elseif gear[i - 1] == 1 then
-                    -- Gear deployed
-                    gear_leds[i][1] = true
-                    gear_leds[i][2] = false
-                else
-                    -- Gear moving
-                    gear_leds[i][1] = false
-                    gear_leds[i][2] = true
-                end
-            end
-        else
-            -- Fixed gear
-            for i = 1, 3 do
-                gear_leds[i] = {nil, nil} -- green, red
-
-                -- Gear deployed
-                gear_leds[i][1] = true
-                gear_leds[i][2] = false
-            end
-        end
-        
-        set_led(LED_LDG_N_GREEN, gear_leds[1][1])
-        set_led(LED_LDG_N_RED, gear_leds[1][2])
-        set_led(LED_LDG_L_GREEN, gear_leds[2][1])
-        set_led(LED_LDG_L_RED, gear_leds[2][2])
-        set_led(LED_LDG_R_GREEN, gear_leds[3][1])
-        set_led(LED_LDG_R_RED, gear_leds[3][2])
-
-
-        -- MASTER WARNING
-        -- set_led(LED_ANC_MSTR_WARNG, get_ap_state(master_warn))
-        set_led(LED_ANC_MSTR_WARNG, get_led_state("MASTER_WARNING"))
-
-        -- ENGINE FIRE
-        set_led(LED_ANC_ENG_FIRE, get_led_state("FIRE_WARNING"))
-
-        -- LOW OIL PRESSURE
-        set_led(LED_ANC_OIL, get_led_state("OIL_LOW_PRESSURE"))
-
-        -- LOW FUEL PRESSURE
-        set_led(LED_ANC_FUEL, get_led_state("FUEL_LOW_PRESSURE"))
-
-        -- ANTI ICE
-        set_led(LED_ANC_ANTI_ICE, get_led_state("ANTI_ICE"))
-
-        -- STARTER ENGAGED
-        set_led(LED_ANC_STARTER, get_led_state("STARTER_ENGAGED"))
-
-        -- APU
-        set_led(LED_ANC_APU, get_led_state("APU"))
-
-        -- MASTER CAUTION
-        set_led(LED_ANC_MSTR_CTN, get_led_state("MASTER_CAUTION"))
-
-        -- VACUUM
-        set_led(LED_ANC_VACUUM, get_led_state("VACUUM"))
-
-        -- LOW HYD PRESSURE
-        set_led(LED_ANC_HYD, get_led_state("HYD_LOW_PRESSURE"))
-
-        -- AUX FUEL PUMP
-        set_led(LED_ANC_AUX_FUEL, get_led_state("AUX_FUEL_PUMP"))
-
-        -- PARKING BRAKE
-        set_led(LED_ANC_PRK_BRK, get_led_state("PARKING_BRAKE"))
-
-        -- LOW VOLTS
-        set_led(LED_ANC_VOLTS, get_led_state("VOLTS_LOW"))
-
-        -- DOOR
-        set_led(LED_ANC_DOOR, get_led_state("DOOR"))
-
+		tryCatch(handle_gear_led_changes, "handle_gear_led_changes")
+		tryCatch(handle_annunciator_row1_led_changes, "handle_annunciator_row1_led_changes")
+		tryCatch(handle_annunciator_row2_led_changes, "handle_annunciator_row2_led_changes")
+		
     elseif master_state == true then
         -- No bus voltage, disable all LEDs
         master_state = false
-        all_leds_off()
+        tryCatch(all_leds_off, 'all_leds_off')
     end
 
     -- If we have any LED changes, send them to the device
     if led_state_modified == true then
-        send_hid_data()
+        tryCatch(send_hid_data,'send_hid_data')
     end
 end
 
-do_every_frame('handle_led_changes()')
+do_every_frame('tryCatch(handle_led_changes)')
+-- do_every_frame('handle_led_changes()')
 
 -- Helper function to find index in table (used for cycling modes)
 function table.find(t, value)
@@ -1028,4 +1049,12 @@ function table.find(t, value)
         if v == value then return i end
     end
     return nil -- Not found.
+end
+
+
+function tryCatch(tryBlock, source)
+  local success, errorMessage = pcall(tryBlock)
+  if not success then
+    log.error("Caught error from " .. source .. " : " .. errorMessage)
+  end
 end
