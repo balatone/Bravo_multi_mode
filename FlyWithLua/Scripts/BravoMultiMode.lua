@@ -201,28 +201,44 @@ end
 log.info("Initializing the button led map...")
 local button_map_leds = {}
 local button_map_leds_state = {}
+local button_map_leds_cond = {}
+
 for i = 1, #modes do
     button_map_leds[modes[i]] = {}
     button_map_leds_state[modes[i]] = {}
+    button_map_leds_cond[modes[i]] = {}
     local select_map = {}
     local select_map2 = {}
+    local select_map3 = {}
     for j = 1, #default_selections do
         select_map[default_selections[j]] = {}
         select_map2[default_selections[j]] = {}
+        select_map3[default_selections[j]] = {}
         for k = 1, #default_button_labels do
             local full_key = modes[i] .. "_" .. default_button_labels[k] .. "_BUTTON_LED"
             if default_selections[j] == "ALT" and nav_bindings[full_key] then
-                button_map_leds[modes[i]][default_button_labels[k]] = nav_bindings[full_key]
+                log.debug("navbinding: " .. nav_bindings[full_key])
+                local binding = create_table(nav_bindings[full_key])
+                log.debug("datref: " .. binding[1])
+                log.debug("cond: " .. binding[2])
+                button_map_leds[modes[i]][default_button_labels[k]] = binding[1]
+                button_map_leds_cond[modes[i]][default_button_labels[k]] = binding[2]
                 button_map_leds_state[modes[i]][default_button_labels[k]] = false
                 log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
             end
             local key = modes[i] .. "_" .. default_selections[j]
             full_key = key .. "_" .. default_button_labels[k] .. "_BUTTON_LED"
             if nav_bindings[full_key] then
-                select_map[default_selections[j]][default_button_labels[k]] = nav_bindings[full_key]
+                log.debug("navbinding: " .. nav_bindings[full_key])
+                local binding = create_table(nav_bindings[full_key])
+                log.debug("datref: " .. binding[1])
+                log.debug("cond: " .. binding[2])
+                select_map[default_selections[j]][default_button_labels[k]] = binding[1]
                 button_map_leds[modes[i]] = select_map
-                select_map2[default_selections[j]][default_button_labels[k]] = false
-                button_map_leds_state[modes[i]] = select_map2
+                select_map2[default_selections[j]][default_button_labels[k]] = binding[2]
+                button_map_leds_cond[modes[i]] = select_map2
+                select_map3[default_selections[j]][default_button_labels[k]] = false
+                button_map_leds_state[modes[i]] = select_map3
                 log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
             end
         end
@@ -827,22 +843,22 @@ function send_hid_data()
 	log.debug('Done send_hid_data')
 end
 
-function get_led_state_for_dataref(dr_table)
+function get_led_state_for_dataref(dr_table, cond)
     if dr_table == nil then
         return false
     end
     if is_dataref_array(dr_table) then
         for i = 0, 19 do
-            if dr_table[i] > 0 and dr_table[i] < 12102701 then
-                return true
+            if dr_table[i] == tonumber(cond) then
+                return false
             end
         end
     else
-        if dr_table[0] > 0 then
-            return true
+        if dr_table[0] == tonumber(cond) then
+            return false
         end
     end
-    return false
+    return true
 end
 
 -- Must determine if it's an array using reftype
@@ -861,7 +877,8 @@ local master_state = false
 -- Landing gear LEDs
 local gear = nil
 if nav_bindings["GEAR_DEPLOYMENT_LED"] ~= nil then
-    gear = dataref_table(nav_bindings["GEAR_DEPLOYMENT_LED"])
+    local binding = create_table(nav_bindings["GEAR_DEPLOYMENT_LED"])
+    gear = dataref_table(binding[1])
 end
 
 -- Read in the dataref values
@@ -871,19 +888,24 @@ local annunciator_labels = {
 }
 
 local annunciator_map_leds = {}
-local annunciator_map_leds_state = {}
+local annunciator_map_leds_cond = {}
 
 for i = 1, #annunciator_labels do
     local key = annunciator_labels[i] .. "_LED"
     if is_string(nav_bindings[key]) then
-        annunciator_map_leds[annunciator_labels[i]] = nav_bindings[key]
+        local binding = create_table(nav_bindings[key])
+        annunciator_map_leds[annunciator_labels[i]] = binding[1]
+        annunciator_map_leds_cond[annunciator_labels[i]] = binding[2]
     elseif is_string(nav_bindings[annunciator_labels[i] .. "_1_LED"]) then
         annunciator_map_leds[annunciator_labels[i]] = {}
+        annunciator_map_leds_cond[annunciator_labels[i]] = {}
         local idx = 1
         local key = annunciator_labels[i] .. "_" .. tostring(idx) .. "_LED"
         -- logMsg("key: " .. key)
         while is_string(nav_bindings[key]) do
-            annunciator_map_leds[annunciator_labels[i]][idx] = nav_bindings[key]
+            local binding = create_table(nav_bindings[key])
+            annunciator_map_leds[annunciator_labels[i]][idx] = binding[1]
+            annunciator_map_leds_cond[annunciator_labels[i]] = binding[2]
             idx = idx + 1
             key = annunciator_labels[i] .. "_" .. tostring(idx) .. "_LED"
             -- logMsg("key: " .. key)
@@ -896,11 +918,11 @@ function get_led_state(annunciator_label)
     -- logMsg("get dataref for: " .. annunciator_label)
     if is_string(dataref) then
         local dr_table = dataref_table(dataref)
-        return get_led_state_for_dataref(dr_table)
+        return get_led_state_for_dataref(dr_table, annunciator_map_leds_cond[annunciator_label])
     elseif is_table(dataref) then
         for i = 1, #dataref do
             local dr = dataref_table(dataref[i])
-            if get_led_state_for_dataref(dr) == true then
+            if get_led_state_for_dataref(dr, annunciator_map_leds_cond[annunciator_label]) == true then
                 return true
             end
         end
@@ -918,13 +940,13 @@ function handle_button_led_changes()
 		-- logMsg("Button name: " .. button_label)
 		if is_string(button_map_leds[current_mode][button_label]) then
 			local dataref = dataref_table(button_map_leds[current_mode][button_label])
-			if get_led_state_for_dataref(dataref) ~= button_map_leds_state[current_mode][button_label] then
-				set_button_led_state(button_label, get_led_state_for_dataref(dataref))
+			if get_led_state_for_dataref(dataref, button_map_leds_cond[current_mode][button_label]) ~= button_map_leds_state[current_mode][button_label] then
+				set_button_led_state(button_label, get_led_state_for_dataref(dataref, button_map_leds_cond[current_mode][button_label]))
 			end
 		elseif is_table(button_map_leds[current_mode][current_selection]) and button_map_leds[current_mode][current_selection][button_label] then
 			local dataref = dataref_table(button_map_leds[current_mode][current_selection][button_label])
-			if get_led_state_for_dataref(dataref) ~= button_map_leds_state[current_mode][current_selection][button_label] then
-				set_button_led_state(button_label, get_led_state_for_dataref(dataref))
+			if get_led_state_for_dataref(dataref, button_map_leds_cond[current_mode][current_selection][button_label]) ~= button_map_leds_state[current_mode][current_selection][button_label] then
+				set_button_led_state(button_label, get_led_state_for_dataref(dataref, button_map_leds_cond[current_mode][current_selection][button_label]))
 			end
 		end
 	end            
