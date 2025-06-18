@@ -437,7 +437,7 @@ end
 
 -- Create a custom command for bravo knob increase
 create_command(
-    "FlyWithLua/custom/cycle_selector",
+    "FlyWithLua/Bravo++/cycle_selector",
     "Cycle the selection (use only when Bravo hardware is not available) ",
     "cycle_selector()", -- Call Lua function when pressed
     "",
@@ -469,7 +469,7 @@ end
 
 -- Create a custom command for changing mode
 create_command(
-    "FlyWithLua/custom/mode_button",
+    "FlyWithLua/Bravo++/mode_button",
     "Bravo++ toggles mode button",
     "cycle_mode()", -- Call Lua function when pressed
     "",
@@ -485,7 +485,7 @@ end
 
 -- Create a custom command for changing cf mode
 create_command(
-    "FlyWithLua/custom/cf_mode_button",
+    "FlyWithLua/Bravo++/cf_mode_button",
     "Bravo++ toggles cf mode button",
     "cycle_cf_mode()", -- Call Lua function when pressed
     "",
@@ -510,6 +510,78 @@ end
 -- Update the currently available buttons
 do_every_draw("tryCatch(set_current_buttons,'set_current_buttons')")
 -- do_every_draw("set_current_buttons()")
+
+--------------------------------------
+---- TRIM WHEEL
+--------------------------------------
+
+local trim_last_click_time = 0
+local trim_debounce_delay = 0.2 -- 200ms
+local trim_dataref = dataref_table("sim/flightmodel2/controls/elevator_trim")
+local increment = 0.01
+local boost_factor = 3
+
+function handle_bravo_trim_nose_up()
+    local current_time = os.clock()
+    local diff = current_time - trim_last_click_time
+
+    log.debug("Trim nose up")
+    local current_value = tonumber(trim_dataref[0])
+    local new_value = current_value
+    log.debug("Time since last call: " .. diff)
+    if diff < trim_debounce_delay then
+        new_value = current_value + increment*boost_factor
+        log.debug("Boosting nose up")
+    else
+        new_value = current_value + increment        
+    end
+    if new_value <= 1 then 
+        trim_dataref[0] = new_value
+    elseif  current_value ~= 1 then
+        trim_dataref[0] = 1
+    end
+    log.debug("New trim value: " .. new_value)
+    trim_last_click_time = current_time
+end
+
+create_command(
+    "FlyWithLua/Bravo++/trim_nose_up_handler",
+    "Handle trim on bravo for nose up",
+    "handle_bravo_trim_nose_up()", -- Call Lua function when pressed
+    "",
+    ""
+)
+
+function handle_bravo_trim_nose_down()
+    local current_time = os.clock()
+    local diff = current_time - trim_last_click_time
+
+    log.debug("Trim nose down")
+    local current_value = tonumber(trim_dataref[0])
+    local new_value = current_value
+    log.debug("Time since last call: " .. diff)
+    if diff < trim_debounce_delay then
+        new_value = current_value - increment*boost_factor
+        log.debug("Boosting nose down")
+    else
+        new_value = current_value - increment        
+    end
+    if new_value >= -1 then
+        trim_dataref[0] = new_value -- This updates the dataref
+    elseif  current_value ~= -1 then
+        trim_dataref[0] = -1
+    end
+    log.debug("New trim value: " .. new_value)
+    trim_last_click_time = current_time
+end
+
+create_command(
+    "FlyWithLua/Bravo++/trim_nose_down_handler",
+    "Handle trim on bravo for nose down",
+    "handle_bravo_trim_nose_down()", -- Call Lua function when pressed
+    "",
+    ""
+)
 
 -----------------------------------------------------
 --- HANDLE TWIST-KNOB THAT INCREASES/DECREASES VALUES
@@ -537,7 +609,7 @@ function handle_bravo_knob_increase()
 end
 
 create_command(
-    "FlyWithLua/custom/knob_increase_handler",
+    "FlyWithLua/Bravo++/knob_increase_handler",
     "Handle button on bravo that increments values",
     "handle_bravo_knob_increase()", -- Call Lua function when pressed
     "",
@@ -564,7 +636,7 @@ function handle_bravo_knob_decrease()
 end
 
 create_command(
-    "FlyWithLua/custom/knob_decrease_handler",
+    "FlyWithLua/Bravo++/knob_decrease_handler",
     "Handle button on bravo that decrements values",
     "handle_bravo_knob_decrease()", -- Call Lua function when pressed
     "",
@@ -576,14 +648,14 @@ create_command(
 --------------------------------------
 function handle_bravo_button(button_name)
     -- logMsg("[" .. current_mode .. "][" .. current_selection .. "][" .. button_name .. "]")
-    if button_map_actions[current_mode][current_selection][button_name] then
-        local command = button_map_actions[current_mode][current_selection][button_name]
-        command_once(command)
-    elseif button_map_actions[current_mode][button_name] then
+    if is_string(button_map_actions[current_mode][button_name]) then
         local command = button_map_actions[current_mode][button_name]
         command_once(command)
+    elseif is_table(button_map_actions[current_mode][current_selection]) then
+        local command = button_map_actions[current_mode][current_selection][button_name]
+        command_once(command)
     else
-        log.debug("Do nothing!")
+        log.debug("Button action not found!")
     end
 end
 
@@ -594,7 +666,7 @@ end
 
 -- Create a custom command for bravo knob increase
 create_command(
-    "FlyWithLua/custom/autopilot_button",
+    "FlyWithLua/Bravo++/autopilot_button",
     "Bravo++ toggles autopilot button",
     "handle_bravo_autopilot_button()", -- Call Lua function when pressed
     "",
@@ -608,7 +680,7 @@ end
 
 -- Create a custom command for bravo knob increase
 create_command(
-    "FlyWithLua/custom/ias_button",
+    "FlyWithLua/Bravo++/ias_button",
     "Bravo++ toggles ias button",
     "handle_bravo_ias_button()", -- Call Lua function when pressed
     "",
@@ -622,7 +694,7 @@ end
 
 -- Create a custom command for bravo knob increase
 create_command(
-    "FlyWithLua/custom/vs_button",
+    "FlyWithLua/Bravo++/vs_button",
     "Bravo++ toggles vs button",
     "handle_bravo_vs_button()", -- Call Lua function when pressed
     "",
@@ -636,7 +708,7 @@ end
 
 -- Create a custom command for bravo knob increase
 create_command(
-    "FlyWithLua/custom/alt_button",
+    "FlyWithLua/Bravo++/alt_button",
     "Bravo++ toggles alt button",
     "handle_bravo_alt_button()", -- Call Lua function when pressed
     "",
@@ -650,7 +722,7 @@ end
 
 -- Create a custom command for bravo knob increase
 create_command(
-    "FlyWithLua/custom/rev_button",
+    "FlyWithLua/Bravo++/rev_button",
     "Bravo++ toggles rev button",
     "handle_bravo_rev_button()", -- Call Lua function when pressed
     "",
@@ -664,7 +736,7 @@ end
 
 -- Create a custom command for bravo knob increase
 create_command(
-    "FlyWithLua/custom/apr_button",
+    "FlyWithLua/Bravo++/apr_button",
     "Bravo++ toggles apr button",
     "handle_bravo_apr_button()", -- Call Lua function when pressed
     "",
@@ -678,7 +750,7 @@ end
 
 -- Create a custom command for bravo knob increase
 create_command(
-    "FlyWithLua/custom/nav_button",
+    "FlyWithLua/Bravo++/nav_button",
     "Bravo++ toggles nav button",
     "handle_bravo_nav_button()", -- Call Lua function when pressed
     "",
@@ -692,7 +764,7 @@ end
 
 -- Create a custom command for bravo knob increase
 create_command(
-    "FlyWithLua/custom/hdg_button",
+    "FlyWithLua/Bravo++/hdg_button",
     "Bravo++ toggles hdg button",
     "handle_bravo_hdg_button()", -- Call Lua function when pressed
     "",
@@ -835,7 +907,7 @@ function send_hid_data()
 
     if bytes_written == 65 then
         led_state_modified = false
-    elseif bytes_written == -1 then
+    elseif bytes_written == nil or bytes_written == -1 then
         log.error('ERROR Feature report write failed, an error occurred')
     elseif bytes_written < 65 then
         log.error('ERROR Feature report write failed, only ' .. bytes_written .. ' bytes written')
@@ -1073,7 +1145,7 @@ function table.find(t, value)
     return nil -- Not found.
 end
 
-
+-- Function that logs any function that fails
 function tryCatch(tryBlock, source)
   local success, errorMessage = pcall(tryBlock)
   if not success then
