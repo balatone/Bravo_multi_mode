@@ -3,6 +3,10 @@ require("graphics")
 local log = require("log")
 
 log.LOG_LEVEL = log.LOG_DEBUG
+-- Set this to either 0 or the button number assigned for the alt selector in x-plane.
+-- Setting to 0 will result in using HID to determine the selector state, but will introduce lag in Windows. 
+-- Use the ButtonLogUtil.lua to determine the button number asigned by x-plane
+local alt_selector_button = 0
 
 if not SUPPORTS_FLOATING_WINDOWS then
     -- to make sure the script doesn't stop old FlyWithLua versions
@@ -292,8 +296,6 @@ end
 -----------------------------------------------------
 --- CREATE THE GUI PANEL
 -----------------------------------------------------
--- imgui only works inside a floating window, so we need to create one first:
-
 local height = 30 + 30 * #modes
 my_floating_wnd = float_wnd_create(400, height, 1, false)
 float_wnd_set_title(my_floating_wnd, "Bravo multi-mode")
@@ -406,7 +408,7 @@ function refresh_selector_hid()
 end
 
 -- Define button numbers for each selector position
-local alt_selector_button = nav_bindings.ALT_SELECTOR and nav_bindings.ALT_SELECTOR + 0 or 0
+-- local alt_selector_button = nav_bindings.ALT_SELECTOR and nav_bindings.ALT_SELECTOR + 0 or 0
 local selector_buttons = {}
 if alt_selector_button and alt_selector_button > 0 then
     log.debug("ALT_SELECTOR was set to " .. alt_selector_button)
@@ -471,7 +473,7 @@ end
 create_command(
     "FlyWithLua/Bravo++/mode_button",
     "Bravo++ toggles mode button",
-    "cycle_mode()", -- Call Lua function when pressed
+    "tryCatch(cycle_mode,'cycle_mode')", -- Call Lua function when pressed
     "",
     ""
 )
@@ -487,7 +489,7 @@ end
 create_command(
     "FlyWithLua/Bravo++/cf_mode_button",
     "Bravo++ toggles cf mode button",
-    "cycle_cf_mode()", -- Call Lua function when pressed
+    "tryCatch(cycle_cf_mode,'cycle_cf_mode')", -- Call Lua function when pressed
     "",
     ""
 )
@@ -509,7 +511,6 @@ end
 
 -- Update the currently available buttons
 do_every_draw("tryCatch(set_current_buttons,'set_current_buttons')")
--- do_every_draw("set_current_buttons()")
 
 --------------------------------------
 ---- TRIM WHEEL
@@ -547,7 +548,7 @@ end
 create_command(
     "FlyWithLua/Bravo++/trim_nose_up_handler",
     "Handle trim on bravo for nose up",
-    "handle_bravo_trim_nose_up()", -- Call Lua function when pressed
+    "tryCatch(handle_bravo_trim_nose_up,'handle_bravo_trim_nose_up')", -- Call Lua function when pressed
     "",
     ""
 )
@@ -578,7 +579,7 @@ end
 create_command(
     "FlyWithLua/Bravo++/trim_nose_down_handler",
     "Handle trim on bravo for nose down",
-    "handle_bravo_trim_nose_down()", -- Call Lua function when pressed
+    "tryCatch(handle_bravo_trim_nose_down,'handle_bravo_trim_nose_down')", -- Call Lua function when pressed
     "",
     ""
 )
