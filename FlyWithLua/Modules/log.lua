@@ -33,7 +33,7 @@ function log.error(message)
 end
 
 function get_formatted_message(level, message)
-    return string.format("[%.3f][BRAVO++ %s]: %s", os.clock(), level, message)
+    return string.format("%.3f [BRAVO++ %s]: %s", os.clock(), level, message)
 end
 
 return log

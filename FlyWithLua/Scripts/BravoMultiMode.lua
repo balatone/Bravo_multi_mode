@@ -3,10 +3,20 @@ require("graphics")
 local log = require("log")
 
 log.LOG_LEVEL = log.LOG_DEBUG
+
 -- Set this to either 0 or the button number assigned for the alt selector in x-plane.
 -- Setting to 0 will result in using HID to determine the selector state, but will introduce lag in Windows. 
 -- Use the ButtonLogUtil.lua to determine the button number asigned by x-plane
 local alt_selector_button = 0
+
+local bravo = hid_open(0x294B, 0x1901) -- Honeycomb Bravo VID/PID
+
+if bravo then
+    hid_set_nonblocking(bravo, 1)
+else
+    log.error("No Honeycomb Bravo device detected! Make sure that it's plugged in properly to the PC.")
+    return
+end
 
 if not SUPPORTS_FLOATING_WINDOWS then
     -- to make sure the script doesn't stop old FlyWithLua versions
@@ -298,7 +308,7 @@ end
 -----------------------------------------------------
 local height = 30 + 30 * #modes
 my_floating_wnd = float_wnd_create(400, height, 1, false)
-float_wnd_set_title(my_floating_wnd, "Bravo multi-mode")
+float_wnd_set_title(my_floating_wnd, "Bravo++ multi-mode")
 -- float_wnd_set_position(my_floating_wnd, SCREEN_WIDTH * 2/3 + 50, SCREEN_HEIGHT * 1/6)
 float_wnd_set_position(my_floating_wnd, SCREEN_WIDTH * 0.25, SCREEN_HEIGHT * 0.25)
 float_wnd_set_ondraw(my_floating_wnd, "on_draw_floating_window")
@@ -331,16 +341,20 @@ function on_draw_floating_window(my_floating_wnd, x3, y3)
         local h_offset = 60
         for i = 1, #current_buttons do
             -- logMsg("current mode: " .. "[" .. current_mode .. "][" .. current_selection .. "][" .. default_button_labels[i] .. "]")
+            glColor3f(0, 0.75, 0.75) -- default if not led
+
             if is_boolean(button_map_leds_state[current_mode][default_button_labels[i]]) then
                 if button_map_leds_state[current_mode][default_button_labels[i]] == true then
                     glColor3f(1, 1, 1)       -- White
-                else
-                    glColor3f(0, 0.75, 0.75)
+                elseif button_map_leds_state[current_mode][default_button_labels[i]] == false then
+                    glColor3f(0.2, 0.2, 0.2)
                 end
-            elseif is_table(button_map_leds_state[current_mode][current_selection]) and button_map_leds_state[current_mode][current_selection][default_button_labels[i]] == true then
-                glColor3f(1, 1, 1)       -- White
-            else
-                glColor3f(0, 0.75, 0.75)
+            elseif is_table(button_map_leds_state[current_mode][current_selection]) then
+				if button_map_leds_state[current_mode][current_selection][default_button_labels[i]] == true then
+					glColor3f(1, 1, 1)       -- White
+				elseif button_map_leds_state[current_mode][current_selection][default_button_labels[i]] == false then
+					glColor3f(0.2, 0.2, 0.2)
+				end
             end
             if i ~= #current_buttons then
                 draw_string_Helvetica_18(x3 + h_offset, v_offset + offset_mode, current_buttons[i])
@@ -376,13 +390,6 @@ end
 --------------------------------------------------------------
 --- CREATE THE FUNCTIONS FOR REFRESHING THE MODE AND SELECTOR
 --------------------------------------------------------------
--- Determine the position of the selector knob
-local bravo = hid_open(0x294B, 0x1901) -- Honeycomb Bravo VID/PID
-
-if bravo then
-    hid_set_nonblocking(bravo, 1)
-end
-
 function find_position(n)
     if n == 0 or (bit.band(n, (n - 1)) ~= 0) then
         return -1
@@ -446,19 +453,11 @@ create_command(
     ""
 )
 
-function refresh_selector_mock()
-    set_current_selector(index)
-end
-
 -- Choose the available method for updating the selector
-if bravo then
-    if alt_selector_button > 0 then
-        do_every_draw("tryCatch(refresh_selector)")
-    else
-        do_every_draw("tryCatch(refresh_selector_hid)")
-    end
+if alt_selector_button > 0 then
+    do_every_draw("tryCatch(refresh_selector)")
 else
-    do_every_draw("tryCatch(refresh_selector_mock)")
+    do_every_draw("tryCatch(refresh_selector_hid)")
 end
 
 -- Function to cycle through modes
@@ -519,8 +518,8 @@ do_every_draw("tryCatch(set_current_buttons,'set_current_buttons')")
 local trim_last_click_time = 0
 local trim_debounce_delay = 0.2 -- 200ms
 local trim_dataref = dataref_table("sim/flightmodel2/controls/elevator_trim")
-local increment = 0.01
-local boost_factor = 3
+local increment = nav_bindings.TRIM_INCREMENT and nav_bindings.TRIM_INCREMENT + 0 or 0.01 
+local boost_factor = nav_bindings.TRIM_BOOST and nav_bindings.TRIM_BOOST + 0 or 3
 
 function handle_bravo_trim_nose_up()
     local current_time = os.clock()
@@ -922,16 +921,18 @@ function get_led_state_for_dataref(dr_table, cond)
     end
     if is_dataref_array(dr_table) then
         for i = 0, 19 do
-            if dr_table[i] == tonumber(cond) then
-                return false
+            if dr_table[i] ~= tonumber(cond) then
+                return true
             end
         end
+		return false
     else
-        if dr_table[0] == tonumber(cond) then
-            return false
-        end
+        if dr_table[0] ~= tonumber(cond) then
+            return true
+        else
+			return false
+		end
     end
-    return true
 end
 
 -- Must determine if it's an array using reftype
