@@ -335,7 +335,9 @@ function on_draw_floating_window(my_floating_wnd, x3, y3)
         end
 
         glColor3f(1, 1, 1) -- White
-        draw_string_Helvetica_18(x3 + 80, v_offset + offset_selection, current_selection_label)
+		if current_selection_label then
+			draw_string_Helvetica_18(x3 + 80, v_offset + offset_selection, current_selection_label)
+		end
 
         -- offset_mode = offset_mode + v_spacing	
         local h_offset = 60
@@ -409,6 +411,7 @@ function refresh_selector_hid()
         hid_read(bravo, 64)
     selector = data15
     if selector and selector > 0 then
+		log.debug("Selector: " .. selector)
         local idx = 6 - find_position(selector)
         set_current_selector(idx)
     end
@@ -455,9 +458,9 @@ create_command(
 
 -- Choose the available method for updating the selector
 if alt_selector_button > 0 then
-    do_every_draw("tryCatch(refresh_selector)")
+    do_every_draw("tryCatch(refresh_selector,'refresh_selector')")
 else
-    do_every_draw("tryCatch(refresh_selector_hid)")
+    do_every_draw("tryCatch(refresh_selector_hid,'refresh_selector_hid')")
 end
 
 -- Function to cycle through modes

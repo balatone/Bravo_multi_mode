@@ -6,7 +6,7 @@
 local log = require("log")
 
 -- Set this to true if you want to log the last button that was pressed
-local write_log = true
+local write_log = false
 
 function find_assigned_buttons()
     local active_buttons = {}
