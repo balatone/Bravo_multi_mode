@@ -1,0 +1,1523 @@
+{
+    "profiles": [
+        {
+            "ConfiguratorSettings": {
+                "device": "Bravo Throttle Quadrant"
+            },
+            "Data": [
+                {
+                    "ButtonNumber": 0,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 1,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 2,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 3,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 4,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 5,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 6,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 7,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 8,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 9,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 10,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 11,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 12,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                                {
+                                    "Value": "",
+                                    "Variable": "FlyWithLua/Bravo++/knob_increase_handler",
+                                    "VariableBoundaries": {
+                                        "Clamp": false,
+                                        "MaxValue": "",
+                                        "MinValue": ""
+                                    },
+                                    "VariableIsCustom": true
+                                }
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                    ]
+                },
+                {
+                    "ButtonNumber": 13,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                                {
+                                    "Value": "",
+                                    "Variable": "FlyWithLua/Bravo++/knob_decrease_handler",
+                                    "VariableBoundaries": {
+                                        "Clamp": false,
+                                        "MaxValue": "",
+                                        "MinValue": ""
+                                    },
+                                    "VariableIsCustom": true
+                                }
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                    ]
+                },
+                {
+                    "ButtonNumber": 14,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 15,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 16,
+                    "PressEvent": [
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 17,
+                    "PressEvent": [
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 18,
+                    "PressEvent": [
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 19,
+                    "PressEvent": [
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 20,
+                    "PressEvent": [
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 21,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                                {
+                                    "Value": "",
+                                    "Variable": "FlyWithLua/Bravo++/trim_nose_down_handler",
+                                    "VariableBoundaries": {
+                                        "Clamp": false,
+                                        "MaxValue": "",
+                                        "MinValue": ""
+                                    },
+                                    "VariableIsCustom": true
+                                }
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                    ]
+                },
+                {
+                    "ButtonNumber": 22,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                                {
+                                    "Value": "",
+                                    "Variable": "FlyWithLua/Bravo++/trim_nose_up_handler",
+                                    "VariableBoundaries": {
+                                        "Clamp": false,
+                                        "MaxValue": "",
+                                        "MinValue": ""
+                                    },
+                                    "VariableIsCustom": true
+                                }
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                    ]
+                },
+                {
+                    "ButtonNumber": 23,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 24,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 25,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 26,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 27,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 28,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 29,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 30,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 31,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 32,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 33,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 34,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 35,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 36,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 37,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 38,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 39,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 40,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 41,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 42,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 43,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 44,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 45,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 46,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                },
+                {
+                    "ButtonNumber": 47,
+                    "PressEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ],
+                    "ReleaseEvent": [
+                        {
+                            "Condition": "",
+                            "ConditionLogic": "",
+                            "Conditions": [
+                            ],
+                            "ConditionValue": "",
+                            "Name": "",
+                            "Repeat": 0,
+                            "Value": "",
+                            "Variable": "",
+                            "Variables": [
+                            ]
+                        }
+                    ]
+                }
+            ],
+            "LEDs": [
+            ],
+            "SaveName": "Bravo++ Multi-mode",
+            "Version": 1
+        }
+    ],
+    "version": "1"
+}

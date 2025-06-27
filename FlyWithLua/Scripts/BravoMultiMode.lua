@@ -20,7 +20,7 @@ end
 
 if not SUPPORTS_FLOATING_WINDOWS then
     -- to make sure the script doesn't stop old FlyWithLua versions
-    log.error("floating windows not supported by your FlyWithLua version")
+    log.error("Floating windows not supported by your FlyWithLua version")
     return
 end
 
