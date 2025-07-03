@@ -5,7 +5,7 @@ Bravo++ multi-mode
 
 This is a beta release of a script I developed for personal use in the hopes that others would find it useful and fun. I am distributing it for free personal use and I appreciate feedback, but please don't expect me to provide full-time support on this. 
 
-If the script doesn't work for you, you can submit the ```log.txt``` file and a description of the problem on the X-Plane forum and I will try to see if I can solve the problem, but it may take time. For platform users that are not on Windows, I can only provide limited help, since I only run X-Plane on Windows 11. That doesn't mean it won't work on other platforms and I encourage you to try, but if you get a platform specific problem I probably won't be able help you.
+If the script doesn't work for you, you can submit the ```log.txt``` file, the configuration file you are using and a description of the problem by creating a [GitHub issue](https://github.com/balatone/Bravo_multi_mode/issues) or send me a PM and I will try to see if I can solve the problem, but it may take time. For platform users that are not on Windows, I can only provide limited help, since I only run X-Plane on Windows 11. That doesn't mean it won't work on other platforms and I encourage you to try, but if you get a platform specific problem I probably won't be able help you.
 
 # Description
 Bravo++ allows you to configure multi-mode functionality, so that you get more out of your Honeycomb Bravo than just the basic autopilot. The default mode (AUTO) will retain the standard autopilot functionality, but you can configure additional modes so that you can use the selector switch, buttons and rotating button to control other functionality in the aircraft. I have minimized the use of the Honeycomb Configurator and the only two controls that still need to be configured there are the right knob and the trim wheel (these can be configured outside the Honeycomb configurator, but the behavior won't be as good). There are some configuration files provided for the default aircraft such as the Cessna 172, the King Air C90B, and the Cirrus SF50 along with configurations for the Aerobask DA42 and DA62. Hopefully these will be enough so that you can configure you're own aircraft and perhaps submit it to the collection.
@@ -14,6 +14,7 @@ Prerequisites:
 - X-Plane 12
 - Honeycomb configurator (optional, but I found it necessary for my installation runnning Windows 11)
 - FlyWithLua NG
+- [DataRefTool](https://datareftool.com/) or [DataRefEditor](https://developer.x-plane.com/tools/datarefeditor/) plugin (if you want to customize or write your own configuration)
 
 The functionality is provided as a FlyWithLua script and consists of 3 parts:
 
@@ -38,30 +39,30 @@ Finally, you can optionally install the Honeycomb configurator developed by Aero
 ## Determining the button number for the left selector knob
 In order to determine which number X-Plane has assigned to the selector knob you need to enable the ```ButtonLogUtil.lua``` that should be located under the ```Resources\plugins\FlyWithLua\Scripts``` directory. You do this by opening the file and setting the ```local write_log = false``` to ```local write_log = true```. This will allow the script to write output to the ```log.txt``` file located directly under the X-Plane 12 directory.
 
-Now you simply load up an aircraft and once it is loaded you can twist the left selector knob through the full range of selection and finally select the "Alt" setting.
+Now you simply load up an aircraft and once it is loaded you should see a little text bubble next to the mouse cursor indicating the number of the button that wa last clicked. Now you can twist the left selector knob through the full range of selection and finally select the "Alt" setting. Note down the number which you will use in the next step.
 
-You can now open the ```log.txt``` file and look at the output. If all went well you should have some lines with the text "Last button pressed:" with a number. Note the last number you see.
-
-Now you open the ```BravoMultiMode.lua``` file under the ```Resources\plugins\FlyWithLua\Scripts``` directory and you look for the ```local alt_selector_button = 0``` and replace the "0" with the number you noted from the log.
+Open the ```BravoMultiMode.lua``` file under the ```Resources\plugins\FlyWithLua\Scripts``` directory and look for the ```local alt_selector_button = 0``` and replace the "0" with the number you noted.
 
 Go back to the ```ButtonLogUtil.lua``` and disable the logging by setting the ```local write_log``` back to false.
 
 ## Configuring the buttons in X-Plane
 Next you need to confgure the Honeycomb Bravo buttons to use Bravo++. You may want to create a base profile (called Bravo++) that X-Plane uses, since this can be reused between aircraft configurations. Otherwise chose an existing profile and start configuring the buttons.
 
-Here are the corresponding datarefs for each button:
-- HDG = FlyWithLua/Bravo++/hdg_button
-- NAV = FlyWithLua/Bravo++/nav_button
-- APR = FlyWithLua/Bravo++/apr_button
-- REV = FlyWithLua/Bravo++/rev_button
-- ALT = FlyWithLua/Bravo++/alt_button
--  VS = FlyWithLua/Bravo++/vs_button
-- IAS = FlyWithLua/Bravo++/ias_button
-- AUTOPILOT = FlyWithLua/Bravo++/autopilot_button
+Here are the descriptions you should look for when configuring each button with their corresponding dataref:
+- HDG = Bravo++ toggles HDG button (FlyWithLua/Bravo++/hdg_button)
+- NAV = Bravo++ toggles NAV button (FlyWithLua/Bravo++/nav_button)
+- APR = Bravo++ toggles APR button (FlyWithLua/Bravo++/apr_button)
+- REV = Bravo++ toggles REV button (FlyWithLua/Bravo++/rev_button)
+- ALT = Bravo++ toggles ALT button (FlyWithLua/Bravo++/alt_button)
+-  VS = Bravo++ toggles VS button (FlyWithLua/Bravo++/vs_button)
+- IAS = Bravo++ toggles IAS button (FlyWithLua/Bravo++/ias_button)
+- AUTOPILOT = Bravo++ toggles AUTOPILOT button (FlyWithLua/Bravo++/autopilot_button)
 
-For finding the corresponding datref in X-Plane just search for "Bravo++" and you should see all the available datrefs (you need to hover to get the actual dataref) you can map to. Otherwise the descriptions are pretty self-explanatory.
+For finding the corresponding command in X-Plane just search for "Bravo++" and you should see all the available options you can map to.
 
-There is one more dataref that needs to be mapped and that is the one that toggles the modes. You need to determine where you want that button or key to be. I would suggest having it on a button on the joystick or yoke, and then you map the ```FlyWithLua/Bravo++/mode_button``` dataref to the desired button.
+There is one more dataref that needs to be mapped and that is the one that toggles the modes. You need to determine where you want that button or key to be. I would suggest having it on a button on the joystick or yoke, and then you map it to the command with description ```Bravo++ toggles MODE```.
+
+Another available command is to toggle the INNER/OUTER knob, but this is usually already mapped in the configuration file.  
 
 ## Configuring the right twist knob and the trim wheel
 You can try to configure the twist knob and the trim wheel in X-Plane, but I personally get issues with latency that results in not all the clicks getting registered as I turn the knob or wheel. I may delve deeper into this issue to see if I can resolve it, but for now I use the Honeycomb Configurator from Aerosoft to solve the problem. I am aware that Mac users have issues with the software, but perhaps it will work with the minimal setup config file I have provided. 
@@ -77,11 +78,11 @@ Once imported you need to activate the profile either before starting up X-Plane
 
 Make sure that the right twist knob and trim wheel are not configured in X-Plane; i.e. they should be set to "Do nothing". On the other hand, if you want to try the functionality without using the Honeycomb Configurator, then you need to set the appropriate datarefs in X-Plane. 
 
-For reference, the relevant datarefs that are configured are as follows:
-- Increase value (turn knob to the right) = FlyWithLua/Bravo++/knob_increase_handler 
-- Decrease value (turn knob to the left) = FlyWithLua/Bravo++/knob_decrease_handler
-- Nose up (turn wheel down) = FlyWithLua/Bravo++/trim_nose_up_handler
-- Nose down (turn wheel down) = FlyWithLua/Bravo++/trim_nose_down_handler
+For reference, the relevant command descriptions that are configured are as follows:
+- Increase value (turn knob to the right) = Handle button on bravo that increments values (FlyWithLua/Bravo++/knob_increase_handler)
+- Decrease value (turn knob to the left) = Handle button on bravo that decrements values (FlyWithLua/Bravo++/knob_decrease_handler)
+- Nose up (turn wheel up) = Handle trim on bravo for nose up (FlyWithLua/Bravo++/trim_nose_up_handler)
+- Nose down (turn wheel down) = Handle trim on bravo for nose down (FlyWithLua/Bravo++/trim_nose_down_handler)
 
 ## Configuring the aircraft
 The easiest way to start is to use one of the predefined G1000 configurations (all aircraft, but the King Air C90B) like the for the Cessna 172. I won't go into the details on the content of the config file in this section and assume you want to get going as quickly as possible.
