@@ -7,7 +7,7 @@ log.LOG_LEVEL = log.LOG_DEBUG
 -- Set this to either 0 or the button number assigned for the alt selector in x-plane.
 -- Setting to 0 will result in using HID to determine the selector state, but will introduce lag in Windows. 
 -- Use the ButtonLogUtil.lua to determine the button number asigned by x-plane
-local alt_selector_button = 0
+local alt_selector_button = 20
 
 local bravo = hid_open(0x294B, 0x1901) -- Honeycomb Bravo VID/PID
 
@@ -24,15 +24,22 @@ if not SUPPORTS_FLOATING_WINDOWS then
     return
 end
 
+local function trim(s)
+    return (s:gsub("^%s*(.-)%s*$", "%1"))
+end
+
 local function read_config_file(nav_cfg_path, nav_bindings)
     local cfg_file = io.open(nav_cfg_path, "r")
     if cfg_file then
         for line in cfg_file:lines() do
             -- Skip comments/empty lines and parse key=value
             if not line:match("^%s*#") and line:match("=") then
-                local key, value = line:match("%s*([%w_]+)%s*=%s*(.+)%s*")
+                local key, value = line:match("^%s*([%w_]+)%s*=%s*(.-)%s*$")
                 if key and value then
-                    nav_bindings[key] = value:gsub("^\"(.*)\"$", "%1") -- Remove quotes if present
+                    value = trim(value)
+                    -- Remove surrounding quotes only if both present
+                    value = value:match('^"(.-)"$') or value
+                    nav_bindings[key] = value
                 end
             end
         end
@@ -173,15 +180,15 @@ for i = 1, #modes do
                 select_map[default_selections[j]] = create_table(nav_bindings[key])
                 button_map_labels[modes[i]] = select_map
                 log.info("Adding " .. key .. " = " .. nav_bindings[key])
-            else
-                select_map[default_selections[j]] = no_button_labels
-                button_map_labels[modes[i]] = select_map
-                log.warning("No binding found for " .. key .. ". Using no labels.")
+			else
+				select_map[default_selections[j]] = default_button_labels
+				button_map_labels[modes[i]] = select_map
+				log.info("Adding default button labels.")			
             end
         else
-            select_map[default_selections[j]] = default_button_labels
-            button_map_labels[modes[i]] = select_map
-            log.info("Adding default button labels.")
+			select_map[default_selections[j]] = default_button_labels
+			button_map_labels[modes[i]] = select_map
+			log.info("Adding default button labels.")
         end
     end
 end
@@ -216,18 +223,22 @@ log.info("Initializing the button led map...")
 local button_map_leds = {}
 local button_map_leds_state = {}
 local button_map_leds_cond = {}
+local button_map_leds_index = {}
 
 for i = 1, #modes do
     button_map_leds[modes[i]] = {}
     button_map_leds_state[modes[i]] = {}
     button_map_leds_cond[modes[i]] = {}
+    button_map_leds_index[modes[i]] = {}
     local select_map = {}
     local select_map2 = {}
     local select_map3 = {}
+    local select_map4 = {}
     for j = 1, #default_selections do
         select_map[default_selections[j]] = {}
         select_map2[default_selections[j]] = {}
         select_map3[default_selections[j]] = {}
+        select_map4[default_selections[j]] = {}
         for k = 1, #default_button_labels do
             local full_key = modes[i] .. "_" .. default_button_labels[k] .. "_BUTTON_LED"
             if default_selections[j] == "ALT" and nav_bindings[full_key] then
@@ -237,6 +248,10 @@ for i = 1, #modes do
                 log.debug("cond: " .. binding[2])
                 button_map_leds[modes[i]][default_button_labels[k]] = binding[1]
                 button_map_leds_cond[modes[i]][default_button_labels[k]] = binding[2]
+				if binding[3] ~= nil then
+					log.debug("index: " .. binding[3])
+					button_map_leds_index[modes[i]][default_button_labels[k]] = binding[3]
+				end
                 button_map_leds_state[modes[i]][default_button_labels[k]] = false
                 log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
             end
@@ -253,6 +268,11 @@ for i = 1, #modes do
                 button_map_leds_cond[modes[i]] = select_map2
                 select_map3[default_selections[j]][default_button_labels[k]] = false
                 button_map_leds_state[modes[i]] = select_map3
+				if binding[3] ~= nil then
+					log.debug("index: " .. binding[3])
+					select_map4[default_selections[j]][default_button_labels[k]] = binding[3]
+					button_map_leds_index[modes[i]] = select_map4
+				end
                 log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
             end
         end
@@ -474,7 +494,7 @@ end
 -- Create a custom command for changing mode
 create_command(
     "FlyWithLua/Bravo++/mode_button",
-    "Bravo++ toggles mode button",
+    "Bravo++ toggles MODE",
     "tryCatch(cycle_mode,'cycle_mode')", -- Call Lua function when pressed
     "",
     ""
@@ -490,7 +510,7 @@ end
 -- Create a custom command for changing cf mode
 create_command(
     "FlyWithLua/Bravo++/cf_mode_button",
-    "Bravo++ toggles cf mode button",
+    "Bravo++ toggles INNER/OUTER mode",
     "tryCatch(cycle_cf_mode,'cycle_cf_mode')", -- Call Lua function when pressed
     "",
     ""
@@ -670,7 +690,7 @@ end
 -- Create a custom command for bravo knob increase
 create_command(
     "FlyWithLua/Bravo++/autopilot_button",
-    "Bravo++ toggles autopilot button",
+    "Bravo++ toggles AUTOPILOT button",
     "handle_bravo_autopilot_button()", -- Call Lua function when pressed
     "",
     ""
@@ -684,7 +704,7 @@ end
 -- Create a custom command for bravo knob increase
 create_command(
     "FlyWithLua/Bravo++/ias_button",
-    "Bravo++ toggles ias button",
+    "Bravo++ toggles IAS button",
     "handle_bravo_ias_button()", -- Call Lua function when pressed
     "",
     ""
@@ -698,7 +718,7 @@ end
 -- Create a custom command for bravo knob increase
 create_command(
     "FlyWithLua/Bravo++/vs_button",
-    "Bravo++ toggles vs button",
+    "Bravo++ toggles VS button",
     "handle_bravo_vs_button()", -- Call Lua function when pressed
     "",
     ""
@@ -712,7 +732,7 @@ end
 -- Create a custom command for bravo knob increase
 create_command(
     "FlyWithLua/Bravo++/alt_button",
-    "Bravo++ toggles alt button",
+    "Bravo++ toggles ALT button",
     "handle_bravo_alt_button()", -- Call Lua function when pressed
     "",
     ""
@@ -726,7 +746,7 @@ end
 -- Create a custom command for bravo knob increase
 create_command(
     "FlyWithLua/Bravo++/rev_button",
-    "Bravo++ toggles rev button",
+    "Bravo++ toggles REV button",
     "handle_bravo_rev_button()", -- Call Lua function when pressed
     "",
     ""
@@ -740,7 +760,7 @@ end
 -- Create a custom command for bravo knob increase
 create_command(
     "FlyWithLua/Bravo++/apr_button",
-    "Bravo++ toggles apr button",
+    "Bravo++ toggles APR button",
     "handle_bravo_apr_button()", -- Call Lua function when pressed
     "",
     ""
@@ -754,7 +774,7 @@ end
 -- Create a custom command for bravo knob increase
 create_command(
     "FlyWithLua/Bravo++/nav_button",
-    "Bravo++ toggles nav button",
+    "Bravo++ toggles NAV button",
     "handle_bravo_nav_button()", -- Call Lua function when pressed
     "",
     ""
@@ -768,7 +788,7 @@ end
 -- Create a custom command for bravo knob increase
 create_command(
     "FlyWithLua/Bravo++/hdg_button",
-    "Bravo++ toggles hdg button",
+    "Bravo++ toggles HDG button",
     "handle_bravo_hdg_button()", -- Call Lua function when pressed
     "",
     ""
@@ -918,16 +938,24 @@ function send_hid_data()
 	log.debug('Done send_hid_data')
 end
 
-function get_led_state_for_dataref(dr_table, cond)
+function get_led_state_for_dataref(dr_table, cond, index)
     if dr_table == nil then
         return false
     end
     if is_dataref_array(dr_table) then
-        for i = 0, 19 do
-            if dr_table[i] ~= tonumber(cond) then
-                return true
-            end
-        end
+		--if is_string(index) then
+		--	log.debug("index: " .. index)
+		--end
+		if index == nil then
+			for i = 0, 19 do
+				if dr_table[i] ~= tonumber(cond) then
+					return true
+				end
+			end
+		else
+			log.debug("index: " .. index)
+			return dr_table[tonumber(index) - 1] ~= tonumber(cond)
+		end
 		return false
     else
         if dr_table[0] ~= tonumber(cond) then
@@ -1017,13 +1045,17 @@ function handle_button_led_changes()
 		-- logMsg("Button name: " .. button_label)
 		if is_string(button_map_leds[current_mode][button_label]) then
 			local dataref = dataref_table(button_map_leds[current_mode][button_label])
-			if get_led_state_for_dataref(dataref, button_map_leds_cond[current_mode][button_label]) ~= button_map_leds_state[current_mode][button_label] then
-				set_button_led_state(button_label, get_led_state_for_dataref(dataref, button_map_leds_cond[current_mode][button_label]))
+			if get_led_state_for_dataref(dataref, button_map_leds_cond[current_mode][button_label], button_map_leds_index[current_mode][button_label]) ~= button_map_leds_state[current_mode][button_label] then
+				set_button_led_state(button_label, get_led_state_for_dataref(dataref, button_map_leds_cond[current_mode][button_label], button_map_leds_index[current_mode][button_label]))
 			end
 		elseif is_table(button_map_leds[current_mode][current_selection]) and button_map_leds[current_mode][current_selection][button_label] then
 			local dataref = dataref_table(button_map_leds[current_mode][current_selection][button_label])
-			if get_led_state_for_dataref(dataref, button_map_leds_cond[current_mode][current_selection][button_label]) ~= button_map_leds_state[current_mode][current_selection][button_label] then
-				set_button_led_state(button_label, get_led_state_for_dataref(dataref, button_map_leds_cond[current_mode][current_selection][button_label]))
+			local index = nil
+			if is_table(button_map_leds_index[current_mode][current_selection]) then
+				index = button_map_leds_index[current_mode][current_selection][button_label]
+			end
+			if get_led_state_for_dataref(dataref, button_map_leds_cond[current_mode][current_selection][button_label], index) ~= button_map_leds_state[current_mode][current_selection][button_label] then
+				set_button_led_state(button_label, get_led_state_for_dataref(dataref, button_map_leds_cond[current_mode][current_selection][button_label], index))
 			end
 		end
 	end            
