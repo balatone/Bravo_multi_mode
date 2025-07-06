@@ -7,7 +7,7 @@ log.LOG_LEVEL = log.LOG_DEBUG
 -- Set this to either 0 or the button number assigned for the alt selector in x-plane.
 -- Setting to 0 will result in using HID to determine the selector state, but will introduce lag in Windows. 
 -- Use the ButtonLogUtil.lua to determine the button number asigned by x-plane
-local alt_selector_button = 20
+local alt_selector_button = 0
 
 local bravo = hid_open(0x294B, 0x1901) -- Honeycomb Bravo VID/PID
 
@@ -70,7 +70,7 @@ else
     if file_ok then
         log.info("Successfully parsed config file specific for " .. aircraft_name)        
     else
-        log.warning("No config file found in  " .. aircraft_dir .. " with name bravo_multi-mode.cfg or " .. nav_cfg_file_name .. ". Bravo script will be stopped.")
+        log.error("No config file found in  " .. aircraft_dir .. " with name bravo_multi-mode.cfg or " .. nav_cfg_file_name .. ". Bravo script will be stopped.")
         return -- Stop script if config is missing
     end
 end
@@ -143,6 +143,8 @@ local modes = create_table(nav_bindings.MODES)
 local current_mode = modes[1]
 local outer_inner_modes = { "outer", "inner" }
 local current_cf_mode = outer_inner_modes[1]
+local up_down_modes = {"up", "down"}
+local current_switch_mode = up_down_modes[1]
 
 -- Bindings for the selector knob
 local default_selections = { "ALT", "VS", "HDG", "CRS", "IAS" }
@@ -174,8 +176,8 @@ for i = 1, #modes do
     local select_map = {}
     for j = 1, #default_selections do
         select_map[default_selections[j]] = {}
-        if modes[i] ~= "AUTO" then
-            local key = modes[i] .. "_" .. default_selections[j] .. "_BUTTON_LABELS"
+        local key = modes[i] .. "_" .. default_selections[j] .. "_BUTTON_LABELS"
+        if modes[i] ~= "AUTO" or (modes[i] == "AUTO" and nav_bindings[key] ~= nil) then
             if nav_bindings[key] ~= nil then
                 select_map[default_selections[j]] = create_table(nav_bindings[key])
                 button_map_labels[modes[i]] = select_map
@@ -196,6 +198,7 @@ end
 -- The button actions that will be used depending on mode and selection
 log.info("Initializing the button action map...")
 local button_map_actions = {}
+local up_down = { "UP", "DOWN" }
 for i = 1, #modes do
     button_map_actions[modes[i]] = {}
     local select_map = {}
@@ -206,6 +209,16 @@ for i = 1, #modes do
             if default_selections[j] == "ALT" and nav_bindings[full_key] then
                 button_map_actions[modes[i]][default_button_labels[k]] = nav_bindings[full_key]
                 log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
+            elseif default_selections[j] == "ALT" and nav_bindings[full_key] == nil then
+                local switch_map = {}
+                for l = 1, #up_down do
+                    local full_key = modes[i] .. "_" .. default_button_labels[k] .. "_" .. up_down[l] .. "_BUTTON"
+                    if nav_bindings[full_key] then
+                        switch_map[up_down[l]] = nav_bindings[full_key]
+                        button_map_actions[modes[i]][default_button_labels[k]] = switch_map
+                        log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
+                    end
+                end            
             end
             local key = modes[i] .. "_" .. default_selections[j]
             full_key = key .. "_" .. default_button_labels[k] .. "_BUTTON"
@@ -213,6 +226,18 @@ for i = 1, #modes do
                 select_map[default_selections[j]][default_button_labels[k]] = nav_bindings[full_key]
                 button_map_actions[modes[i]] = select_map
                 log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
+            else
+                local switch_map = {}
+                for l = 1, #up_down do
+                    key = modes[i] .. "_" .. default_selections[j]
+                    full_key = key .. "_" .. default_button_labels[k] .. "_" .. up_down[l] .. "_BUTTON"
+                    if nav_bindings[full_key] then
+                        switch_map[up_down[l]] = nav_bindings[full_key]
+                        select_map[default_selections[j]][default_button_labels[k]] = switch_map
+                        button_map_actions[modes[i]] = select_map
+                        log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
+                    end
+                end
             end
         end
     end
@@ -327,7 +352,7 @@ end
 --- CREATE THE GUI PANEL
 -----------------------------------------------------
 local height = 30 + 30 * #modes
-my_floating_wnd = float_wnd_create(400, height, 1, false)
+my_floating_wnd = float_wnd_create(500, height, 1, false)
 float_wnd_set_title(my_floating_wnd, "Bravo++ multi-mode")
 -- float_wnd_set_position(my_floating_wnd, SCREEN_WIDTH * 2/3 + 50, SCREEN_HEIGHT * 1/6)
 float_wnd_set_position(my_floating_wnd, SCREEN_WIDTH * 0.25, SCREEN_HEIGHT * 0.25)
@@ -339,7 +364,7 @@ function on_draw_floating_window(my_floating_wnd, x3, y3)
     tryCatch(function()
         local offset_mode = -20
         local v_spacing = -30
-        local h_spacing = 50
+        local h_spacing = 65
         local offset_selection = 10
         local v_offset = y3 + height
 
@@ -365,6 +390,7 @@ function on_draw_floating_window(my_floating_wnd, x3, y3)
             -- logMsg("current mode: " .. "[" .. current_mode .. "][" .. current_selection .. "][" .. default_button_labels[i] .. "]")
             glColor3f(0, 0.75, 0.75) -- default if not led
 
+            -- Set the color based on the led state
             if is_boolean(button_map_leds_state[current_mode][default_button_labels[i]]) then
                 if button_map_leds_state[current_mode][default_button_labels[i]] == true then
                     glColor3f(1, 1, 1)       -- White
@@ -378,12 +404,42 @@ function on_draw_floating_window(my_floating_wnd, x3, y3)
 					glColor3f(0.2, 0.2, 0.2)
 				end
             end
+
+            local is_switch = false
+            -- Assigna different color to switches that are not togglable
+            if is_table(button_map_actions[current_mode][current_selection]) and is_table(button_map_actions[current_mode][current_selection][default_button_labels[i]]) then
+                if is_string(button_map_actions[current_mode][current_selection][default_button_labels[i]]["UP"]) or is_string(button_map_actions[current_mode][current_selection][default_button_labels[i]]["DOWN"]) then
+                    is_switch = true
+                end                
+            elseif is_table(button_map_actions[current_mode][default_button_labels[i]]) then
+                if is_string(button_map_actions[current_mode][default_button_labels[i]]["UP"]) or is_string(button_map_actions[current_mode][default_button_labels[i]]["DOWN"]) then
+                    is_switch = true
+                end
+            end
+
+            local ud_symbol = "^^"
+            local ud_symbol_v_offset = 15
+            local ud_symbol_h_offset = string.len(current_buttons[i])*3
+            if current_switch_mode == "down" then
+                ud_symbol = "vv"
+                ud_symbol_v_offset = -15
+            end
+
             if i ~= #current_buttons then
                 draw_string_Helvetica_18(x3 + h_offset, v_offset + offset_mode, current_buttons[i])
+
+                if is_switch then
+					glColor3f(0, 1, 0)       -- White
+                    draw_string_Helvetica_18(x3 + h_offset + ud_symbol_h_offset, v_offset + offset_mode + ud_symbol_v_offset, ud_symbol)
+                end
             else
                 -- graphics.draw_rectangle(x3 + h_offset, v_offset + offset_mode - v_spacing, x3 + h_offset + h_spacing, v_offset + offset_mode - 2*v_spacing)
                 -- glColor3f(0, 0, 0) -- Black
                 draw_string_Times_Roman_24(x3 + h_offset - h_spacing, v_offset + offset_mode - v_spacing, current_buttons[i])
+                if is_switch then
+					glColor3f(1, 0, 0)       -- White
+                    draw_string_Times_Roman_24(x3 + h_offset - h_spacing + ud_symbol_h_offset, v_offset + offset_mode - v_spacing - ud_symbol_v_offset, ud_symbol)
+                end
             end
             h_offset = h_offset + h_spacing
         end
@@ -400,6 +456,20 @@ function on_draw_floating_window(my_floating_wnd, x3, y3)
             draw_string_Helvetica_18(x3 + h_offset - 2*h_spacing, v_offset + offset_mode, outer_inner_modes[i])
             offset_mode = offset_mode + v_spacing
         end
+
+        --offset_mode = -20
+        --h_offset = 500
+        --for i = 1, #up_down_modes do
+        --    if current_switch_mode == up_down_modes[i] then
+        --        glColor3f(0, 1, 0) -- Green for default
+        --        offset_selection = offset_mode
+        --   else
+        --        glColor3f(0.2, 0.2, 0.2) -- Balck semitransparent
+        --    end
+        --    draw_string_Helvetica_18(x3 + h_offset - 2*h_spacing, v_offset + offset_mode, up_down_modes[i])
+        --    offset_mode = offset_mode + v_spacing
+        --end
+
     end, "on_draw_floating_window")
 end
 
@@ -483,8 +553,18 @@ else
     do_every_draw("tryCatch(refresh_selector_hid,'refresh_selector_hid')")
 end
 
--- Function to cycle through modes
-function cycle_mode()
+
+-- Function to cycle the mode down one
+function cycle_mode_up()
+    local index = table.find(modes, current_mode)
+    index = ((index - 2) % #modes) + 1
+    current_mode = modes[index]
+    all_leds_off()
+end
+
+
+-- Function to cycle the mode down one
+function cycle_mode_down()
     local index = table.find(modes, current_mode)
     index = (index % #modes) + 1
     current_mode = modes[index]
@@ -495,10 +575,51 @@ end
 create_command(
     "FlyWithLua/Bravo++/mode_button",
     "Bravo++ toggles MODE",
-    "tryCatch(cycle_mode,'cycle_mode')", -- Call Lua function when pressed
+    "tryCatch(cycle_mode_down,'cycle_mode_down')", -- Call Lua function when pressed
     "",
     ""
 )
+
+-- Moves the current mode up one
+create_command(
+    "FlyWithLua/Bravo++/cycle_mode_up",
+    "Bravo++ cycle mode up",
+    "tryCatch(cycle_mode_up,'cycle_mode_up')", -- Call Lua function when pressed
+    "",
+    ""
+)
+
+-- Moves the current mode down one
+create_command(
+    "FlyWithLua/Bravo++/cycle_mode_down",
+    "Bravo++ cycle mode down",
+    "tryCatch(cycle_mode_down,'cycle_mode_down')", -- Call Lua function when pressed
+    "",
+    ""
+)
+
+local mode_select_command = {}
+mode_select_command["UP"] = "FlyWithLua/Bravo++/cycle_mode_up"
+mode_select_command["DOWN"] = "FlyWithLua/Bravo++/cycle_mode_down"
+
+local mode_select = false
+
+function toggle_mode_select_true()
+    mode_select = true
+end
+
+function toggle_mode_select_false()
+    mode_select = false
+end
+
+create_command(
+    "FlyWithLua/Bravo++/toggle_mode_select",
+    "Bravo++ activates the mode select when button is pressed in allowing you to cycle up or down the mode list. Deactivates it when the button is released.",
+    "",
+    "tryCatch(toggle_mode_select_true,'toggle_mode_select_true')",
+    "tryCatch(toggle_mode_select_false,'toggle_mode_select_false')"
+)
+
 
 -- Function to cycle through outer/inner modes
 function cycle_cf_mode()
@@ -515,6 +636,23 @@ create_command(
     "",
     ""
 )
+
+-- Function to cycle through up/down switch modes
+function cycle_switch_mode()
+    local index = table.find(up_down_modes, current_switch_mode)
+    index = (index % #up_down_modes) + 1
+    current_switch_mode = up_down_modes[index]
+end
+
+-- Create a custom command for changing ud mode
+create_command(
+    "FlyWithLua/Bravo++/switch_mode_button",
+    "Bravo++ toggles UP/DOWN switch mode",
+    "tryCatch(cycle_switch_mode,'cycle_switch_mode')", -- Call Lua function when pressed
+    "",
+    ""
+)
+
 
 function set_current_selector(idx)
     index = idx
@@ -609,12 +747,18 @@ create_command(
 -----------------------------------------------------
 --- HANDLE TWIST-KNOB THAT INCREASES/DECREASES VALUES
 -----------------------------------------------------
+
 local last_click_time = 0
 local debounce_delay = 0.02 -- 20ms
 
 function handle_bravo_knob_increase()
     local current_time = os.clock()
-    local current_twist_knob_action = twist_knob_map_actions[current_mode][current_selection]
+    local current_twist_knob_action = nil
+    if mode_select then
+        current_twist_knob_action = mode_select_command
+    else
+        current_twist_knob_action = twist_knob_map_actions[current_mode][current_selection]       
+    end    
     if current_time - last_click_time > debounce_delay then
         if current_twist_knob_action["UP"] then
             command_once(current_twist_knob_action["UP"])
@@ -641,7 +785,13 @@ create_command(
 
 function handle_bravo_knob_decrease()
     local current_time = os.clock()
-    local current_twist_knob_action = twist_knob_map_actions[current_mode][current_selection]
+
+    local current_twist_knob_action = nil
+    if mode_select then
+        current_twist_knob_action = mode_select_command
+    else
+        current_twist_knob_action = twist_knob_map_actions[current_mode][current_selection]
+    end
     if current_time - last_click_time > debounce_delay then
 		if current_twist_knob_action["DOWN"] then
 			command_once(current_twist_knob_action["DOWN"])
@@ -670,16 +820,34 @@ create_command(
 ---- BUTTON HANDLING
 --------------------------------------
 function handle_bravo_button(button_name)
-    -- logMsg("[" .. current_mode .. "][" .. current_selection .. "][" .. button_name .. "]")
-    if is_string(button_map_actions[current_mode][button_name]) then
-        local command = button_map_actions[current_mode][button_name]
-        command_once(command)
-    elseif is_table(button_map_actions[current_mode][current_selection]) then
-        local command = button_map_actions[current_mode][current_selection][button_name]
-        command_once(command)
-    else
-        log.debug("Button action not found!")
-    end
+    tryCatch(function()
+        -- logMsg("[" .. current_mode .. "][" .. current_selection .. "][" .. button_name .. "]")
+        if is_string(button_map_actions[current_mode][button_name]) then
+            local command = button_map_actions[current_mode][button_name]
+            command_once(command)
+        elseif current_switch_mode == "up" and is_table(button_map_actions[current_mode][button_name]) and is_string(button_map_actions[current_mode][button_name]["UP"]) then
+            local command = button_map_actions[current_mode][button_name]["UP"]
+            command_once(command)
+        elseif current_switch_mode == "down" and is_table(button_map_actions[current_mode][button_name]) and  button_map_actions[current_mode][button_name]["DOWN"] then
+            local command = button_map_actions[current_mode][button_name]["DOWN"]
+            command_once(command)
+        elseif is_table(button_map_actions[current_mode][current_selection]) then
+            if is_string(button_map_actions[current_mode][current_selection][button_name]) then
+                local command = button_map_actions[current_mode][current_selection][button_name]
+                command_once(command)
+            elseif current_switch_mode == "up" and is_table(button_map_actions[current_mode][current_selection][button_name]) and button_map_actions[current_mode][current_selection][button_name]["UP"] then
+                local command = button_map_actions[current_mode][current_selection][button_name]["UP"]
+                command_once(command)
+            elseif current_switch_mode == "down" and is_table(button_map_actions[current_mode][current_selection][button_name]) and button_map_actions[current_mode][current_selection][button_name]["DOWN"] then
+                local command = button_map_actions[current_mode][current_selection][button_name]["DOWN"]
+                command_once(command)
+            else
+                log.debug("Button action not found!")
+            end
+        else
+            log.debug("Button action not found!")
+        end
+    end, "handl_bravo_button")
 end
 
 -- Autopilot button
@@ -953,7 +1121,7 @@ function get_led_state_for_dataref(dr_table, cond, index)
 				end
 			end
 		else
-			log.debug("index: " .. index)
+			-- log.debug("index: " .. index)
 			return dr_table[tonumber(index) - 1] ~= tonumber(cond)
 		end
 		return false

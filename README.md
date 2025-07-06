@@ -60,12 +60,17 @@ Here are the descriptions you should look for when configuring each button with 
 
 For finding the corresponding command in X-Plane just search for "Bravo++" and you should see all the available options you can map to.
 
-There is one more dataref that needs to be mapped and that is the one that toggles the modes. You need to determine where you want that button or key to be. I would suggest having it on a button on the joystick or yoke, and then you map it to the command with description ```Bravo++ toggles MODE```.
+There are also datarefs that are used for toggling/scrolling through the modes. I would suggest having it on a button accessible to the hand that is not used for the Honeycomb Bravo (left hand for most people) on the joystick or yoke. 
+- For toggling through the modes in one direction you should map it to the command with description ```Bravo++ toggles MODE```. So all you do is click on the button and it will move down one mode.
+- If you prefer scrolling through the modes with the right twist knob located on the Honeycomb Bravo, then you need to map the following command with description ```Bravo++ activates the mode select when button is held in``` The way this works is that you need to keep the button pressed down while you scroll with the right knob. When you are done you release the button.
+- If you don't like these options, you can also map the commands that move the selection up or down to any key or button you like using the provided commands with description ```Bravo++ cycle mode up``` and ```Bravo++ cycle mode down```
 
-Another available command is to toggle the INNER/OUTER knob, but this is usually already mapped in the configuration file.  
+Finally, there are two internal commands that are often assigned to one of the Honeycomb Bravo buttons. 
+- The ```I/O``` button (see oneof the example configs) is used for switching between the inner or outer scroll knob. The active state is shown in green on the Bravo++ window. The dataref is described as ```Bravo++ toggles INNER/OUTER mode```. 
+- The ```U/D``` button is used for switches and will toggle between up and down state. Each button that implements a switch will either have ```^^``` above or ```vv``` below the button label indicating what will happen if the button is pressed. This distinguishes it from  buttons that just toggle between two states. So by pressing the button labeled ```U/D``` you toggle how the switch will behave.  The dataref is described as ```Bravo++ toggles UP/DOWN switch mode```.
 
 ## Configuring the right twist knob and the trim wheel
-You can try to configure the twist knob and the trim wheel in X-Plane, but I personally get issues with latency that results in not all the clicks getting registered as I turn the knob or wheel. I may delve deeper into this issue to see if I can resolve it, but for now I use the Honeycomb Configurator from Aerosoft to solve the problem. I am aware that Mac users have issues with the software, but perhaps it will work with the minimal setup config file I have provided. 
+You can try to configure the twist knob and the trim wheel directly in X-Plane, but I personally get issues with latency that results in not all the clicks getting registered as I turn the knob or wheel. I may delve deeper into this issue to see if I can resolve it, but for now I use the Honeycomb Configurator from Aerosoft to solve the problem. I am aware that Mac users have issues with the software, but perhaps it will work with the minimal setup config file I have provided. 
 
 You will find the Honeycomb Configurator file under ```Resources\plugins\FlyWithLua\conf\Bravo++_honecomb_configurator.json``` and you import it using the following steps:
 - Select "Actions > Open settings"  
@@ -103,11 +108,166 @@ If you select the "MFD" mode you will notice that the text changes for most of t
 
 I suggest you explore the rest of the functionality, especially the "FMS" selection, which allows you to access the flighplan menu and procedure menu without using the mouse. 
 
-More documentation to come...
+For more advanced configuration I would suggest looking at King Air C90B configuration file.
+
+## File format
+Once, I have finalized the the configuration file I will wite a more formal specification, but for now I will provide a quick run down.
+
+### Modes, selector labels and button labels
+The first section defines what will be shown in the Bravo++ window. These are modes, selector labels and the button labels.
+
+So for the Cessna 172 we have the following:
+
+```
+# List all the modes. AUTO must always be included.
+MODES = "AUTO,PFD,MFD"
+
+# Set up the labels
+PFD_SELECTOR_LABELS = "COM,NAV,BARO/CRS,RNG,FMS"
+MFD_SELECTOR_LABELS = "COM,NAV,BARO/CRS,RNG,FMS"
+```
+
+There are 3 modes (AUTO,PFD and MFD) and the selector labels (the ones corresponding to the left twist knob on the Honeycomb Bravo) for each mode is specified by using the mode name and then adding ```_SELECTOR_LABELS```. The selector labels should have 5 values. Note that the ```AUTO``` will use the default selector names (ALT, VS, HDG, CRS and IAS), but can be overridden if explicitly specified in the config file.
+
+After that we assign the button labels to each selector name.
+
+```
+PFD_ALT_BUTTON_LABELS = "   ,   ,COM1,COM2,1&2,<->,O/I,   "
+PFD_VS_BUTTON_LABELS  = "MKR,DME,NAV1,NAV2,1&2,<->,O/I,   "
+PFD_HDG_BUTTON_LABELS = "   ,   ,   ,   ,SYNC,STD,O/I,   "
+PFD_CRS_BUTTON_LABELS = "   ,   ,   ,   ,   ,   ,   ,   "
+PFD_IAS_BUTTON_LABELS = "MNU,FPL,PRC,CLR,ENT,PSH,O/I,DIR"
+
+MFD_ALT_BUTTON_LABELS = "   ,   ,COM1,COM2,1&2,<->,O/I,   "
+MFD_VS_BUTTON_LABELS  = "MKR,DME,NAV1,NAV2,1&2,<->,O/I,   "
+MFD_HDG_BUTTON_LABELS = "   ,   ,   ,   ,SYNC,STD,O/I,   "
+MFD_CRS_BUTTON_LABELS = "   ,   ,   ,   ,   ,   ,   ,   "
+MFD_IAS_BUTTON_LABELS = "MNU,FPL,PRC,CLR,ENT,PSH,O/I,DIR"
+```
+
+A button label is specifed by using the ```mode name``` + ```selector name``` separated by ```_``` and ending in ```_BUTTON_LABELS```. Note that the selector name is not the same as the selector label name. Here we have to use the default selector names which are: ALT, VS, HDG, CRS and IAS.
+
+For ```AUTO```, it will use default button labels, but like the selector labels they can be overridden by specifying them in the config file.
+
+Note that even if you do not want to have all the buttons assigned to something you need to assign a blank label as seen in the example above. 
+  
+### Actions for right twist knob
+The twist knob on the right of the Honeycomb Configurator is used for incrementing or decrementing values for various components of the cockpit. For the GNS530/GNS430 and the G1000 the twist knobs have an inner and outer wheel, and this is implemented in the Bravo++. 
+
+In the case where you just want to configure a simple knob you just specify the name of the ```mode name``` + ```selector name``` (separated by ```_```) and then add ```_UP``` or ```_DOWN```.
+
+So for the autopilot mode (AUTO), to assign incrementing and decrementing the altitude when the selector is on ```ALT``` we specify the following:
+
+```
+AUTO_ALT_UP = "sim/autopilot/altitude_up"
+AUTO_ALT_DOWN = "sim/autopilot/altitude_down"
+```
+
+Here we specify the mode AUTO and when the left selector knob is set to ALT we want it to increase and decrease the altitude by assigning the datarefs corresponding datarefs. DataRefs can be found using DataRef Editor or DataRef Tool as specified at the beginnign of the document under ```Prereqisites```.
+
+In the case where you want to simulate a knob that has an inner or outer portion to control coarse and fine values, you need to use the addtiional keywords OUTER and INNER. So again lookin at an example:
+
+```
+PFD_ALT_OUTER_UP = "sim/GPS/g1000n1_com_outer_up"
+PFD_ALT_OUTER_DOWN = "sim/GPS/g1000n1_com_outer_down"
+PFD_ALT_INNER_UP = "sim/GPS/g1000n1_com_inner_up"
+PFD_ALT_INNER_DOWN = "sim/GPS/g1000n1_com_inner_down"
+```
+
+Here we are specifying the PFD mode with the left selector set to ALT, but we also want different behaviour based on the value of the CF (coarse/fine) selector. The CF selector is internal to Bravo++ and is made available through its own dataref. 
+
+### Actions for the buttons and button leds
+The Honeycomb Bravo has 8 buttons that can be configured to trigger a command depending ont the mode and the selector that has been set. This gives the possibility of configuring up to 40 buttons per mode!
+
+To specify a command to a button you use a similar pattern to what has been used for the previous sections: ```mode name``` + ```selector name``` (optional) + ```button name``` + ```switch direction``` (optional) separated with ````_``` and ending with ```_BUTTON```. Note that the ```selector name``` and ```switch direction``` are optional and the reason is that it is possible that you want an a button to trigger the same action regardless of what the selector is set to. This is how you want the autopilot to behave for example. The ```switch direction``` is only used when the same command cannot be used to toggle the state of a switch and requires 2 separate commands. So just like with the twist knob in the previous section, after the name you specify the name of the dataref to use after the = sign.   
+
+To specify the dataref and value to use for deciding when a led light on the button should light up or not you first specify the name:  ```mode name``` + ```selector name``` (optional) + ```button name``` and ending with ```_BUTTON_LED```. Again the ```selector name``` is optional because there are cases where you want the same led to light (or not) irregardless of the selection on the selector knob. Next you need to specify the dataref that contains the value of the state of whatever the corresponding command triggered and you need to provide a value to check against. In this case the value is what it should be in order to turn off the led.  
+
+Let's look at some examples:
+
+```
+PFD_ALT_APR_BUTTON = "sim/audio_panel/select_audio_com1"
+PFD_ALT_APR_BUTTON_LED = "sim/cockpit2/radios/actuators/audio_selection_com1,0"
+PFD_ALT_REV_BUTTON = "sim/audio_panel/select_audio_com2"
+PFD_ALT_REV_BUTTON_LED = "sim/cockpit2/radios/actuators/audio_selection_com2,0"
+PFD_ALT_ALT_BUTTON = "sim/GPS/g1000n1_com12"
+PFD_ALT_VS_BUTTON = "sim/GPS/g1000n1_com_ff"
+PFD_ALT_IAS_BUTTON = "FlyWithLua/Bravo++/cf_mode_button"
+``` 
+
+Here we have an example from the PFD of the G1000. The first line says that when the ```PFD``` mode is selected and the selector knob is set to ```ALT``` and the ```APR``` button is pressed, it should either mute or unmute the speaker. The second line specifies the same conditions as the first, but here it relates to the led light. So here it checks the value of the dataref ```sim/cockpit2/radios/actuators/audio_selection_com1``` and if the value is 0, then it should turn off the led light. Note that the led light specification is optional and you can see in line 5-6 that there is no led specified. This will result in the text color in the Bravo++ window being a different color (green-blue) than those with led lights. The last line shows how to specify the toggling of the INNER/OUTER mode using a Bravo++ dataref.
+
+Let's look at another example from the King Air C90B configuration.
+
+```
+SYS_HDG_HDG_BUTTON = "laminar/c90/electrical/switch/auto_ignition_L"
+SYS_HDG_HDG_BUTTON_LED = "sim/cockpit2/annunciators/igniter_on,0,1"
+SYS_HDG_NAV_BUTTON = "laminar/c90/electrical/switch/auto_ignition_R"
+SYS_HDG_NAV_BUTTON_LED = "sim/cockpit2/annunciators/igniter_on,0,2"
+SYS_HDG_APR_UP_BUTTON = "laminar/c90/powerplant/switch/autofeather_switch_up"
+SYS_HDG_APR_DOWN_BUTTON = "laminar/c90/powerplant/switch/autofeather_switch_dn"
+SYS_HDG_APR_BUTTON_LED = "sim/cockpit2/switches/prop_feather_mode,0"
+SYS_HDG_IAS_BUTTON = "FlyWithLua/Bravo++/switch_mode_button"
+```
+ 
+So the first line specified the command to turn on the left engine's auto ignition and the second specifies the dataref to check for the led condition, but notice that there are two numbers specified. Here the dataref is an array that contains more than one value, so on this case we need to specify an index starting from 1, so that we know which value to compare to. So in this case it will check if the value in the first place in the array is equal to 0. If it is it will turn off the led light. Looking at line 4 you see the same dataref, but this time it specified 2 instead of 1. This is because in line 3 we turn on the right engine's auto ignition so we need to check the corresponding value in the array.
+
+On line 5 -6 we see an example of a switch where we specify the dataref for the UP and DOWN command. This will result in a slightly different rendering of the button in the Bravo++ window where you will either see a ```^^``` above or ```vv``` below the button. Line 7 shows the Bravo++ dataref for toggling between UP or DOWN when using switches.  
+
+### Annunciator and gear leds
+The annunciator leds and gear leds are pretty straight forward and hopefully this example from the King Air C90B should be clear enough:
+
+```
+GEAR_DEPLOYMENT_LED = "sim/flightmodel2/gear/deploy_ratio,0"
+
+MASTER_WARNING_LED = "sim/cockpit2/annunciators/master_warning,0"
+FIRE_WARNING_LED = "sim/cockpit2/annunciators/engine_fires,0"
+OIL_LOW_PRESSURE_LED = "sim/cockpit2/annunciators/oil_pressure_low,0"
+FUEL_LOW_PRESSURE_LED = "sim/cockpit2/annunciators/fuel_pressure_low,0"
+ANTI_ICE_1_LED = "sim/cockpit2/ice/ice_pitot_heat_on_pilot,0"
+ANTI_ICE_2_LED = "sim/cockpit2/ice/ice_pitot_heat_on_copilot,0"
+STARTER_ENGAGED_LED = "sim/cockpit2/engine/actuators/starter_hit,0"
+APU_LED = "sim/cockpit2/electrical/APU_running,0"
+
+MASTER_CAUTION_LED = "sim/cockpit2/annunciators/master_caution,0"
+VACUUM_LED = "sim/cockpit2/annunciators/low_vacuum,0"
+HYD_LOW_PRESSURE_LED = "sim/cockpit2/annunciators/hydraulic_pressure,0"
+AUX_FUEL_PUMP_1_LED = "sim/cockpit2/fuel/transfer_pump_left,0"
+AUX_FUEL_PUMP_2_LED = "sim/cockpit2/fuel/transfer_pump_right,0"
+PARKING_BRAKE_LED = "sim/cockpit2/controls/parking_brake_ratio,0"
+VOLTS_LOW_LED = "sim/cockpit2/annunciators/low_voltage,0"
+DOOR_1_LED = "sim/flightmodel2/misc/canopy_open_ratio,0"
+DOOR_2_LED = "sim/flightmodel2/misc/door_open_ratio,0"
+DOOR_3_LED = "sim/cockpit2/annunciators/cabin_door_open,0"
+``` 
+Each led has its own unique name that matches the corresponding led ligh on the Honeycomb Bravo. Just like in the previous section the value of the led will be a dataref and a value to check against. The only additional feature we have here is that we can tie several datarefs to the same annunciator led. This is done by adding a ```_#``` between the annunciator name and the trailing ```_LED```. So this means that if any of these datarefs have a value other than what is specified the led light will light up.
+
+Note that the GEAR_DEPLOYMENT_LED will most likely always be this value for retractable gears. For fixed gear aircraft you should not specify the GEAR_DEPLOYMENT_LED in the configuration.
+
+### The trim wheel
+The trim wheel overrides the default values used in X-Plane to better simulate a manual trim wheel. The two parameters that can be set are TRIM_INCREMENT and TRIM_BOOST. The value of the trim is any value between -1 and 1, so the trim increment specifies how much one "click" of the wheel will change the value of the trim. The default value, if nothing is specified, is 0.01.
+
+The trim boost is a value that is applied to the trim increment if the wheel is turned quickly. So if there are many "clicks" in short succession, the trim increment will be multiplied by the trim boost value. The default, if not specified, is 3.
+
+To specify your own values you can just add the follwoing to the config file:
+
+```
+TRIM_INCREMENT=0.005
+TRIM_BOOST=6
+``` 
+
+# Troubleshooting
+If the Bravo++ window does not appear or the window has no buttons or the selector values don't change when toggling/scrolling, do the following:
+- Open the log.txt file under the X-Plane directory and search for "BRAVO++ ERROR"
+- If no Bravo++ error is found, look for other possible issues in the log.txt file
+- If all else fails, send me a PM on the X-Plane forum or [create an issue on GitHub]((https://github.com/balatone/Bravo_multi_mode/issues)) with the log.txt and config file if you are not using one of the examples, and I will do my best to help out.  
+
+The most common issues are:
+- The Honeycomb Bravo wasn't found; is it plugged in?
+- The button number assigned to the ```alt_selector_button``` is wrong; make sure that you select the ```ALT``` in teh selector before noting the number.
+- The name is invalid; i.e. you have used the wrong combination of ```mode name``` + ```selector name``` + ```button name```.
+- The dataref doesn't exist. You will usually see this in the log.
 
 # Known bugs
 I am aware of some minor annoying bugs:
-- The button for switching the com frequency doesn't work all the time. You just have to be persistent and press it multiple times. This doesn't happen with the nav frequency, so I am not sure why it doesn't work.
-- The leds may freeze. This hasn't happen for a while and it may no longer be an issue, but if it happens you need to restart the Lua script from the Plugins menu. 
-
- 
+- The button for switching the com frequency doesn't work all the time. You just have to be persistent and press it multiple times. This doesn't happen with the nav frequency, so I am not sure why it's an issue with the com frequency.
