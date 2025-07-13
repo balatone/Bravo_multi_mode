@@ -85,11 +85,16 @@ else
     end
 end
 
+
 -- The annunciator labels. These are used for validation and in the led logic.
 local annunciator_labels = {
         "MASTER_WARNING", "FIRE_WARNING", "OIL_LOW_PRESSURE", "FUEL_LOW_PRESSURE", "ANTI_ICE", "STARTER_ENGAGED", "APU",
         "MASTER_CAUTION", "VACUUM", "HYD_LOW_PRESSURE", "AUX_FUEL_PUMP", "PARKING_BRAKE", "VOLTS_LOW", "DOOR"}
 
+
+-----------------------------------------------------
+--- VALIDATION OF THE CONFIG FILE
+-----------------------------------------------------
 function validate_config_keys()
     local valid_keys_set = {} -- Using a table as a set for quick lookups
 
@@ -565,6 +570,9 @@ local values_valid = validate_config_values()
 
 if not keys_valid or not values_valid then return end
 
+-----------------------------------------------------
+--- Initialize the various maps/tables
+-----------------------------------------------------
 log.info("Initializing the selector labels map...")
 local selection_map_labels = {}
 for i = 1, #modes do
@@ -711,14 +719,6 @@ for i = 1, #modes do
         end
     end
 end
-
---[[local value = nil
-if button_map_leds_state["SYS"]["ALT"]["PLT"] == false then
-    value = "false"
-elseif button_map_leds_state["SYS"]["ALT"]["PLT"] == true then
-    value = "true"
-end
-logMsg("button_map_leds_state[SYS][ALT][PLT]: " .. value)]]
 
 -- The actions that will be triggered when twisting the right knob depedning on mode and selection
 log.info("Initializing the twist knob action map...")
@@ -1721,6 +1721,7 @@ function handle_led_changes()
 		tryCatch(handle_annunciator_row2_led_changes, "handle_annunciator_row2_led_changes")
 		
     elseif master_state == true then
+        log.debug("No voltage detected. Turning all leds off.")
         -- No bus voltage, disable all LEDs
         master_state = false
         tryCatch(all_leds_off, 'all_leds_off')
