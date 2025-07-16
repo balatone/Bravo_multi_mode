@@ -2,7 +2,11 @@ require("bit")
 require("graphics")
 local log = require("log")
 
-log.LOG_LEVEL = log.LOG_DEBUG
+-- Change the logging level to log.LOG_DEBUG if troubleshooting
+log.LOG_LEVEL = log.LOG_INFO
+
+-- Change this to false if you prefer the GUI that uses OpenGL, but note that it will incur a significant performance hit
+IMGUI = true
 
 -- Set this to either 0 or the button number assigned for the alt selector in x-plane.
 -- Setting to 0 will result in using HID to determine the selector state, but will introduce lag in Windows. 
@@ -26,6 +30,18 @@ end
 
 local function trim(s)
     return (s:gsub("^%s*(.-)%s*$", "%1"))
+end
+
+function is_dataref_magic_table(candidate_table)
+    -- First, check if it's a Lua table at all
+    if type(candidate_table) ~= "table" then
+        return false
+    end
+    if type(candidate_table.reftype) == "number" then
+        return true
+    end
+    -- If 'reftype' is nil or not a number, it's not a magic DataRef table.
+    return false
 end
 
 -- Must determine if it's an array using reftype
@@ -683,38 +699,48 @@ for i = 1, #modes do
         for k = 1, #default_button_labels do
             local full_key = modes[i] .. "_" .. default_button_labels[k] .. "_BUTTON_LED"
             if default_selections[j] == "ALT" and nav_bindings[full_key] then
+				select_map["ALL"] = select_map["ALL"] or {}
+				select_map2["ALL"] = select_map2["ALL"] or {}
+				select_map3["ALL"] = select_map3["ALL"] or {}
+				select_map4["ALL"] = select_map4["ALL"] or {}
                 log.debug("navbinding: " .. nav_bindings[full_key])
                 local binding = create_table(nav_bindings[full_key])
                 log.debug("datref: " .. binding[1])
                 log.debug("cond: " .. binding[2])
-                button_map_leds[modes[i]][default_button_labels[k]] = binding[1]
-                button_map_leds_cond[modes[i]][default_button_labels[k]] = binding[2]
-				if binding[3] ~= nil then
-					log.debug("index: " .. binding[3])
-					button_map_leds_index[modes[i]][default_button_labels[k]] = binding[3]
-				end
-                button_map_leds_state[modes[i]][default_button_labels[k]] = false
-                log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
-            end
-            local key = modes[i] .. "_" .. default_selections[j]
-            full_key = key .. "_" .. default_button_labels[k] .. "_BUTTON_LED"
-            if nav_bindings[full_key] then
-                log.debug("navbinding: " .. nav_bindings[full_key])
-                local binding = create_table(nav_bindings[full_key])
-                log.debug("datref: " .. binding[1])
-                log.debug("cond: " .. binding[2])
-                select_map[default_selections[j]][default_button_labels[k]] = binding[1]
+                select_map["ALL"][default_button_labels[k]] = dataref_table(binding[1])
                 button_map_leds[modes[i]] = select_map
-                select_map2[default_selections[j]][default_button_labels[k]] = binding[2]
+                select_map2["ALL"][default_button_labels[k]] = binding[2]
                 button_map_leds_cond[modes[i]] = select_map2
-                select_map3[default_selections[j]][default_button_labels[k]] = false
+                select_map3["ALL"][default_button_labels[k]] = false
                 button_map_leds_state[modes[i]] = select_map3
+
 				if binding[3] ~= nil then
 					log.debug("index: " .. binding[3])
-					select_map4[default_selections[j]][default_button_labels[k]] = binding[3]
+					select_map4["ALL"][default_button_labels[k]] = binding[3]
 					button_map_leds_index[modes[i]] = select_map4
 				end
                 log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
+            else
+                local key = modes[i] .. "_" .. default_selections[j]
+                full_key = key .. "_" .. default_button_labels[k] .. "_BUTTON_LED"
+                if nav_bindings[full_key] then
+                    log.debug("navbinding: " .. nav_bindings[full_key])
+                    local binding = create_table(nav_bindings[full_key])
+                    log.debug("datref: " .. binding[1])
+                    log.debug("cond: " .. binding[2])
+                    select_map[default_selections[j]][default_button_labels[k]] = dataref_table(binding[1])
+                    button_map_leds[modes[i]] = select_map
+                    select_map2[default_selections[j]][default_button_labels[k]] = binding[2]
+                    button_map_leds_cond[modes[i]] = select_map2
+                    select_map3[default_selections[j]][default_button_labels[k]] = false
+                    button_map_leds_state[modes[i]] = select_map3
+                    if binding[3] ~= nil then
+                        log.debug("index: " .. binding[3])
+                        select_map4[default_selections[j]][default_button_labels[k]] = binding[3]
+                        button_map_leds_index[modes[i]] = select_map4
+                    end
+                    log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
+                end
             end
         end
     end
@@ -760,14 +786,181 @@ end
 --- CREATE THE GUI PANEL
 -----------------------------------------------------
 local current_buttons = default_button_labels
-local height = 30 + 30 * #modes
-my_floating_wnd = float_wnd_create(500, height, 1, false)
+local vertical_spacing = 40
+local height = 10 + vertical_spacing * #modes
+my_floating_wnd = nil
+if IMGUI then
+    my_floating_wnd = float_wnd_create(550, height, 1, IMGUI)
+    float_wnd_set_imgui_builder(my_floating_wnd, "on_draw")
+else
+    my_floating_wnd = float_wnd_create(500, height, 1, IMGUI)
+    float_wnd_set_ondraw(my_floating_wnd, "on_draw")
+end
+
 float_wnd_set_title(my_floating_wnd, "Bravo++ multi-mode")
 -- float_wnd_set_position(my_floating_wnd, SCREEN_WIDTH * 2/3 + 50, SCREEN_HEIGHT * 1/6)
 float_wnd_set_position(my_floating_wnd, SCREEN_WIDTH * 0.25, SCREEN_HEIGHT * 0.25)
-float_wnd_set_ondraw(my_floating_wnd, "on_draw_floating_window")
+
+
 -- float_wnd_set_onclick(my_floating_wnd, "on_click_floating_window")
 float_wnd_set_onclose(my_floating_wnd, "on_close_floating_window")
+
+function on_draw(my_floating_wnd, x3, y3)
+    if IMGUI then
+        build_bravo_gui(my_floating_wnd, x3, y3)
+    else
+	    on_draw_floating_window(my_floating_wnd, x3, y3)
+    end
+end
+
+
+function build_bravo_gui(wnd, x, y)
+    local win_width = imgui.GetWindowWidth()
+    local win_height = imgui.GetWindowHeight()
+
+    -- Set the ImGui window background style color using AABBGGRR hex format.
+    imgui.PushStyleColor(imgui.constant.Col.WindowBg, 0xB3B3B3) -- Light Grey
+
+    local vertical_offset_selector = 0
+    local vertical_spacing = 0.75*vertical_spacing
+
+    -- Modes display
+    imgui.Columns(1)
+    imgui.SetWindowFontScale(1.2)
+    for i = 1, #modes do
+        imgui.SetCursorPosY((i - 1)*vertical_spacing)
+        if current_mode == modes[i] then
+            imgui.PushStyleColor(imgui.constant.Col.Text, 0xFF00FF00) -- Green (AABBGGRR)
+            vertical_offset_selector = (i - 1)*vertical_spacing -- Calculates the offset for the selector
+        else
+            imgui.PushStyleColor(imgui.constant.Col.Text, 0xFF333333) -- Dark Grey (AABBGGRR)
+        end
+        imgui.TextUnformatted(modes[i])
+        imgui.PopStyleColor()
+    end
+    imgui.Columns()
+
+    -- Current Selection Label
+    imgui.Columns(1)
+    imgui.PushStyleColor(imgui.constant.Col.Text, 0xFFFFFFFF) -- White (AABBGGRR)
+    if current_selection_label then
+        imgui.SetCursorPosX(imgui.GetCursorPosX() + 80) -- Approximate horizontal offset
+        imgui.SetCursorPosY(vertical_offset_selector) -- Approximate horizontal offset
+        imgui.TextUnformatted(current_selection_label)
+    end
+    imgui.PopStyleColor()
+    imgui.Columns()
+
+    imgui.SetWindowFontScale(1.15)
+
+    -- Button Labels and States
+    local h_offset_button = 80 -- Initial horizontal offset for buttons
+    local h_spacing_button = 5 -- Horizontal spacing between button columns
+    local y_offset_button = #modes*vertical_spacing
+    local button_width = 60    -- Width of button as used in draw_button
+    local button_color = 0xFF222222
+
+    imgui.NewLine() -- Start a new line after selection label for buttons
+    imgui.SetCursorPosX(h_offset_button) 
+    imgui.SetCursorPosY(y_offset_button)
+
+    for i = 1, #current_buttons do
+        local button_label = current_buttons[i]
+        local button_name = default_button_labels[i]
+        local led_state = get_button_led_state(button_name)
+        local button_label_color =  0xFFFFFF00
+        if led_state == true then
+            button_label_color = 0xFFFFFFFF
+        elseif led_state == false then
+            button_label_color = 0xFF666666
+        end
+
+        local is_switch = false
+        if is_table(button_map_actions[current_mode]) then
+            if is_table(button_map_actions[current_mode][current_selection]) and
+               is_table(button_map_actions[current_mode][current_selection][button_name]) then
+                if is_string(button_map_actions[current_mode][current_selection][button_name]["UP"]) or
+                   is_string(button_map_actions[current_mode][current_selection][button_name]["DOWN"]) then
+                    is_switch = true
+                end
+            elseif is_table(button_map_actions[current_mode][button_name]) then
+                if is_string(button_map_actions[current_mode][button_name]["UP"]) or
+                   is_string(button_map_actions[current_mode][button_name]["DOWN"]) then
+                    is_switch = true
+                end
+            end
+        end
+
+        if i ~= #current_buttons then
+            local current_button_x = h_offset_button + (i - 1) * (button_width + h_spacing_button)
+
+            imgui.SetCursorPosX(current_button_x)
+            imgui.SetCursorPosY(y_offset_button)            
+            draw_button(button_label, button_width, 30, button_color, button_label_color, is_switch)
+        else
+            local current_button_x = h_offset_button + (i - 2) * (button_width + h_spacing_button)
+            imgui.SetCursorPosX(current_button_x)
+            imgui.SetCursorPosY(y_offset_button - vertical_spacing*1.5)
+            draw_button(button_label, button_width, 30, button_color, button_label_color, is_switch)
+        end        
+    end
+
+    imgui.NewLine() -- Start a new line after selection label for buttons
+    local h_offset_io = h_offset_button + (#current_buttons - 2) * (button_width + h_spacing_button)
+    local y_offset_io = 0
+    local y_spacing_io = 30
+
+    for i = 1, #outer_inner_modes do
+        imgui.SetCursorPosX(h_offset_io) 
+        imgui.SetCursorPosY(y_offset_io + (i - 1)*y_spacing_io)
+        if current_cf_mode == outer_inner_modes[i] then
+            imgui.PushStyleColor(imgui.constant.Col.Text, 0xFF00FF00) -- Green (AABBGGRR)
+            -- offset_selection = offset_mode
+        else
+            imgui.PushStyleColor(imgui.constant.Col.Text, 0xFF333333) -- Dark Grey (AABBGGRR)
+        end
+        imgui.TextUnformatted(outer_inner_modes[i])
+        imgui.PopStyleColor()
+    end    
+end
+
+function draw_button(text, width, height, box_bg_color_int, text_color_int, is_switch_button)
+    local cx, cy = imgui.GetCursorScreenPos()
+
+    imgui.Dummy(width, height)
+    imgui.DrawList_AddRectFilled(cx, cy, cx + width, cy + height, box_bg_color_int, 0) -- 0 for no roundness
+
+    local text_w, text_h = imgui.CalcTextSize(tostring(text))
+    local text_draw_x = cx + (width - text_w) / 2
+    local text_draw_y = cy + (height - text_h) / 2
+
+    imgui.SetCursorScreenPos(text_draw_x, text_draw_y)
+    imgui.PushStyleColor(imgui.constant.Col.Text, text_color_int)
+    imgui.TextUnformatted(tostring(text))
+    imgui.PopStyleColor()
+
+    if is_switch_button then
+        local ud_symbol = ""
+        local symbol_draw_y_offset_from_text = 0 -- This offset is relative to text_draw_y (top of main text)
+
+        if current_switch_mode == "up" then
+            ud_symbol = "^^"
+            symbol_draw_y_offset_from_text = - (text_h + 5) -- Add 5 for a small padding above the text
+        elseif current_switch_mode == "down" then
+            ud_symbol = "vv"
+            symbol_draw_y_offset_from_text = text_h + 5 -- Add 5 for a small padding below the text
+        end
+
+        local symbol_w, symbol_h = imgui.CalcTextSize(ud_symbol)
+        local symbol_draw_x = cx + (width - symbol_w) / 2
+        local symbol_draw_y = text_draw_y + symbol_draw_y_offset_from_text
+
+        imgui.SetCursorScreenPos(symbol_draw_x, symbol_draw_y)
+        imgui.PushStyleColor(imgui.constant.Col.Text, 0xFF00FF00) -- Green (AABBGGRR) [5]
+        imgui.TextUnformatted(ud_symbol)
+        imgui.PopStyleColor()
+    end    
+end
 
 function on_draw_floating_window(my_floating_wnd, x3, y3)
     tryCatch(function()
@@ -795,27 +988,29 @@ function on_draw_floating_window(my_floating_wnd, x3, y3)
 
         -- offset_mode = offset_mode + v_spacing	
         local h_offset = 60
+
         for i = 1, #current_buttons do
             -- logMsg("current mode: " .. "[" .. current_mode .. "][" .. current_selection .. "][" .. default_button_labels[i] .. "]")
             glColor3f(0, 0.75, 0.75) -- default if not led
 
             -- Set the color based on the led state
-            if is_boolean(button_map_leds_state[current_mode][default_button_labels[i]]) then
-                if button_map_leds_state[current_mode][default_button_labels[i]] == true then
+            if is_table(button_map_leds_state[current_mode]["ALL"]) then
+                if button_map_leds_state[current_mode]["ALL"][default_button_labels[i]] == true then
                     glColor3f(1, 1, 1)       -- White
-                elseif button_map_leds_state[current_mode][default_button_labels[i]] == false then
+                elseif button_map_leds_state[current_mode]["ALL"][default_button_labels[i]] == false then
+                    glColor3f(0.2, 0.2, 0.2)
+                end                
+            elseif is_table(button_map_leds_state[current_mode][current_selection]) then
+                if button_map_leds_state[current_mode][current_selection][default_button_labels[i]] == true then
+                    glColor3f(1, 1, 1)       -- White
+                elseif button_map_leds_state[current_mode][current_selection][default_button_labels[i]] == false then
                     glColor3f(0.2, 0.2, 0.2)
                 end
-            elseif is_table(button_map_leds_state[current_mode][current_selection]) then
-				if button_map_leds_state[current_mode][current_selection][default_button_labels[i]] == true then
-					glColor3f(1, 1, 1)       -- White
-				elseif button_map_leds_state[current_mode][current_selection][default_button_labels[i]] == false then
-					glColor3f(0.2, 0.2, 0.2)
-				end
             end
 
             local is_switch = false
             -- Assigna different color to switches that are not togglable
+            
             if is_table(button_map_actions[current_mode][current_selection]) and is_table(button_map_actions[current_mode][current_selection][default_button_labels[i]]) then
                 if is_string(button_map_actions[current_mode][current_selection][default_button_labels[i]]["UP"]) or is_string(button_map_actions[current_mode][current_selection][default_button_labels[i]]["DOWN"]) then
                     is_switch = true
@@ -838,7 +1033,7 @@ function on_draw_floating_window(my_floating_wnd, x3, y3)
                 draw_string_Helvetica_18(x3 + h_offset, v_offset + offset_mode, current_buttons[i])
 
                 if is_switch then
-					glColor3f(0, 1, 0)       -- White
+                    glColor3f(0, 1, 0)       -- White
                     draw_string_Helvetica_18(x3 + h_offset + ud_symbol_h_offset, v_offset + offset_mode + ud_symbol_v_offset, ud_symbol)
                 end
             else
@@ -846,7 +1041,7 @@ function on_draw_floating_window(my_floating_wnd, x3, y3)
                 -- glColor3f(0, 0, 0) -- Black
                 draw_string_Times_Roman_24(x3 + h_offset - h_spacing, v_offset + offset_mode - v_spacing, current_buttons[i])
                 if is_switch then
-					glColor3f(1, 0, 0)       -- White
+                    glColor3f(1, 0, 0)       -- White
                     draw_string_Times_Roman_24(x3 + h_offset - h_spacing + ud_symbol_h_offset, v_offset + offset_mode - v_spacing - ud_symbol_v_offset, ud_symbol)
                 end
             end
@@ -865,20 +1060,6 @@ function on_draw_floating_window(my_floating_wnd, x3, y3)
             draw_string_Helvetica_18(x3 + h_offset - 2*h_spacing, v_offset + offset_mode, outer_inner_modes[i])
             offset_mode = offset_mode + v_spacing
         end
-
-        --offset_mode = -20
-        --h_offset = 500
-        --for i = 1, #up_down_modes do
-        --    if current_switch_mode == up_down_modes[i] then
-        --        glColor3f(0, 1, 0) -- Green for default
-        --        offset_selection = offset_mode
-        --   else
-        --        glColor3f(0.2, 0.2, 0.2) -- Balck semitransparent
-        --    end
-        --    draw_string_Helvetica_18(x3 + h_offset - 2*h_spacing, v_offset + offset_mode, up_down_modes[i])
-        --    offset_mode = offset_mode + v_spacing
-        --end
-
     end, "on_draw_floating_window")
 end
 
@@ -957,9 +1138,9 @@ create_command(
 
 -- Choose the available method for updating the selector
 if alt_selector_button > 0 then
-    do_every_draw("tryCatch(refresh_selector,'refresh_selector')")
+    do_every_frame("tryCatch(refresh_selector,'refresh_selector')")
 else
-    do_every_draw("tryCatch(refresh_selector_hid,'refresh_selector_hid')")
+    do_every_frame("tryCatch(refresh_selector_hid,'refresh_selector_hid')")
 end
 
 
@@ -968,7 +1149,9 @@ function cycle_mode_up()
     local index = table.find(modes, current_mode)
     index = ((index - 2) % #modes) + 1
     current_mode = modes[index]
-    all_leds_off()
+    prime_button_led_states_for_mode_change()
+    led_state_modified = true
+    handle_led_changes()
 end
 
 
@@ -977,7 +1160,10 @@ function cycle_mode_down()
     local index = table.find(modes, current_mode)
     index = (index % #modes) + 1
     current_mode = modes[index]
-    all_leds_off()
+    -- all_leds_off()
+	prime_button_led_states_for_mode_change()
+    led_state_modified = true
+    handle_led_changes()
 end
 
 -- Create a custom command for changing mode
@@ -1068,7 +1254,9 @@ function set_current_selector(idx)
     if current_selection_label ~= selection_map_labels[current_mode][index] then
         current_selection_label = selection_map_labels[current_mode][index]
         current_selection = default_selections[index]
-        all_leds_off()
+		prime_button_led_states_for_mode_change()
+        led_state_modified = true
+        handle_led_changes()
     end
 end
 
@@ -1079,7 +1267,7 @@ function set_current_buttons()
 end
 
 -- Update the currently available buttons
-do_every_draw("tryCatch(set_current_buttons,'set_current_buttons')")
+do_every_frame("tryCatch(set_current_buttons,'set_current_buttons')")
 
 --------------------------------------
 ---- TRIM WHEEL
@@ -1399,9 +1587,9 @@ local led_state_modified = false
 
 -- BUTTON LED handling
 function get_button_led_state(button_name)
-    if is_boolean(button_map_leds_state[current_mode][button_name]) then
-        log.debug("get_led_state for mode " .. current_mode .. " and button name " .. button_name)
-        return button_map_leds_state[current_mode][button_name]
+    if is_table(button_map_leds_state[current_mode]["ALL"]) and is_boolean(button_map_leds_state[current_mode]["ALL"][button_name]) then
+        log.debug("get_led_state for mode ALL and button name " .. button_name)
+        return button_map_leds_state[current_mode]["ALL"][button_name]
     elseif is_table(button_map_leds_state[current_mode][current_selection]) and is_boolean(button_map_leds_state[current_mode][current_selection][button_name]) then
         log.debug("get_led_state for mode " ..
             current_mode .. ", current selection " .. current_selection .. " and button name " .. button_name)
@@ -1413,16 +1601,17 @@ function get_button_led_state(button_name)
 end
 
 function set_button_led_state(button_name, state)
-    if get_button_led_state(button_name) ~= nil and state ~= get_button_led_state(button_name) then
-        log.debug("get_led_state for " .. button_name .. " = " .. tostring(get_button_led_state(button_name)))
-        if is_boolean(button_map_leds_state[current_mode][button_name]) then
-            button_map_leds_state[current_mode][button_name] = state
+    local current_led_state = get_button_led_state(button_name)
+    if current_led_state ~= nil and state ~= current_led_state then
+        log.debug("get_led_state for " .. button_name .. " = " .. tostring(current_led_state))
+        if is_table(button_map_leds_state[current_mode]["ALL"]) and is_boolean(button_map_leds_state[current_mode]["ALL"][button_name]) then
+            button_map_leds_state[current_mode]["ALL"][button_name] = state
         elseif is_table(button_map_leds_state[current_mode][current_selection]) and  is_boolean(button_map_leds_state[current_mode][current_selection][button_name]) then
             button_map_leds_state[current_mode][current_selection][button_name] = state
         end
         led_state_modified = true
     else
-        if get_button_led_state(button_name) ~= nil then
+        if current_led_state ~= nil then
             log.debug("state did not change for mode " .. current_mode .. " and button " .. button_name)
         else
             log.debug("state does not exist for mode " .. current_mode .. " and button " .. button_name)
@@ -1442,6 +1631,44 @@ function set_led(led, state)
         buffer[led[1]][led[2]] = state
         led_state_modified = true
     end
+end
+
+-- New helper function to "prime" button LED states for change detection.
+-- This temporarily forces the internal state for relevant buttons to 'true'
+-- so that handle_led_changes can detect a change to 'false' if needed.
+function prime_button_led_states_for_mode_change()
+    -- Iterate through all possible physical button labels as defined in default_button_labels [1]
+	local led_detected = false -- Used to check whether there are any leds in this selection
+    for i = 1, #default_button_labels do
+        local button_label = default_button_labels[i]
+
+        -- Check and set for "ALL" selection within the current mode context
+        -- The "ALL" selection is used for LEDs that are common across all selector positions within a mode [2, 3]
+        if is_table(button_map_leds_state[current_mode]) and is_table(button_map_leds_state[current_mode]["ALL"]) then
+            -- Only prime if the LED state entry actually exists for this button in the "ALL" category [4, 5]
+            if is_boolean(button_map_leds_state[current_mode]["ALL"][button_label]) then
+                button_map_leds_state[current_mode]["ALL"][button_label] = false
+                -- Manually setting led_state_modified to true ensures a HID update will be sent [6, 7].
+                -- This is a safeguard in case no other state changes occur that would trigger it.
+				log.debug("Setting led to true for [" .. current_mode .. "][ALL][" .. button_label .."]")
+                led_state_modified = true
+				led_detected = true
+            end
+        elseif is_table(button_map_leds_state[current_mode]) and is_table(button_map_leds_state[current_mode][current_selection]) then
+            -- Only prime if the LED state entry actually exists for this button in this specific selection [5, 9]
+            if is_boolean(button_map_leds_state[current_mode][current_selection][button_label]) then
+                button_map_leds_state[current_mode][current_selection][button_label] = false
+                -- As above, manually forcing led_state_modified to ensure a HID update.
+				log.debug("Setting led to true for [" .. current_mode .. "][" .. current_selection .. "][" .. button_label .."]")
+                led_state_modified = true
+				led_detected = true
+            end
+        end
+    end
+	if not led_detected then -- Ensures all leds are off if no leds are used
+		all_leds_off()
+	end
+    log.debug("Internal button LED states 'primed' to true for mode change evaluation.")
 end
 
 function all_leds_off()
@@ -1482,10 +1709,8 @@ function send_hid_data()
 	log.debug('Setting button leds')
     for i = 1, #default_button_labels do
         local button_name = default_button_labels[i]
-        if is_boolean(button_map_leds_state[current_mode][button_name]) then
-            if button_map_leds_state[current_mode][button_name] == true then
-                data[1] = bit.bor(data[1], bit.lshift(1, i - 1))
-            end
+        if is_table(button_map_leds_state[current_mode]["ALL"]) and button_map_leds_state[current_mode]["ALL"][button_name] == true then
+            data[1] = bit.bor(data[1], bit.lshift(1, i - 1))
         elseif is_table(button_map_leds_state[current_mode][current_selection]) and button_map_leds_state[current_mode][current_selection][button_name] == true then
             data[1] = bit.bor(data[1], bit.lshift(1, i - 1))
         end
@@ -1503,7 +1728,7 @@ function send_hid_data()
 	log.debug('Annunciator leds set')
 
     local bytes_written = hid_send_filled_feature_report(bravo, 0, 65, data[1], data[2], data[3], data[4]) -- 65 = 1 byte (report ID) + 64 bytes (data)
-	log.debug('sendingn hid data')
+	log.debug('sending hid data')
 
     if bytes_written == 65 then
         led_state_modified = false
@@ -1512,7 +1737,7 @@ function send_hid_data()
     elseif bytes_written < 65 then
         log.error('ERROR Feature report write failed, only ' .. bytes_written .. ' bytes written')
     end
-	log.debug('Done send_hid_data')
+	log.debug('Done sending hid_data')
 end
 
 function get_led_state_for_dataref(dr_table, cond, index)
@@ -1560,7 +1785,7 @@ for i = 1, #annunciator_labels do
     local key = annunciator_labels[i] .. "_LED"
     if is_string(nav_bindings[key]) then
         local binding = create_table(nav_bindings[key])
-        annunciator_map_leds[annunciator_labels[i]] = binding[1]
+        annunciator_map_leds[annunciator_labels[i]] = dataref_table(binding[1])
         annunciator_map_leds_cond[annunciator_labels[i]] = binding[2]
     elseif is_string(nav_bindings[annunciator_labels[i] .. "_1_LED"]) then
         annunciator_map_leds[annunciator_labels[i]] = {}
@@ -1570,7 +1795,7 @@ for i = 1, #annunciator_labels do
         -- logMsg("key: " .. key)
         while is_string(nav_bindings[key]) do
             local binding = create_table(nav_bindings[key])
-            annunciator_map_leds[annunciator_labels[i]][idx] = binding[1]
+            annunciator_map_leds[annunciator_labels[i]][idx] = dataref_table(binding[1])
             annunciator_map_leds_cond[annunciator_labels[i]] = binding[2]
             idx = idx + 1
             key = annunciator_labels[i] .. "_" .. tostring(idx) .. "_LED"
@@ -1582,13 +1807,11 @@ end
 function get_led_state(annunciator_label)
     local dataref = annunciator_map_leds[annunciator_label]
     -- logMsg("get dataref for: " .. annunciator_label)
-    if is_string(dataref) then
-        local dr_table = dataref_table(dataref)
-        return get_led_state_for_dataref(dr_table, annunciator_map_leds_cond[annunciator_label])
+    if is_dataref_magic_table(dataref) then
+        return get_led_state_for_dataref(dataref, annunciator_map_leds_cond[annunciator_label])
     elseif is_table(dataref) then
         for i = 1, #dataref do
-            local dr = dataref_table(dataref[i])
-            if get_led_state_for_dataref(dr, annunciator_map_leds_cond[annunciator_label]) == true then
+            if get_led_state_for_dataref(dataref[i], annunciator_map_leds_cond[annunciator_label]) == true then
                 return true
             end
         end
@@ -1602,23 +1825,39 @@ send_hid_data()
 
 function handle_button_led_changes()
 	for i = 1, #default_button_labels do
+        local led_state_for_dataref = nil
+        local led_state_for_button = nil
 		local button_label = default_button_labels[i]
-		-- logMsg("Button name: " .. button_label)
-		if is_string(button_map_leds[current_mode][button_label]) then
-			local dataref = dataref_table(button_map_leds[current_mode][button_label])
-			if get_led_state_for_dataref(dataref, button_map_leds_cond[current_mode][button_label], button_map_leds_index[current_mode][button_label]) ~= button_map_leds_state[current_mode][button_label] then
-				set_button_led_state(button_label, get_led_state_for_dataref(dataref, button_map_leds_cond[current_mode][button_label], button_map_leds_index[current_mode][button_label]))
-			end
-		elseif is_table(button_map_leds[current_mode][current_selection]) and button_map_leds[current_mode][current_selection][button_label] then
-			local dataref = dataref_table(button_map_leds[current_mode][current_selection][button_label])
-			local index = nil
-			if is_table(button_map_leds_index[current_mode][current_selection]) then
-				index = button_map_leds_index[current_mode][current_selection][button_label]
-			end
-			if get_led_state_for_dataref(dataref, button_map_leds_cond[current_mode][current_selection][button_label], index) ~= button_map_leds_state[current_mode][current_selection][button_label] then
-				set_button_led_state(button_label, get_led_state_for_dataref(dataref, button_map_leds_cond[current_mode][current_selection][button_label], index))
-			end
+
+		-- log.debug("Before if: [" .. current_mode .. "][" .. current_selection .. "][" .. button_label .. "]")
+		if is_table(button_map_leds[current_mode]["ALL"]) then
+			local dataref = button_map_leds[current_mode]["ALL"][button_label]
+            if dataref ~= nil then
+                local index = nil
+                if is_table(button_map_leds_index[current_mode]["ALL"]) then
+                    index = button_map_leds_index[current_mode]["ALL"][button_label]
+                end
+                
+                led_state_for_dataref = get_led_state_for_dataref(dataref, button_map_leds_cond[current_mode]["ALL"][button_label], index)
+                led_state_for_button = button_map_leds_state[current_mode]["ALL"][button_label]
+            end
+		elseif is_table(button_map_leds[current_mode][current_selection]) then
+			local dataref = button_map_leds[current_mode][current_selection][button_label]
+
+            if dataref ~= nil then
+                local index = nil
+                if is_table(button_map_leds_index[current_mode][current_selection]) then
+                    index = button_map_leds_index[current_mode][current_selection][button_label]
+                end
+
+                led_state_for_dataref = get_led_state_for_dataref(dataref, button_map_leds_cond[current_mode][current_selection][button_label], index)
+                led_state_for_button = button_map_leds_state[current_mode][current_selection][button_label]
+            end
 		end
+        -- Check if we need to update the state of the button
+        if  led_state_for_dataref ~= led_state_for_button then
+            set_button_led_state(button_label, led_state_for_dataref)
+        end
 	end            
 end
 
@@ -1733,7 +1972,28 @@ function handle_led_changes()
     end
 end
 
-do_every_frame('tryCatch(handle_led_changes)')
+local last_call = os.clock()
+
+function do_more_often(func_to_execute, description, interval_seconds)
+    local current_time = os.clock()
+    -- Check if enough time has passed since the last successful call
+    -- The condition (current_time - last_call) >= interval_seconds correctly calculates elapsed time [Conversation History]
+    if (current_time - last_call) >= interval_seconds then
+        -- Execute the passed function, with its given source name for tryCatch logging
+        -- The tryCatch function is designed to log errors with a source string [1]
+        tryCatch(func_to_execute, description)
+        last_call = current_time -- Update the last call time only if the function was executed
+    end
+end
+
+function handle_led_changes_task()
+    do_more_often(handle_led_changes, 'handle_led_changes', 0.25)
+end
+
+-- Register the corrected function to be called every frame
+do_every_frame('handle_led_changes_task()')
+
+-- do_every_frame('tryCatch(handle_led_changes)')
 -- do_every_frame('handle_led_changes()')
 
 -- Helper function to find index in table (used for cycling modes)
