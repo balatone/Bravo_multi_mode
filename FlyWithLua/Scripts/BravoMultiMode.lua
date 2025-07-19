@@ -108,108 +108,6 @@ local annunciator_labels = {
         "MASTER_CAUTION", "VACUUM", "HYD_LOW_PRESSURE", "AUX_FUEL_PUMP", "PARKING_BRAKE", "VOLTS_LOW", "DOOR"}
 
 
------------------------------------------------------
---- VALIDATION OF THE CONFIG FILE
------------------------------------------------------
-function validate_config_keys()
-    local valid_keys_set = {} -- Using a table as a set for quick lookups
-
-    -- Add a helper function to add keys to our set
-    local function add_key(key)
-        valid_keys_set[key] = true
-    end
-
-    -- 1. Configuration for MODES itself
-    add_key("MODES")
-
-    -- 2. Selector Labels: MODE_SELECTOR_LABELS
-    for _, mode in ipairs(modes) do
-        add_key(mode .. "_SELECTOR_LABELS")
-    end
-
-    -- 3. Button Labels: MODE_SELECTION_BUTTON_LABELS
-    for _, mode in ipairs(modes) do
-        for _, selection in ipairs(default_selections) do
-            add_key(mode .. "_" .. selection .. "_BUTTON_LABELS")
-        end
-    end
-
-    -- 4. Button Actions and LEDs (including general mode-level and specific mode-selection combinations)
-    for _, mode in ipairs(modes) do
-        for _, button_label in ipairs(default_button_labels) do
-            -- General button actions/LEDs (often used for ALT selection)
-            add_key(mode .. "_" .. button_label .. "_BUTTON")
-            add_key(mode .. "_" .. button_label .. "_BUTTON_LED")
-
-            -- Switch button actions (UP/DOWN variants for general buttons)
-            for _, ud_mode in ipairs(up_down_modes) do
-                add_key(mode .. "_" .. button_label .. "_" .. string.upper(ud_mode) .. "_BUTTON")
-            end
-
-            for _, selection in ipairs(default_selections) do
-                -- Specific button actions/LEDs for mode and selection
-                add_key(mode .. "_" .. selection .. "_" .. button_label .. "_BUTTON")
-                add_key(mode .. "_" .. selection .. "_" .. button_label .. "_BUTTON_LED")
-
-                -- Switch button actions (UP/DOWN variants for specific buttons)
-                for _, ud_mode in ipairs(up_down_modes) do
-                    add_key(mode .. "_" .. selection .. "_" .. button_label .. "_" .. string.upper(ud_mode) .. "_BUTTON")
-                end
-            end
-        end
-    end
-
-    -- 5. Twist Knob Actions
-    for _, mode in ipairs(modes) do
-        for _, selection in ipairs(default_selections) do
-            -- Inner knob direct UP/DOWN (as per source code logic, e.g., PFD_ALT_INNER_UP)
-            for _, ud_mode in ipairs(up_down_modes) do
-                add_key(mode .. "_" .. selection .. "_" .. string.upper(ud_mode))
-            end
-
-            -- Outer/Inner knob with explicit specifiers (e.g., PFD_ALT_OUTER_UP)
-            for _, oi_mode in ipairs(outer_inner_modes) do
-                for _, ud_mode in ipairs(up_down_modes) do
-                    add_key(mode .. "_" .. selection .. "_" .. string.upper(oi_mode) .. "_" .. string.upper(ud_mode))
-                end
-            end
-        end
-    end
-
-    -- 6. Global LED Bindings (Annunciator and Gear)
-    add_key("GEAR_DEPLOYMENT_LED")
-    for _, label in ipairs(annunciator_labels) do
-        add_key(label .. "_LED")
-        -- Account for indexed annunciator labels like AUX_FUEL_PUMP_1_LED, DOOR_1_LED
-        for i = 1, 16 do
-            add_key(label .. "_" .. tostring(i) .. "_LED")
-        end
-    end
-
-    -- 7. Manual Trim Configuration
-    add_key("TRIM_INCREMENT")
-    add_key("TRIM_BOOST")
-
-
-    local invalid_keys_found = {}
-    for key, _ in pairs(nav_bindings) do
-        if not valid_keys_set[key] then
-            table.insert(invalid_keys_found, key)
-        end
-    end
-
-    if #invalid_keys_found > 0 then
-        log.error("Found " .. #invalid_keys_found .. " invalid configuration keys in bravo_multi-mode.cfg:")
-        for _, key in ipairs(invalid_keys_found) do
-            log.error("  Invalid key: \"" .. key .. "\"")
-        end
-        return false -- Indicates validation failed
-    else
-        log.info("All configuration keys in bravo_multi-mode.cfg are valid.")
-        return true -- Indicates validation passed
-    end
-end
-
 local function create_table(value_string)
     local value_table = {}
     local idx = 1
@@ -251,6 +149,9 @@ local current_selection_label = default_selections[1]
 local default_button_labels = { "HDG", "NAV", "APR", "REV", "ALT", "VS", "IAS", "PLT" }
 local no_button_labels = { "   ", "   ", "   ", "   ", "   ", "   ", "   ", "   " }
 
+-----------------------------------------------------
+--- VALIDATION OF THE CONFIG FILE
+-----------------------------------------------------
 function validate_config_keys()
     local valid_keys_set = {} -- Using a table as a set for quick lookups
 
@@ -259,22 +160,31 @@ function validate_config_keys()
         valid_keys_set[key] = true
     end
 
-    -- 1. Configuration for MODES itself
+    -- Configuration for MODES itself
     add_key("MODES")
 
-    -- 2. Selector Labels: MODE_SELECTOR_LABELS
+    -- Selector Labels: MODE_SELECTOR_LABELS
     for _, mode in ipairs(modes) do
         add_key(mode .. "_SELECTOR_LABELS")
     end
 
-    -- 3. Button Labels: MODE_SELECTION_BUTTON_LABELS
+    -- Button Labels: MODE_SELECTION_BUTTON_LABELS
     for _, mode in ipairs(modes) do
         for _, selection in ipairs(default_selections) do
             add_key(mode .. "_" .. selection .. "_BUTTON_LABELS")
         end
     end
 
-    -- 4. Button Actions and LEDs (including general mode-level and specific mode-selection combinations)
+    -- Switch labels, actions and leds
+    add_key("SWITCH_LABELS")
+
+    for i = 1, 7 do
+        add_key("SWITCH" .. i .. "_LED")
+        add_key("SWITCH" .. i .. "_UP")
+        add_key("SWITCH" .. i .. "_DOWN")
+    end
+
+    -- Button Actions and LEDs (including general mode-level and specific mode-selection combinations)
     for _, mode in ipairs(modes) do
         for _, button_label in ipairs(default_button_labels) do
             -- General button actions/LEDs (often used for ALT selection)
@@ -299,7 +209,7 @@ function validate_config_keys()
         end
     end
 
-    -- 5. Twist Knob Actions
+    -- Twist Knob Actions
     for _, mode in ipairs(modes) do
         for _, selection in ipairs(default_selections) do
             -- Inner knob direct UP/DOWN (as per source code logic, e.g., PFD_ALT_INNER_UP)
@@ -316,7 +226,7 @@ function validate_config_keys()
         end
     end
 
-    -- 6. Global LED Bindings (Annunciator and Gear)
+    -- Global LED Bindings (Annunciator and Gear)
     add_key("GEAR_DEPLOYMENT_LED")
 	
     for _, label in ipairs(annunciator_labels) do
@@ -328,7 +238,7 @@ function validate_config_keys()
         end
     end
 
-    -- 7. Manual Trim Configuration
+    -- Manual Trim Configuration
     add_key("TRIM_INCREMENT")
     add_key("TRIM_BOOST")
 
@@ -435,6 +345,16 @@ function validate_config_values()
                     key = key,
                     value = value_string,
                     reason = "Invalid number of values for BUTTON_LABELS. Expected 8, but found " .. #values .. "."
+                })
+                validation_result = false
+            end
+        elseif key == "SWITCH_LABELS" then
+            local values = create_table(value_string)
+            if #values ~= 7 then
+                table.insert(invalid_value_entries, {
+                    key = key,
+                    value = value_string,
+                    reason = "Invalid number of values for BUTTON_LABELS. Expected 7, but found " .. #values .. "."
                 })
                 validation_result = false
             end
@@ -627,6 +547,14 @@ for i = 1, #modes do
     end
 end
 
+-- The labels for the rocker switches
+log.info("Initializing the switch labels...")
+local switch_map_labels = {}
+
+if nav_bindings["SWITCH_LABELS"] ~= nil then
+    switch_map_labels = create_table(nav_bindings["SWITCH_LABELS"])
+end
+
 -- The button actions that will be used depending on mode and selection
 log.info("Initializing the button action map...")
 local button_map_actions = {}
@@ -787,11 +715,20 @@ end
 -----------------------------------------------------
 local current_buttons = default_button_labels
 local vertical_spacing = 40
-local height = 10 + vertical_spacing * #modes
+local height = 55 + vertical_spacing * #modes
 my_floating_wnd = nil
 if IMGUI then
+    local height = 150
+
+    if #switch_map_labels > 0 then
+        height = 40*4 + 12
+    else
+        height = 40*3
+    end
     my_floating_wnd = float_wnd_create(550, height, 1, IMGUI)
+    float_wnd_set_title(my_floating_wnd, "Bravo++ multi-mode")
     float_wnd_set_imgui_builder(my_floating_wnd, "on_draw")
+    -- float_wnd_set_positioning_mode(my_floating_wnd, 4, -1)
 else
     my_floating_wnd = float_wnd_create(500, height, 1, IMGUI)
     float_wnd_set_ondraw(my_floating_wnd, "on_draw")
@@ -819,46 +756,70 @@ function build_bravo_gui(wnd, x, y)
     local win_height = imgui.GetWindowHeight()
 
     -- Set the ImGui window background style color using AABBGGRR hex format.
-    imgui.PushStyleColor(imgui.constant.Col.WindowBg, 0xB3B3B3) -- Light Grey
+    -- imgui.PushStyleColor(imgui.constant.Col.Border, 0xFF262626)
+    imgui.PushStyleColor(imgui.constant.Col.WindowBg, 0xCC333333) -- Light Grey
 
-    local vertical_offset_selector = 0
     local vertical_spacing = 0.75*vertical_spacing
 
     -- Modes display
-    imgui.Columns(1)
+    local h_offset_mode = 10 -- Initial horizontal offset for buttons
+    local h_spacing_mode = 5 -- Horizontal spacing between button columns
+    local y_offset_mode = 10
+    local mode_width = 60
+
+    imgui.NewLine() -- Start a new line after selection label for buttons
+    imgui.SetCursorPosX(h_offset_mode) 
+    imgui.SetCursorPosY(y_offset_mode)
+
     imgui.SetWindowFontScale(1.2)
     for i = 1, #modes do
-        imgui.SetCursorPosY((i - 1)*vertical_spacing)
+        local h_offset_mode = h_offset_mode + (i - 1) * (mode_width + h_spacing_mode)
+        imgui.SetCursorPosX(h_offset_mode) 
+        imgui.SetCursorPosY(y_offset_mode)
+
+        local text_color = 0xFF000000
+        -- imgui.SetCursorPosY((i - 1)*vertical_spacing)
         if current_mode == modes[i] then
-            imgui.PushStyleColor(imgui.constant.Col.Text, 0xFF00FF00) -- Green (AABBGGRR)
-            vertical_offset_selector = (i - 1)*vertical_spacing -- Calculates the offset for the selector
+            text_color = 0xFF00FF00 -- Green (AABBGGRR)
         else
-            imgui.PushStyleColor(imgui.constant.Col.Text, 0xFF333333) -- Dark Grey (AABBGGRR)
+            text_color = 0xFF111111 -- Dark Grey (AABBGGRR)
         end
-        imgui.TextUnformatted(modes[i])
-        imgui.PopStyleColor()
+        draw_label(modes[i], mode_width, 20, text_color)
     end
-    imgui.Columns()
+
+    local h_offset_select = h_offset_mode -- Initial horizontal offset for buttons
+    local h_spacing_select = 5 -- Horizontal spacing between button columns
+    local y_offset_select = 40
+    local select_width = mode_width
 
     -- Current Selection Label
-    imgui.Columns(1)
-    imgui.PushStyleColor(imgui.constant.Col.Text, 0xFFFFFFFF) -- White (AABBGGRR)
-    if current_selection_label then
-        imgui.SetCursorPosX(imgui.GetCursorPosX() + 80) -- Approximate horizontal offset
-        imgui.SetCursorPosY(vertical_offset_selector) -- Approximate horizontal offset
-        imgui.TextUnformatted(current_selection_label)
-    end
-    imgui.PopStyleColor()
-    imgui.Columns()
+    for i = 1, #selection_map_labels[current_mode] do
+        local selection_label = selection_map_labels[current_mode][i]
+        -- log.info("Selection label: " .. selection_label)
+        local h_offset_select = h_offset_select + (i - 1) * (select_width + h_spacing_select)
+        imgui.SetCursorPosX(h_offset_select)
+        imgui.SetCursorPosY(y_offset_select)
 
-    imgui.SetWindowFontScale(1.15)
+        local text_color = 0xFF000000
+        if current_selection_label == selection_label then
+            text_color = 0xFFFFFFFF -- White (AABBGGRR)
+        else
+            text_color = 0xFF111111 -- Dark Grey (AABBGGRR)
+        end
+        draw_label(selection_label, select_width, 20, text_color)            
+    end
+
+    imgui.SetWindowFontScale(1.0)
 
     -- Button Labels and States
-    local h_offset_button = 80 -- Initial horizontal offset for buttons
+    local h_offset_button = h_offset_mode -- Initial horizontal offset for buttons
     local h_spacing_button = 5 -- Horizontal spacing between button columns
-    local y_offset_button = #modes*vertical_spacing
+    local y_offset_button = 80
     local button_width = 60    -- Width of button as used in draw_button
-    local button_color = 0xFF222222
+    local button_color = 0xFF575049
+	local button_off_label_color = 0xFF111111 -- 0xFF5A5A5A
+	local button_on_label_color = 0xFFFFFFFF
+	local button_no_led_label_color = 0xFF18D1CB -- 0xFF111111
 
     imgui.NewLine() -- Start a new line after selection label for buttons
     imgui.SetCursorPosX(h_offset_button) 
@@ -868,11 +829,11 @@ function build_bravo_gui(wnd, x, y)
         local button_label = current_buttons[i]
         local button_name = default_button_labels[i]
         local led_state = get_button_led_state(button_name)
-        local button_label_color =  0xFFFFFF00
+        local button_label_color =  button_no_led_label_color
         if led_state == true then
-            button_label_color = 0xFFFFFFFF
+            button_label_color = button_on_label_color
         elseif led_state == false then
-            button_label_color = 0xFF666666
+            button_label_color = button_off_label_color
         end
 
         local is_switch = false
@@ -891,37 +852,71 @@ function build_bravo_gui(wnd, x, y)
             end
         end
 
-        if i ~= #current_buttons then
-            local current_button_x = h_offset_button + (i - 1) * (button_width + h_spacing_button)
+        local current_button_x = h_offset_button + (i - 1) * (button_width + h_spacing_button)
 
-            imgui.SetCursorPosX(current_button_x)
-            imgui.SetCursorPosY(y_offset_button)            
-            draw_button(button_label, button_width, 30, button_color, button_label_color, is_switch)
-        else
-            local current_button_x = h_offset_button + (i - 2) * (button_width + h_spacing_button)
-            imgui.SetCursorPosX(current_button_x)
-            imgui.SetCursorPosY(y_offset_button - vertical_spacing*1.5)
-            draw_button(button_label, button_width, 30, button_color, button_label_color, is_switch)
-        end        
+        imgui.SetCursorPosX(current_button_x)
+        imgui.SetCursorPosY(y_offset_button)            
+        draw_button(button_label, button_width, 30, button_color, button_label_color, is_switch)
+    end
+
+    -- Switch Labels and States
+    local h_offset_switch = h_offset_mode -- Initial horizontal offset for buttons
+    local h_spacing_switch = 5 -- Horizontal spacing between button columns
+    local y_offset_switch = 170
+    local switch_width = 60    -- Width of button as used in draw_button
+    local switch_color = button_color
+
+    imgui.NewLine()
+    imgui.SetCursorPosX(h_offset_button) 
+    imgui.SetCursorPosY(y_offset_button)
+
+    for i = 1, #switch_map_labels do
+        local switch_label = switch_map_labels[i]
+        local current_switch_x = h_offset_switch + (i - 1) * (switch_width + h_spacing_switch)
+        local led_state = get_led_state_for_switch("SWITCH" .. i .. "_LED")
+        local switch_label_color =  button_no_led_label_color
+        if led_state == true then
+            switch_label_color = button_on_label_color
+        elseif led_state == false then
+            switch_label_color = button_off_label_color
+        end
+        imgui.SetCursorPosX(current_switch_x)
+        imgui.SetCursorPosY(y_offset_switch - vertical_spacing*1.5)
+        draw_button(switch_label, switch_width, 30, switch_color, switch_label_color, false)        
     end
 
     imgui.NewLine() -- Start a new line after selection label for buttons
-    local h_offset_io = h_offset_button + (#current_buttons - 2) * (button_width + h_spacing_button)
+    local h_offset_io = 465
     local y_offset_io = 0
-    local y_spacing_io = 30
+    local y_spacing_io = 20
+    local io_width = 60
 
     for i = 1, #outer_inner_modes do
         imgui.SetCursorPosX(h_offset_io) 
         imgui.SetCursorPosY(y_offset_io + (i - 1)*y_spacing_io)
+        local text_color = 0xFF000000
         if current_cf_mode == outer_inner_modes[i] then
-            imgui.PushStyleColor(imgui.constant.Col.Text, 0xFF00FF00) -- Green (AABBGGRR)
-            -- offset_selection = offset_mode
+            text_color = 0xFF00FF00 -- Green (AABBGGRR)
         else
-            imgui.PushStyleColor(imgui.constant.Col.Text, 0xFF333333) -- Dark Grey (AABBGGRR)
+            text_color = 0xFF111111 -- Dark Grey (AABBGGRR)
         end
-        imgui.TextUnformatted(outer_inner_modes[i])
-        imgui.PopStyleColor()
+        draw_label(outer_inner_modes[i], io_width, 30, text_color)
     end    
+end
+
+function draw_label(text, width, height, text_color_int)
+    local cx, cy = imgui.GetCursorScreenPos()
+
+    imgui.Dummy(width, height)
+
+    local text_w, text_h = imgui.CalcTextSize(tostring(text))
+    local text_draw_x = cx + (width - text_w) / 2
+    local text_draw_y = cy + (height - text_h) / 2
+
+    imgui.SetCursorScreenPos(text_draw_x, text_draw_y)
+    imgui.PushStyleColor(imgui.constant.Col.Text, text_color_int)
+    imgui.TextUnformatted(tostring(text))
+    imgui.PopStyleColor()
 end
 
 function draw_button(text, width, height, box_bg_color_int, text_color_int, is_switch_button)
@@ -1145,7 +1140,7 @@ end
 
 
 -- Function to cycle the mode down one
-function cycle_mode_up()
+function cycle_mode_down()
     local index = table.find(modes, current_mode)
     index = ((index - 2) % #modes) + 1
     current_mode = modes[index]
@@ -1156,11 +1151,10 @@ end
 
 
 -- Function to cycle the mode down one
-function cycle_mode_down()
+function cycle_mode_up()
     local index = table.find(modes, current_mode)
     index = (index % #modes) + 1
     current_mode = modes[index]
-    -- all_leds_off()
 	prime_button_led_states_for_mode_change()
     led_state_modified = true
     handle_led_changes()
@@ -1209,7 +1203,7 @@ end
 
 create_command(
     "FlyWithLua/Bravo++/toggle_mode_select",
-    "Activates the mode select when buttin in pressed in. Deactivates it when button is released.",
+    "Activates the mode select when button in pressed in. Deactivates it when button is released.",
     "",
     "tryCatch(toggle_mode_select_true,'toggle_mode_select_true')",
     "tryCatch(toggle_mode_select_false,'toggle_mode_select_false')"
@@ -1268,6 +1262,112 @@ end
 
 -- Update the currently available buttons
 do_every_frame("tryCatch(set_current_buttons,'set_current_buttons')")
+
+--------------------------------------
+---- ROCKER SWITCHES
+--------------------------------------
+
+function handle_rocker_switch(rocker_number, dir)
+    local key = "SWITCH" .. rocker_number .. "_" .. dir
+    local binding = nav_bindings[key]
+    log.info("SWITCH: " .. binding)
+    local command_dataref = binding or "sim/none/none"
+    command_once(command_dataref)
+end
+
+function rocker_switch1_up()
+    handle_rocker_switch(1,"UP")
+end
+
+function rocker_switch2_up()
+    handle_rocker_switch(2,"UP")
+end
+
+function rocker_switch3_up()
+    handle_rocker_switch(3,"UP")
+end
+
+function rocker_switch4_up()
+    handle_rocker_switch(4,"UP")
+end
+
+function rocker_switch5_up()
+    handle_rocker_switch(5,"UP")
+end
+
+function rocker_switch6_up()
+    handle_rocker_switch(6,"UP")
+end
+
+function rocker_switch7_up()
+    handle_rocker_switch(7,"UP")
+end
+
+function rocker_switch1_down()
+    handle_rocker_switch(1,"DOWN")
+end
+
+function rocker_switch2_down()
+    handle_rocker_switch(2,"DOWN")
+end
+
+function rocker_switch3_down()
+    handle_rocker_switch(3,"DOWN")
+end
+
+function rocker_switch4_down()
+    handle_rocker_switch(4,"DOWN")
+end
+
+function rocker_switch5_down()
+    handle_rocker_switch(5,"DOWN")
+end
+
+function rocker_switch6_down()
+    handle_rocker_switch(6,"DOWN")
+end
+
+function rocker_switch7_down()
+    handle_rocker_switch(7,"DOWN")
+end
+
+-- Initialize the rocker switch commands
+log.info("Initializing switch commands...")
+for i = 1, 7 do
+    local func_up_name = "rocker_switch" .. i .. "_up"
+
+    local dataref = "FlyWithLua/Bravo++/" .. func_up_name
+    local description = "Bravo++ command for rocker switch" .. i .. " when it is positioned up"
+    local command = "tryCatch(".. func_up_name .. ",\'" .. func_up_name.. "\')"
+    log.debug("dataref: " .. dataref)
+    log.debug("description: " .. description)
+    log.debug("command: " .. command)
+
+    create_command(
+        dataref,
+        description,
+        command, -- Call Lua function when pressed
+        "",
+        ""
+    )
+
+    local func_down_name = "rocker_switch" .. i .. "_down"
+
+    local dataref = "FlyWithLua/Bravo++/" .. func_down_name
+    local description = "Bravo++ command for rocker switch" .. i .. " when it is positioned down"
+    local command = "tryCatch(".. func_down_name .. ",\'" .. func_down_name.. "\')"
+    log.debug("dataref: " .. dataref)
+    log.debug("description: " .. description)
+    log.debug("command: " .. command)
+
+    create_command(
+        dataref,
+        description,
+        command, -- Call Lua function when pressed
+        "",
+        ""
+    )
+end
 
 --------------------------------------
 ---- TRIM WHEEL
@@ -1356,7 +1456,7 @@ function handle_bravo_knob_increase()
     else
         current_twist_knob_action = twist_knob_map_actions[current_mode][current_selection]       
     end    
-    if current_time - last_click_time > debounce_delay then
+    if current_twist_knob_action ~= nil and (current_time - last_click_time) > debounce_delay then
         if current_twist_knob_action["UP"] then
             command_once(current_twist_knob_action["UP"])
             last_click_time = current_time
@@ -1375,7 +1475,7 @@ end
 create_command(
     "FlyWithLua/Bravo++/knob_increase_handler",
     "Handle button on bravo that increments values",
-    "handle_bravo_knob_increase()", -- Call Lua function when pressed
+    "tryCatch(handle_bravo_knob_increase,'handle_bravo_knob_increase')", -- Call Lua function when pressed
     "",
     ""
 )
@@ -1389,7 +1489,7 @@ function handle_bravo_knob_decrease()
     else
         current_twist_knob_action = twist_knob_map_actions[current_mode][current_selection]
     end
-    if current_time - last_click_time > debounce_delay then
+    if current_twist_knob_action ~= nil and (current_time - last_click_time) > debounce_delay then
 		if current_twist_knob_action["DOWN"] then
 			command_once(current_twist_knob_action["DOWN"])
             last_click_time = current_time
@@ -1408,7 +1508,7 @@ end
 create_command(
     "FlyWithLua/Bravo++/knob_decrease_handler",
     "Handle button on bravo that decrements values",
-    "handle_bravo_knob_decrease()", -- Call Lua function when pressed
+    "tryCatch(handle_bravo_knob_decrease,'handle_bravo_knob_decrease')", -- Call Lua function when pressed
     "",
     ""
 )
@@ -1600,6 +1700,7 @@ function get_button_led_state(button_name)
     end
 end
 
+
 function set_button_led_state(button_name, state)
     local current_led_state = get_button_led_state(button_name)
     if current_led_state ~= nil and state ~= current_led_state then
@@ -1768,6 +1869,30 @@ function get_led_state_for_dataref(dr_table, cond, index)
     end
 end
 
+
+local switch_map_leds = {}
+local switch_map_leds_cond = {}
+local switch_map_leds_index = {}
+
+for i = 1, 7 do
+    local key = "SWITCH" .. i .. "_LED"
+    if is_string(nav_bindings[key]) then
+        local binding = create_table(nav_bindings[key])
+        switch_map_leds[key] = dataref_table(binding[1])
+        switch_map_leds_cond[key] = binding[2]
+        if #binding == 3 then
+            switch_map_leds_index[key] = binding[3]
+        end
+    end
+end
+
+function get_led_state_for_switch(switch_label)
+    local dataref = switch_map_leds[switch_label]
+    if is_dataref_magic_table(dataref) then
+        return get_led_state_for_dataref(dataref, switch_map_leds_cond[switch_label], switch_map_leds_index[switch_label])
+    end
+end
+
 local bus_voltage = dataref_table('sim/cockpit2/electrical/bus_volts')
 local master_state = false
 
@@ -1804,7 +1929,7 @@ for i = 1, #annunciator_labels do
     end 
 end
 
-function get_led_state(annunciator_label)
+function get_led_state_for_annunciator(annunciator_label)
     local dataref = annunciator_map_leds[annunciator_label]
     -- logMsg("get dataref for: " .. annunciator_label)
     if is_dataref_magic_table(dataref) then
@@ -1904,48 +2029,48 @@ end
 
 function handle_annunciator_row1_led_changes()
 	-- MASTER WARNING
-	set_led(LED_ANC_MSTR_WARNG, get_led_state("MASTER_WARNING"))
+	set_led(LED_ANC_MSTR_WARNG, get_led_state_for_annunciator("MASTER_WARNING"))
 
 	-- ENGINE FIRE
-	set_led(LED_ANC_ENG_FIRE, get_led_state("FIRE_WARNING"))
+	set_led(LED_ANC_ENG_FIRE, get_led_state_for_annunciator("FIRE_WARNING"))
 
 	-- LOW OIL PRESSURE
-	set_led(LED_ANC_OIL, get_led_state("OIL_LOW_PRESSURE"))
+	set_led(LED_ANC_OIL, get_led_state_for_annunciator("OIL_LOW_PRESSURE"))
 
 	-- LOW FUEL PRESSURE
-	set_led(LED_ANC_FUEL, get_led_state("FUEL_LOW_PRESSURE"))
+	set_led(LED_ANC_FUEL, get_led_state_for_annunciator("FUEL_LOW_PRESSURE"))
 
 	-- ANTI ICE
-	set_led(LED_ANC_ANTI_ICE, get_led_state("ANTI_ICE"))
+	set_led(LED_ANC_ANTI_ICE, get_led_state_for_annunciator("ANTI_ICE"))
 
 	-- STARTER ENGAGED
-	set_led(LED_ANC_STARTER, get_led_state("STARTER_ENGAGED"))
+	set_led(LED_ANC_STARTER, get_led_state_for_annunciator("STARTER_ENGAGED"))
 
 	-- APU
-	set_led(LED_ANC_APU, get_led_state("APU"))
+	set_led(LED_ANC_APU, get_led_state_for_annunciator("APU"))
 end
 
 function handle_annunciator_row2_led_changes()
 	-- MASTER CAUTION
-	set_led(LED_ANC_MSTR_CTN, get_led_state("MASTER_CAUTION"))
+	set_led(LED_ANC_MSTR_CTN, get_led_state_for_annunciator("MASTER_CAUTION"))
 
 	-- VACUUM
-	set_led(LED_ANC_VACUUM, get_led_state("VACUUM"))
+	set_led(LED_ANC_VACUUM, get_led_state_for_annunciator("VACUUM"))
 
 	-- LOW HYD PRESSURE
-	set_led(LED_ANC_HYD, get_led_state("HYD_LOW_PRESSURE"))
+	set_led(LED_ANC_HYD, get_led_state_for_annunciator("HYD_LOW_PRESSURE"))
 
 	-- AUX FUEL PUMP
-	set_led(LED_ANC_AUX_FUEL, get_led_state("AUX_FUEL_PUMP"))
+	set_led(LED_ANC_AUX_FUEL, get_led_state_for_annunciator("AUX_FUEL_PUMP"))
 
 	-- PARKING BRAKE
-	set_led(LED_ANC_PRK_BRK, get_led_state("PARKING_BRAKE"))
+	set_led(LED_ANC_PRK_BRK, get_led_state_for_annunciator("PARKING_BRAKE"))
 
 	-- LOW VOLTS
-	set_led(LED_ANC_VOLTS, get_led_state("VOLTS_LOW"))
+	set_led(LED_ANC_VOLTS, get_led_state_for_annunciator("VOLTS_LOW"))
 
 	-- DOOR
-	set_led(LED_ANC_DOOR, get_led_state("DOOR"))
+	set_led(LED_ANC_DOOR, get_led_state_for_annunciator("DOOR"))
 end
 
 function handle_led_changes()

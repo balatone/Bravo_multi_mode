@@ -69,6 +69,25 @@ Finally, there are two internal commands that are often assigned to one of the H
 - The ```I/O``` button (see oneof the example configs) is used for switching between the inner or outer scroll knob. The active state is shown in green on the Bravo++ window. The dataref is described as ```Bravo++ toggles INNER/OUTER mode```. 
 - The ```U/D``` button is used for switches and will toggle between up and down state. Each button that implements a switch will either have ```^^``` above or ```vv``` below the button label indicating what will happen if the button is pressed. This distinguishes it from  buttons that just toggle between two states. So by pressing the button labeled ```U/D``` you toggle how the switch will behave.  The dataref is described as ```Bravo++ toggles UP/DOWN switch mode```.
 
+## Configuring the rocker switches in X-Plane
+The rocker switches have two Bravo++ commands each; one for the up position and one for down position. There are 7 rocker switches and they are named switch1, switch2, switch3, etc. As mentioned before, just search for "Bravo++" when binding the keys and you will find the 14 commands that need to be bound to the switches. 
+
+Here are the descriptions you should look for when configuring each switch with their corresponding dataref:
+- switch1 (position up) = Bravo++ command for rocker switch1 when it is positioned up (FlyWithLua/Bravo++/rocker_switch1_up)
+- switch1 (position down) = Bravo++ command for rocker switch1 when it is positioned down (FlyWithLua/Bravo++/rocker_switch1_down)
+- switch2 (position up) = Bravo++ command for rocker switch2 when it is positioned up (FlyWithLua/Bravo++/rocker_switch2_up)
+- switch2 (position down) = Bravo++ command for rocker switch2 when it is positioned down (FlyWithLua/Bravo++/rocker_switch2_down)
+- switch3 (position up) = Bravo++ command for rocker switch3 when it is positioned up (FlyWithLua/Bravo++/rocker_switch3_up)
+- switch3 (position down) = Bravo++ command for rocker switch3 when it is positioned down (FlyWithLua/Bravo++/rocker_switch3_down)
+- switch4 (position up) = Bravo++ command for rocker switch4 when it is positioned up (FlyWithLua/Bravo++/rocker_switch4_up)
+- switch4 (position down) = Bravo++ command for rocker switch4 when it is positioned down (FlyWithLua/Bravo++/rocker_switch4_down)
+- switch5 (position up) = Bravo++ command for rocker switch5 when it is positioned up (FlyWithLua/Bravo++/rocker_switch5_up)
+- switch5 (position down) = Bravo++ command for rocker switch5 when it is positioned down (FlyWithLua/Bravo++/rocker_switch5_down)
+- switch6 (position up) = Bravo++ command for rocker switch6 when it is positioned up (FlyWithLua/Bravo++/rocker_switch6_up)
+- switch6 (position down) = Bravo++ command for rocker switch6 when it is positioned down (FlyWithLua/Bravo++/rocker_switch6_down)
+- switch7 (position up) = Bravo++ command for rocker switch7 when it is positioned up (FlyWithLua/Bravo++/rocker_switch7_up)
+- switch7 (position down) = Bravo++ command for rocker switch7 when it is positioned down (FlyWithLua/Bravo++/rocker_switch7_down)
+
 ## Configuring the right twist knob and the trim wheel
 You can try to configure the twist knob and the trim wheel directly in X-Plane, but I personally get issues with latency that results in not all the clicks getting registered as I turn the knob or wheel. I may delve deeper into this issue to see if I can resolve it, but for now I use the Honeycomb Configurator from Aerosoft to solve the problem. I am aware that Mac users have issues with the software, but perhaps it will work with the minimal setup config file I have provided. 
 
@@ -213,6 +232,42 @@ SYS_HDG_IAS_BUTTON = "FlyWithLua/Bravo++/switch_mode_button"
 So the first line specified the command to turn on the left engine's auto ignition and the second specifies the dataref to check for the led condition, but notice that there are two numbers specified. Here the dataref is an array that contains more than one value, so on this case we need to specify an index starting from 1, so that we know which value to compare to. So in this case it will check if the value in the first place in the array is equal to 0. If it is it will turn off the led light. Looking at line 4 you see the same dataref, but this time it specified 2 instead of 1. This is because in line 3 we turn on the right engine's auto ignition so we need to check the corresponding value in the array.
 
 On line 5 -6 we see an example of a switch where we specify the dataref for the UP and DOWN command. This will result in a slightly different rendering of the button in the Bravo++ window where you will either see a ```^^``` above or ```vv``` below the button. Line 7 shows the Bravo++ dataref for toggling between UP or DOWN when using switches.  
+
+### Actions for rocker switches and leds
+The Honeycomb Bravo has 7 rocker switches that can be assigned 2 dataref commands each. The principles of assigning datarefs is pretty much the same as with the buttons. 
+
+Let's look at an example for the DA42:
+```
+SWITCH1_UP="sim/ice/pitot_heat0_on"
+SWITCH1_DOWN="sim/ice/pitot_heat0_off"
+SWITCH1_LED = "aerobask/sw_pitot_heat,0"
+
+SWITCH2_UP="aerobask/eng/master1_up"
+SWITCH2_DOWN="aerobask/eng/master1_dn"
+SWITCH2_LED = "aerobask/eng/sw_master1,0"
+
+SWITCH3_UP="aerobask/eng/master2_up"
+SWITCH3_DOWN="aerobask/eng/master2_dn"
+SWITCH3_LED = "aerobask/eng/sw_master2,0"
+
+SWITCH4_UP="sim/electrical/battery_1_on"
+SWITCH4_DOWN="sim/electrical/battery_1_off"
+SWITCH4_LED = "sim/cockpit/electrical/battery_on,0"
+
+SWITCH5_UP="sim/systems/avionics_on"
+SWITCH5_DOWN="sim/systems/avionics_off"
+SWITCH5_LED = "aerobask/sw_avionics,0"
+
+SWITCH6_UP="aerobask/eng/fuel_pump1_on"
+SWITCH6_DOWN="aerobask/eng/fuel_pump1_off"
+SWITCH6_LED = "sim/cockpit/engine/fuel_pump_on,0,1"
+
+SWITCH7_UP="aerobask/eng/fuel_pump2_on"
+SWITCH7_DOWN="aerobask/eng/fuel_pump2_off"
+SWITCH7_LED = "sim/cockpit/engine/fuel_pump_on,0,2"
+```
+
+Each switch is distinguished by a number and then by either appending "_UP", "_DOWN" or "_LED". The first two just specify a command dataref to activate depending on whether the switch is up or down. The third is a datref to monitor state in order to determine whether the "led" for the switch on the Bravo++ window should be turned off. 
 
 ### Annunciator and gear leds
 The annunciator leds and gear leds are pretty straight forward and hopefully this example from the King Air C90B should be clear enough:
