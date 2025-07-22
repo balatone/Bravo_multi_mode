@@ -180,10 +180,12 @@ So for the autopilot mode (AUTO), to assign incrementing and decrementing the al
 ```
 AUTO_ALT_UP = "sim/autopilot/altitude_up"
 AUTO_ALT_DOWN = "sim/autopilot/altitude_down"
+AUTO_ALT_KNOB_LABELS="feet"
 ```
 
 Here we specify the mode AUTO and when the left selector knob is set to ALT we want it to increase and decrease the altitude by assigning the datarefs corresponding datarefs. DataRefs can be found using DataRef Editor or DataRef Tool as specified at the beginnign of the document under ```Prereqisites```.
-
+It is also optional to specify a text that will be displayed using the ```AUTO_ALT_KNOB_LABELS```. The text value can either be one value or two values (separated by comma) depending on whether the knob has both an inner/outer functionality or not. 
+ 
 In the case where you want to simulate a knob that has an inner or outer portion to control coarse and fine values, you need to use the addtiional keywords OUTER and INNER. So again lookin at an example:
 
 ```
@@ -196,7 +198,9 @@ PFD_ALT_INNER_DOWN = "sim/GPS/g1000n1_com_inner_down"
 Here we are specifying the PFD mode with the left selector set to ALT, but we also want different behaviour based on the value of the CF (coarse/fine) selector. The CF selector is internal to Bravo++ and is made available through its own dataref. 
 
 ### Actions for the buttons and button leds
-The Honeycomb Bravo has 8 buttons that can be configured to trigger a command depending ont the mode and the selector that has been set. This gives the possibility of configuring up to 40 buttons per mode!
+The Honeycomb Bravo has 8 buttons that can be configured to trigger a command depending on the mode and the selector that has been set. This gives the possibility of configuring up to 40 buttons per mode!
+
+The buttons also support simple click and long press (i.e. holding down the button). This is enabled on all the buttons and holding down the button simulates spring-loaded switches which are often used for tests or actions that should not be activated continually. 
 
 To specify a command to a button you use a similar pattern to what has been used for the previous sections: ```mode name``` + ```selector name``` (optional) + ```button name``` + ```switch direction``` (optional) separated with ````_``` and ending with ```_BUTTON```. Note that the ```selector name``` and ```switch direction``` are optional and the reason is that it is possible that you want an a button to trigger the same action regardless of what the selector is set to. This is how you want the autopilot to behave for example. The ```switch direction``` is only used when the same command cannot be used to toggle the state of a switch and requires 2 separate commands. So just like with the twist knob in the previous section, after the name you specify the name of the dataref to use after the = sign.   
 

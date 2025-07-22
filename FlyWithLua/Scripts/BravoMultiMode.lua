@@ -3,7 +3,8 @@ require("graphics")
 local log = require("log")
 
 -- Change the logging level to log.LOG_DEBUG if troubleshooting
-log.LOG_LEVEL = log.LOG_INFO
+log.LOG_LEVEL = log.LOG_DEBUG
+local log_led_state = false
 
 -- Change this to false if you prefer the GUI that uses OpenGL, but note that it will incur a significant performance hit
 IMGUI = true
@@ -172,6 +173,7 @@ function validate_config_keys()
     for _, mode in ipairs(modes) do
         for _, selection in ipairs(default_selections) do
             add_key(mode .. "_" .. selection .. "_BUTTON_LABELS")
+            add_key(mode .. "_" .. selection .. "_KNOB_LABELS")
         end
     end
 
@@ -324,7 +326,6 @@ end
 --- Validates the values assigned to configuration keys in the nav_bindings table.
 function validate_config_values()
     local invalid_value_entries = {}
-    local validation_result = true
     log.info("Starting configuration value validation...")
 
     for key, value_string in pairs(nav_bindings) do
@@ -336,7 +337,6 @@ function validate_config_values()
                     value = value_string,
                     reason = "Invalid number of values for SELECTOR_LABELS. Expected 5, but found " .. #values .. "."
                 })
-                validation_result = false
             end
         elseif ends_with(key, "_BUTTON_LABELS") then
             local values = create_table(value_string)
@@ -346,7 +346,15 @@ function validate_config_values()
                     value = value_string,
                     reason = "Invalid number of values for BUTTON_LABELS. Expected 8, but found " .. #values .. "."
                 })
-                validation_result = false
+            end
+        elseif ends_with(key, "_KNOB_LABELS") then
+            local values = create_table(value_string)
+            if #values < 1 and #values > 2  then
+                table.insert(invalid_value_entries, {
+                    key = key,
+                    value = value_string,
+                    reason = "Invalid number of values for BUTTON_LABELS. Expected 1 or 2, but found " .. #values .. "."
+                })
             end
         elseif key == "SWITCH_LABELS" then
             local values = create_table(value_string)
@@ -356,7 +364,6 @@ function validate_config_values()
                     value = value_string,
                     reason = "Invalid number of values for BUTTON_LABELS. Expected 7, but found " .. #values .. "."
                 })
-                validation_result = false
             end
         elseif key == "MODES" then
             log.debug("Skipping validation for configuration key: '" .. key .. "' (mode definition).")
@@ -448,10 +455,6 @@ function validate_config_values()
                     end
                 end
             end
-            -- Update overall validation result if current entry had errors
-            if not current_entry_valid then
-                validation_result = false
-            end
         elseif key == "TRIM_INCREMENT" or key == "TRIM_BOOST" then
             local trim_value = tonumber(value_string)
             if trim_value == nil then
@@ -460,7 +463,6 @@ function validate_config_values()
                     value = value_string,
                     reason = "Trim value '" .. tostring(value_string) .. "' is not a valid number."
                 })
-                validation_result = false
             elseif trim_value < 0 then
                 table.insert(invalid_value_entries, {
                     key = key,
@@ -483,7 +485,6 @@ function validate_config_values()
                     value = value_string,
                     reason = "'" .. tostring(command_name) .. "' is not a valid X-Plane Command or caused an error during lookup."
                 })
-                validation_result = false
             end
         end
     end
@@ -553,6 +554,30 @@ local switch_map_labels = {}
 
 if nav_bindings["SWITCH_LABELS"] ~= nil then
     switch_map_labels = create_table(nav_bindings["SWITCH_LABELS"])
+end
+
+-- The labels used for the right twist knob
+log.info("Initializing the right twist knob labels...")
+local twist_knob_map_labels = {}
+for i = 1, #modes do
+    local select_map = {}
+    for j = 1, #default_selections do
+        select_map[default_selections[j]] = {}
+        local key = modes[i] .. "_" .. default_selections[j] .. "_KNOB_LABELS"
+        if nav_bindings[key] ~= nil then
+            local bindings = create_table(nav_bindings[key])
+            if #bindings > 1 then
+                select_map[default_selections[j]]["OUTER"] = bindings[1]
+                select_map[default_selections[j]]["INNER"] = bindings[2]
+            elseif #bindings == 1 then
+                select_map[default_selections[j]] = bindings[1]
+            end
+            twist_knob_map_labels[modes[i]] = select_map
+            log.info("Adding " .. key .. " = " .. nav_bindings[key])
+        else
+            log.info("No bindings found for mode and selection. Adding no knob labels.")			
+        end
+    end
 end
 
 -- The button actions that will be used depending on mode and selection
@@ -723,7 +748,7 @@ if IMGUI then
     if #switch_map_labels > 0 then
         height = 40*4 + 12
     else
-        height = 40*3
+        height = 40*3 + 12
     end
     my_floating_wnd = float_wnd_create(550, height, 1, IMGUI)
     float_wnd_set_title(my_floating_wnd, "Bravo++ multi-mode")
@@ -885,23 +910,81 @@ function build_bravo_gui(wnd, x, y)
         draw_button(switch_label, switch_width, 30, switch_color, switch_label_color, false)        
     end
 
-    imgui.NewLine() -- Start a new line after selection label for buttons
-    local h_offset_io = 465
-    local y_offset_io = 0
-    local y_spacing_io = 20
-    local io_width = 60
+    -- Define coordinates and properties for the graphical scroll wheel
+    -- These coordinates are relative to the ImGui window's top-left content area.
+    local graphic_center_x = 497 -- Position from the right edge of the window
+    local graphic_center_y = 40            -- Position from the top edge of the window
 
-    for i = 1, #outer_inner_modes do
-        imgui.SetCursorPosX(h_offset_io) 
-        imgui.SetCursorPosY(y_offset_io + (i - 1)*y_spacing_io)
-        local text_color = 0xFF000000
-        if current_cf_mode == outer_inner_modes[i] then
-            text_color = 0xFF00FF00 -- Green (AABBGGRR)
-        else
-            text_color = 0xFF111111 -- Dark Grey (AABBGGRR)
+    local outer_radius = 30
+    local inner_radius = 20
+    local num_segments = 32 -- Number of segments to draw for smooth circles
+    local outline_thickness = 2 -- Thickness for the black outlines
+
+    local outer_outline_color = 0xFF222222 -- Opaque Gray
+    local inner_outline_color = 0xFF222222 -- Opaque Gray
+    local outer_color = 0xFF505050    -- Opaque Dark Gray for the interior of the circles
+    local inner_color = 0xFF505050    -- Opaque Dark Gray for the interior of the circles
+    
+    local highlight_color = 0xFF505050 -- Semi-transparent Green
+    local highlight_outline_color = 0xFF505050 -- Opaque Green
+    local knob_text_color = 0xFFFFFFFF
+
+    if is_table(twist_knob_map_actions[current_mode]) and is_table(twist_knob_map_actions[current_mode][current_selection]) then
+        if is_table(twist_knob_map_actions[current_mode][current_selection]["INNER"]) then
+            -- outer_outline_color = 0xFF000000 -- Opaque Black
+            -- inner_outline_color = 0xFF000000 -- Opaque Black
+            highlight_color = 0x4400FF00 -- Semi-transparent Green
+            highlight_outline_color = 0xFF00FF00
+            if current_cf_mode == "outer" then
+                outer_color = highlight_color
+                outer_outline_color = highlight_outline_color
+            elseif current_cf_mode == "inner" then
+                inner_color = highlight_color
+                inner_outline_color = highlight_outline_color
+            end
+        elseif is_string(twist_knob_map_actions[current_mode][current_selection]["UP"]) then
+            -- outer_outline_color = 0xFF000000 -- Opaque Black
+            -- inner_outline_color = 0xFF000000 -- Opaque Black
+            highlight_color = 0x4400FF00 -- Semi-transparent Green
+            highlight_outline_color = 0xFF00FF00
+            outer_color = highlight_color
+            outer_outline_color = highlight_outline_color
+            inner_color = highlight_color
+            inner_outline_color = highlight_outline_color
         end
-        draw_label(outer_inner_modes[i], io_width, 30, text_color)
-    end    
+    end 
+    
+    imgui.DrawList_AddCircle(graphic_center_x, graphic_center_y, outer_radius, outer_outline_color, num_segments, outline_thickness)
+    imgui.DrawList_AddCircleFilled(graphic_center_x, graphic_center_y, outer_radius, outer_color, num_segments)
+    imgui.DrawList_AddCircle(graphic_center_x, graphic_center_y, inner_radius, inner_outline_color, num_segments, outline_thickness)
+    imgui.DrawList_AddCircleFilled(graphic_center_x, graphic_center_y, inner_radius, inner_color, num_segments)
+
+    if is_table(twist_knob_map_labels[current_mode]) then
+        imgui.SetWindowFontScale(0.8)
+        if is_table(twist_knob_map_labels[current_mode][current_selection]) then
+            local text = twist_knob_map_labels[current_mode][current_selection][string.upper(current_cf_mode)]
+            if text ~= nil then
+                local text_w, text_h = imgui.CalcTextSize(tostring(text))
+				if text_w > 35 then
+					imgui.SetWindowFontScale(0.6)
+				end
+                imgui.SetCursorPosX(graphic_center_x - text_w/2) 
+                imgui.SetCursorPosY(graphic_center_y - text_h/2)
+                draw_label(text, text_w, text_h, knob_text_color)
+            end
+        elseif is_string(twist_knob_map_labels[current_mode][current_selection]) then
+            local text = twist_knob_map_labels[current_mode][current_selection]
+            if text ~= nil then
+                local text_w, text_h = imgui.CalcTextSize(tostring(text))
+				if text_w > 35 then
+					imgui.SetWindowFontScale(0.6)
+				end
+                imgui.SetCursorPosX(graphic_center_x - text_w/2) 
+                imgui.SetCursorPosY(graphic_center_y - text_h/2)
+                draw_label(text, text_w, text_h, knob_text_color)
+            end
+        end
+    end 
 end
 
 function draw_label(text, width, height, text_color_int)
@@ -1516,147 +1599,182 @@ create_command(
 --------------------------------------
 ---- BUTTON HANDLING
 --------------------------------------
-function handle_bravo_button(button_name)
-    tryCatch(function()
-        -- logMsg("[" .. current_mode .. "][" .. current_selection .. "][" .. button_name .. "]")
-        if is_string(button_map_actions[current_mode][button_name]) then
-            local command = button_map_actions[current_mode][button_name]
-            command_once(command)
-        elseif current_switch_mode == "up" and is_table(button_map_actions[current_mode][button_name]) and is_string(button_map_actions[current_mode][button_name]["UP"]) then
-            local command = button_map_actions[current_mode][button_name]["UP"]
-            command_once(command)
-        elseif current_switch_mode == "down" and is_table(button_map_actions[current_mode][button_name]) and  button_map_actions[current_mode][button_name]["DOWN"] then
-            local command = button_map_actions[current_mode][button_name]["DOWN"]
-            command_once(command)
-        elseif is_table(button_map_actions[current_mode][current_selection]) then
-            if is_string(button_map_actions[current_mode][current_selection][button_name]) then
-                local command = button_map_actions[current_mode][current_selection][button_name]
-                command_once(command)
-            elseif current_switch_mode == "up" and is_table(button_map_actions[current_mode][current_selection][button_name]) and button_map_actions[current_mode][current_selection][button_name]["UP"] then
-                local command = button_map_actions[current_mode][current_selection][button_name]["UP"]
-                command_once(command)
-            elseif current_switch_mode == "down" and is_table(button_map_actions[current_mode][current_selection][button_name]) and button_map_actions[current_mode][current_selection][button_name]["DOWN"] then
-                local command = button_map_actions[current_mode][current_selection][button_name]["DOWN"]
-                command_once(command)
-            else
-                log.debug("Button action not found!")
-            end
+-- Define a threshold for what constitutes a "long press" in seconds
+local LONG_PRESS_THRESHOLD = 0.25 -- Adjust this value as needed (e.g., 0.25 seconds)
+
+-- Declare global variables to track button state across command phases
+-- These are necessary because the different parts of create_command run in independent Lua blocks.
+local button_press_start_time = 0
+local button_is_continuous_mode = false
+local command_phase = "end" -- valid values are begin, continuous and end
+local command = "sim/none/none"
+
+function start_timer(button_name)
+    button_press_start_time = os.clock()
+    button_is_continuous_mode = false
+    command_phase = "begin"
+    command = get_command_for_button(button_name)
+end
+
+function handle_continuous_mode()
+    if os.clock() - button_press_start_time >= LONG_PRESS_THRESHOLD then
+        if not button_is_continuous_mode then
+            log.debug("Button held down long enough. Starting continuous mode.")
+            button_is_continuous_mode = true
+        end
+        trigger_command(command)
+    end
+end
+
+function handle_single_click_mode()
+    command_phase = "end"
+    trigger_command(command)
+end
+
+function get_command_for_button(button_name)
+    if is_string(button_map_actions[current_mode][button_name]) then
+        command = button_map_actions[current_mode][button_name]
+    elseif current_switch_mode == "up" and is_table(button_map_actions[current_mode][button_name]) and is_string(button_map_actions[current_mode][button_name]["UP"]) then
+        command = button_map_actions[current_mode][button_name]["UP"]
+    elseif current_switch_mode == "down" and is_table(button_map_actions[current_mode][button_name]) and  button_map_actions[current_mode][button_name]["DOWN"] then
+        command = button_map_actions[current_mode][button_name]["DOWN"]
+    elseif is_table(button_map_actions[current_mode][current_selection]) then
+        if is_string(button_map_actions[current_mode][current_selection][button_name]) then
+            command = button_map_actions[current_mode][current_selection][button_name]
+        elseif current_switch_mode == "up" and is_table(button_map_actions[current_mode][current_selection][button_name]) and button_map_actions[current_mode][current_selection][button_name]["UP"] then
+            command = button_map_actions[current_mode][current_selection][button_name]["UP"]
+        elseif current_switch_mode == "down" and is_table(button_map_actions[current_mode][current_selection][button_name]) and button_map_actions[current_mode][current_selection][button_name]["DOWN"] then
+            command = button_map_actions[current_mode][current_selection][button_name]["DOWN"]
         else
             log.debug("Button action not found!")
         end
-    end, "handl_bravo_button")
+    else
+        log.debug("Button action not found!")
+    end
+    return command
+end
+
+function trigger_command(command)
+    tryCatch(function()
+        if button_is_continuous_mode then 
+            if command_phase == "begin" then
+                log.debug("Trigger command begin: " .. command)
+                command_begin(command)
+                command_phase = "continuous"
+            elseif command_phase == "end" then
+                log.debug("Trigger command end: " .. command)
+                command_end(command)
+            end
+        elseif not button_is_continuous_mode then
+            log.debug("Trigger command once: " .. command)
+            command_once(command)
+        end
+
+    end, "handle_bravo_button")
 end
 
 -- Autopilot button
-function handle_bravo_autopilot_button()
-    handle_bravo_button("PLT")
+function start_timer_for_plt_button()
+    start_timer("PLT")
 end
 
--- Create a custom command for bravo knob increase
 create_command(
     "FlyWithLua/Bravo++/autopilot_button",
     "Bravo++ toggles AUTOPILOT button",
-    "handle_bravo_autopilot_button()", -- Call Lua function when pressed
-    "",
-    ""
+    "tryCatch(start_timer_for_plt_button,'start_timer_for_plt_button')", -- Call Lua function when pressed
+    "tryCatch(handle_continuous_mode,'handle_continuous_mode')",
+    "tryCatch(handle_single_click_mode,'handle_single_click_mode')"
 )
 
 -- IAS button
-function handle_bravo_ias_button()
-    handle_bravo_button("IAS")
+function start_timer_for_ias_button()
+    start_timer("IAS")
 end
 
--- Create a custom command for bravo knob increase
 create_command(
     "FlyWithLua/Bravo++/ias_button",
     "Bravo++ toggles IAS button",
-    "handle_bravo_ias_button()", -- Call Lua function when pressed
-    "",
-    ""
+    "tryCatch(start_timer_for_ias_button,'start_timer_for_ias_button')", -- Call Lua function when pressed
+    "tryCatch(handle_continuous_mode,'handle_continuous_mode')",
+    "tryCatch(handle_single_click_mode,'handle_single_click_mode')"
 )
 
 -- VS button
-function handle_bravo_vs_button()
-    handle_bravo_button("VS")
+function start_timer_for_vs_button()
+    start_timer("VS")
 end
 
--- Create a custom command for bravo knob increase
 create_command(
     "FlyWithLua/Bravo++/vs_button",
     "Bravo++ toggles VS button",
-    "handle_bravo_vs_button()", -- Call Lua function when pressed
-    "",
-    ""
+    "tryCatch(start_timer_for_vs_button,'start_timer_for_vs_button')", -- Call Lua function when pressed
+    "tryCatch(handle_continuous_mode,'handle_continuous_mode')",
+    "tryCatch(handle_single_click_mode,'handle_single_click_mode')"
 )
 
 -- ALT button
-function handle_bravo_alt_button()
-    handle_bravo_button("ALT")
+function start_timer_for_alt_button()
+    start_timer("ALT")
 end
 
--- Create a custom command for bravo knob increase
 create_command(
     "FlyWithLua/Bravo++/alt_button",
     "Bravo++ toggles ALT button",
-    "handle_bravo_alt_button()", -- Call Lua function when pressed
-    "",
-    ""
+    "tryCatch(start_timer_for_alt_button,'start_timer_for_alt_button')", -- Call Lua function when pressed
+    "tryCatch(handle_continuous_mode,'handle_continuous_mode')",
+    "tryCatch(handle_single_click_mode,'handle_single_click_mode')"
 )
 
 -- REV button
-function handle_bravo_rev_button()
-    handle_bravo_button("REV")
+function start_timer_for_rev_button()
+    start_timer("REV")
 end
 
--- Create a custom command for bravo knob increase
 create_command(
     "FlyWithLua/Bravo++/rev_button",
     "Bravo++ toggles REV button",
-    "handle_bravo_rev_button()", -- Call Lua function when pressed
-    "",
-    ""
+    "tryCatch(start_timer_for_rev_button,'start_timer_for_rev_button')", -- Call Lua function when pressed
+    "tryCatch(handle_continuous_mode,'handle_continuous_mode')",
+    "tryCatch(handle_single_click_mode,'handle_single_click_mode')"
 )
 
 -- APR button
-function handle_bravo_apr_button()
-    handle_bravo_button("APR")
+function start_timer_for_apr_button()
+    start_timer("APR")
 end
 
--- Create a custom command for bravo knob increase
 create_command(
     "FlyWithLua/Bravo++/apr_button",
     "Bravo++ toggles APR button",
-    "handle_bravo_apr_button()", -- Call Lua function when pressed
-    "",
-    ""
+    "tryCatch(start_timer_for_apr_button,'start_timer_for_apr_button')", -- Call Lua function when pressed
+    "tryCatch(handle_continuous_mode,'handle_continuous_mode')",
+    "tryCatch(handle_single_click_mode,'handle_single_click_mode')"
 )
 
 -- NAV button
-function handle_bravo_nav_button()
-    handle_bravo_button("NAV")
+function start_timer_for_nav_button()
+    start_timer("NAV")
 end
 
--- Create a custom command for bravo knob increase
 create_command(
     "FlyWithLua/Bravo++/nav_button",
     "Bravo++ toggles NAV button",
-    "handle_bravo_nav_button()", -- Call Lua function when pressed
-    "",
-    ""
+    "tryCatch(start_timer_for_nav_button,'start_timer_for_nav_button')", -- Call Lua function when pressed
+    "tryCatch(handle_continuous_mode,'handle_continuous_mode')",
+    "tryCatch(handle_single_click_mode,'handle_single_click_mode')"
 )
 
 -- HDG button
-function handle_bravo_hdg_button()
-    handle_bravo_button("HDG")
+function start_timer_for_hdg_button()
+    start_timer("HDG")
 end
 
--- Create a custom command for bravo knob increase
 create_command(
     "FlyWithLua/Bravo++/hdg_button",
     "Bravo++ toggles HDG button",
-    "handle_bravo_hdg_button()", -- Call Lua function when pressed
-    "",
-    ""
+    "tryCatch(start_timer_for_hdg_button,'start_timer_for_hdg_button')", -- Call Lua function when pressed
+    "tryCatch(handle_continuous_mode,'handle_continuous_mode')",
+    "tryCatch(handle_single_click_mode,'handle_single_click_mode')"
 )
 
 --------------------------------------
@@ -1688,14 +1806,19 @@ local led_state_modified = false
 -- BUTTON LED handling
 function get_button_led_state(button_name)
     if is_table(button_map_leds_state[current_mode]["ALL"]) and is_boolean(button_map_leds_state[current_mode]["ALL"][button_name]) then
-        log.debug("get_led_state for mode ALL and button name " .. button_name)
+        if log_led_state then
+            log.debug("get_led_state for mode ALL and button name " .. button_name)
+        end
         return button_map_leds_state[current_mode]["ALL"][button_name]
     elseif is_table(button_map_leds_state[current_mode][current_selection]) and is_boolean(button_map_leds_state[current_mode][current_selection][button_name]) then
-        log.debug("get_led_state for mode " ..
-            current_mode .. ", current selection " .. current_selection .. " and button name " .. button_name)
+        if log_led_state then
+            log.debug("get_led_state for mode " .. current_mode .. ", current selection " .. current_selection .. " and button name " .. button_name)
+        end
         return button_map_leds_state[current_mode][current_selection][button_name]
     else
-        log.debug("Return nil for mode " .. current_mode .. " and button_name " .. button_name)
+        if log_led_state then       
+            log.debug("Return nil for mode " .. current_mode .. " and button_name " .. button_name)
+        end
         return nil
     end
 end
@@ -1704,7 +1827,9 @@ end
 function set_button_led_state(button_name, state)
     local current_led_state = get_button_led_state(button_name)
     if current_led_state ~= nil and state ~= current_led_state then
-        log.debug("get_led_state for " .. button_name .. " = " .. tostring(current_led_state))
+        if log_led_state then
+            log.debug("get_led_state for " .. button_name .. " = " .. tostring(current_led_state))
+        end
         if is_table(button_map_leds_state[current_mode]["ALL"]) and is_boolean(button_map_leds_state[current_mode]["ALL"][button_name]) then
             button_map_leds_state[current_mode]["ALL"][button_name] = state
         elseif is_table(button_map_leds_state[current_mode][current_selection]) and  is_boolean(button_map_leds_state[current_mode][current_selection][button_name]) then
@@ -1712,10 +1837,12 @@ function set_button_led_state(button_name, state)
         end
         led_state_modified = true
     else
-        if current_led_state ~= nil then
-            log.debug("state did not change for mode " .. current_mode .. " and button " .. button_name)
-        else
-            log.debug("state does not exist for mode " .. current_mode .. " and button " .. button_name)
+        if log_led_state then
+            if current_led_state ~= nil then
+                log.debug("state did not change for mode " .. current_mode .. " and button " .. button_name)
+            else
+                log.debug("state does not exist for mode " .. current_mode .. " and button " .. button_name)
+            end
         end
     end
 end
@@ -1751,7 +1878,9 @@ function prime_button_led_states_for_mode_change()
                 button_map_leds_state[current_mode]["ALL"][button_label] = false
                 -- Manually setting led_state_modified to true ensures a HID update will be sent [6, 7].
                 -- This is a safeguard in case no other state changes occur that would trigger it.
-				log.debug("Setting led to true for [" .. current_mode .. "][ALL][" .. button_label .."]")
+				if log_led_state then
+                    log.debug("Setting led to true for [" .. current_mode .. "][ALL][" .. button_label .."]")
+                end
                 led_state_modified = true
 				led_detected = true
             end
@@ -1760,7 +1889,9 @@ function prime_button_led_states_for_mode_change()
             if is_boolean(button_map_leds_state[current_mode][current_selection][button_label]) then
                 button_map_leds_state[current_mode][current_selection][button_label] = false
                 -- As above, manually forcing led_state_modified to ensure a HID update.
-				log.debug("Setting led to true for [" .. current_mode .. "][" .. current_selection .. "][" .. button_label .."]")
+                if log_led_state then
+                    log.debug("Setting led to true for [" .. current_mode .. "][" .. current_selection .. "][" .. button_label .."]")
+                end
                 led_state_modified = true
 				led_detected = true
             end
@@ -1769,7 +1900,9 @@ function prime_button_led_states_for_mode_change()
 	if not led_detected then -- Ensures all leds are off if no leds are used
 		all_leds_off()
 	end
-    log.debug("Internal button LED states 'primed' to true for mode change evaluation.")
+    if log_led_state then
+        log.debug("Internal button LED states 'primed' to true for mode change evaluation.")
+    end
 end
 
 function all_leds_off()
@@ -1785,7 +1918,9 @@ function all_leds_off()
     end
 
     led_state_modified = true
-    log.debug("Set all leds to off")
+    if log_led_state then
+        log.debug("Set all leds to off")
+    end
 end
 
 function is_boolean(cand)
@@ -1807,7 +1942,6 @@ function send_hid_data()
         data[bank] = 0
     end
 
-	log.debug('Setting button leds')
     for i = 1, #default_button_labels do
         local button_name = default_button_labels[i]
         if is_table(button_map_leds_state[current_mode]["ALL"]) and button_map_leds_state[current_mode]["ALL"][button_name] == true then
@@ -1816,9 +1950,7 @@ function send_hid_data()
             data[1] = bit.bor(data[1], bit.lshift(1, i - 1))
         end
     end
-	log.debug('Button leds set')
 
-	log.debug('Setting annunciator leds')
     for bank = 2, 4 do
         for abit = 1, 8 do
             if buffer[bank][abit] == true then
@@ -1826,10 +1958,8 @@ function send_hid_data()
             end
         end
     end
-	log.debug('Annunciator leds set')
 
     local bytes_written = hid_send_filled_feature_report(bravo, 0, 65, data[1], data[2], data[3], data[4]) -- 65 = 1 byte (report ID) + 64 bytes (data)
-	log.debug('sending hid data')
 
     if bytes_written == 65 then
         led_state_modified = false
@@ -1838,7 +1968,6 @@ function send_hid_data()
     elseif bytes_written < 65 then
         log.error('ERROR Feature report write failed, only ' .. bytes_written .. ' bytes written')
     end
-	log.debug('Done sending hid_data')
 end
 
 function get_led_state_for_dataref(dr_table, cond, index)
