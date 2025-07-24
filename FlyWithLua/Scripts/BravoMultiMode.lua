@@ -3,11 +3,8 @@ require("graphics")
 local log = require("log")
 
 -- Change the logging level to log.LOG_DEBUG if troubleshooting
-log.LOG_LEVEL = log.LOG_DEBUG
+log.LOG_LEVEL = log.LOG_INFO
 local log_led_state = false
-
--- Change this to false if you prefer the GUI that uses OpenGL, but note that it will incur a significant performance hit
-IMGUI = true
 
 -- Set this to either 0 or the button number assigned for the alt selector in x-plane.
 -- Setting to 0 will result in using HID to determine the selector state, but will introduce lag in Windows. 
@@ -740,25 +737,18 @@ end
 -----------------------------------------------------
 local current_buttons = default_button_labels
 local vertical_spacing = 40
-local height = 55 + vertical_spacing * #modes
-my_floating_wnd = nil
-if IMGUI then
-    local height = 150
+local height = 150
 
-    if #switch_map_labels > 0 then
-        height = 40*4 + 12
-    else
-        height = 40*3 + 12
-    end
-    my_floating_wnd = float_wnd_create(550, height, 1, IMGUI)
-    float_wnd_set_title(my_floating_wnd, "Bravo++ multi-mode")
-    float_wnd_set_imgui_builder(my_floating_wnd, "on_draw")
-    -- float_wnd_set_positioning_mode(my_floating_wnd, 4, -1)
+if #switch_map_labels > 0 then
+	height = 40*4 + 12
 else
-    my_floating_wnd = float_wnd_create(500, height, 1, IMGUI)
-    float_wnd_set_ondraw(my_floating_wnd, "on_draw")
+	height = 40*3 + 12
 end
 
+my_floating_wnd = float_wnd_create(550, height, 1, true)
+float_wnd_set_title(my_floating_wnd, "Bravo++ multi-mode")
+float_wnd_set_imgui_builder(my_floating_wnd, "build_bravo_gui")
+-- float_wnd_set_positioning_mode(my_floating_wnd, 4, -1)
 float_wnd_set_title(my_floating_wnd, "Bravo++ multi-mode")
 -- float_wnd_set_position(my_floating_wnd, SCREEN_WIDTH * 2/3 + 50, SCREEN_HEIGHT * 1/6)
 float_wnd_set_position(my_floating_wnd, SCREEN_WIDTH * 0.25, SCREEN_HEIGHT * 0.25)
@@ -766,15 +756,6 @@ float_wnd_set_position(my_floating_wnd, SCREEN_WIDTH * 0.25, SCREEN_HEIGHT * 0.2
 
 -- float_wnd_set_onclick(my_floating_wnd, "on_click_floating_window")
 float_wnd_set_onclose(my_floating_wnd, "on_close_floating_window")
-
-function on_draw(my_floating_wnd, x3, y3)
-    if IMGUI then
-        build_bravo_gui(my_floating_wnd, x3, y3)
-    else
-	    on_draw_floating_window(my_floating_wnd, x3, y3)
-    end
-end
-
 
 function build_bravo_gui(wnd, x, y)
     local win_width = imgui.GetWindowWidth()
@@ -878,6 +859,11 @@ function build_bravo_gui(wnd, x, y)
         end
 
         local current_button_x = h_offset_button + (i - 1) * (button_width + h_spacing_button)
+		
+		if i == #current_buttons then
+			current_button_x = h_offset_button + (i - 2) * (button_width + h_spacing_button)
+			y_offset_button = 40
+		end
 
         imgui.SetCursorPosX(current_button_x)
         imgui.SetCursorPosY(y_offset_button)            
@@ -912,11 +898,11 @@ function build_bravo_gui(wnd, x, y)
 
     -- Define coordinates and properties for the graphical scroll wheel
     -- These coordinates are relative to the ImGui window's top-left content area.
-    local graphic_center_x = 497 -- Position from the right edge of the window
-    local graphic_center_y = 40            -- Position from the top edge of the window
+    local graphic_center_x = 505 -- Position from the right edge of the window
+    local graphic_center_y = 75            -- Position from the top edge of the window
 
-    local outer_radius = 30
-    local inner_radius = 20
+    local outer_radius = 36
+    local inner_radius = 25
     local num_segments = 32 -- Number of segments to draw for smooth circles
     local outline_thickness = 2 -- Thickness for the black outlines
 
@@ -1038,107 +1024,6 @@ function draw_button(text, width, height, box_bg_color_int, text_color_int, is_s
         imgui.TextUnformatted(ud_symbol)
         imgui.PopStyleColor()
     end    
-end
-
-function on_draw_floating_window(my_floating_wnd, x3, y3)
-    tryCatch(function()
-        local offset_mode = -20
-        local v_spacing = -30
-        local h_spacing = 65
-        local offset_selection = 10
-        local v_offset = y3 + height
-
-        for i = 1, #modes do
-            if current_mode == modes[i] then
-                glColor3f(0, 1, 0) -- Green for default
-                offset_selection = offset_mode
-            else
-                glColor3f(0.2, 0.2, 0.2) -- Grey
-            end
-            draw_string_Helvetica_18(x3, v_offset + offset_mode, modes[i])
-            offset_mode = offset_mode + v_spacing
-        end
-
-        glColor3f(1, 1, 1) -- White
-		if current_selection_label then
-			draw_string_Helvetica_18(x3 + 80, v_offset + offset_selection, current_selection_label)
-		end
-
-        -- offset_mode = offset_mode + v_spacing	
-        local h_offset = 60
-
-        for i = 1, #current_buttons do
-            -- logMsg("current mode: " .. "[" .. current_mode .. "][" .. current_selection .. "][" .. default_button_labels[i] .. "]")
-            glColor3f(0, 0.75, 0.75) -- default if not led
-
-            -- Set the color based on the led state
-            if is_table(button_map_leds_state[current_mode]["ALL"]) then
-                if button_map_leds_state[current_mode]["ALL"][default_button_labels[i]] == true then
-                    glColor3f(1, 1, 1)       -- White
-                elseif button_map_leds_state[current_mode]["ALL"][default_button_labels[i]] == false then
-                    glColor3f(0.2, 0.2, 0.2)
-                end                
-            elseif is_table(button_map_leds_state[current_mode][current_selection]) then
-                if button_map_leds_state[current_mode][current_selection][default_button_labels[i]] == true then
-                    glColor3f(1, 1, 1)       -- White
-                elseif button_map_leds_state[current_mode][current_selection][default_button_labels[i]] == false then
-                    glColor3f(0.2, 0.2, 0.2)
-                end
-            end
-
-            local is_switch = false
-            -- Assigna different color to switches that are not togglable
-            
-            if is_table(button_map_actions[current_mode][current_selection]) and is_table(button_map_actions[current_mode][current_selection][default_button_labels[i]]) then
-                if is_string(button_map_actions[current_mode][current_selection][default_button_labels[i]]["UP"]) or is_string(button_map_actions[current_mode][current_selection][default_button_labels[i]]["DOWN"]) then
-                    is_switch = true
-                end                
-            elseif is_table(button_map_actions[current_mode][default_button_labels[i]]) then
-                if is_string(button_map_actions[current_mode][default_button_labels[i]]["UP"]) or is_string(button_map_actions[current_mode][default_button_labels[i]]["DOWN"]) then
-                    is_switch = true
-                end
-            end
-
-            local ud_symbol = "^^"
-            local ud_symbol_v_offset = 15
-            local ud_symbol_h_offset = string.len(current_buttons[i])*3
-            if current_switch_mode == "down" then
-                ud_symbol = "vv"
-                ud_symbol_v_offset = -15
-            end
-
-            if i ~= #current_buttons then
-                draw_string_Helvetica_18(x3 + h_offset, v_offset + offset_mode, current_buttons[i])
-
-                if is_switch then
-                    glColor3f(0, 1, 0)       -- White
-                    draw_string_Helvetica_18(x3 + h_offset + ud_symbol_h_offset, v_offset + offset_mode + ud_symbol_v_offset, ud_symbol)
-                end
-            else
-                -- graphics.draw_rectangle(x3 + h_offset, v_offset + offset_mode - v_spacing, x3 + h_offset + h_spacing, v_offset + offset_mode - 2*v_spacing)
-                -- glColor3f(0, 0, 0) -- Black
-                draw_string_Times_Roman_24(x3 + h_offset - h_spacing, v_offset + offset_mode - v_spacing, current_buttons[i])
-                if is_switch then
-                    glColor3f(1, 0, 0)       -- White
-                    draw_string_Times_Roman_24(x3 + h_offset - h_spacing + ud_symbol_h_offset, v_offset + offset_mode - v_spacing - ud_symbol_v_offset, ud_symbol)
-                end
-            end
-            h_offset = h_offset + h_spacing
-        end
-
-        local offset_mode = -20
-
-        for i = 1, #outer_inner_modes do
-            if current_cf_mode == outer_inner_modes[i] then
-                glColor3f(0, 1, 0) -- Green for default
-                offset_selection = offset_mode
-            else
-                glColor3f(0.2, 0.2, 0.2) -- Balck semitransparent
-            end
-            draw_string_Helvetica_18(x3 + h_offset - 2*h_spacing, v_offset + offset_mode, outer_inner_modes[i])
-            offset_mode = offset_mode + v_spacing
-        end
-    end, "on_draw_floating_window")
 end
 
 function on_close_floating_window(my_floating_wnd)
