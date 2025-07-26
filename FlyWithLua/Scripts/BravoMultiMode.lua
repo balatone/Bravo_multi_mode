@@ -52,6 +52,18 @@ function is_dataref_array(dr_table)
     return false
 end
 
+function is_boolean(cand)
+    return type(cand) == "boolean"
+end
+
+function is_string(cand)
+    return type(cand) == "string"
+end
+
+function is_table(cand)
+    return type(cand) == "table"
+end
+
 local function read_config_file(nav_cfg_path, nav_bindings)
     local cfg_file = io.open(nav_cfg_path, "r")
     if cfg_file then
@@ -468,20 +480,21 @@ function validate_config_values()
                 })
             end
         else -- For other keys, assume the value is a command string
-            local command_name = value_string
-
+            local command_name = create_table(value_string)
             -- Check if it's a known internal command that will be created by this script
-            if command_name == "FlyWithLua/Bravo++/cf_mode_button" or 
-               command_name == "FlyWithLua/Bravo++/switch_mode_button" or
-               command_name == "FlyWithLua/Bravo++/toggle_mode_select" then
+                for i = 1, #command_name do
+            if command_name[i] == "FlyWithLua/Bravo++/cf_mode_button" or 
+               command_name[i] == "FlyWithLua/Bravo++/switch_mode_button" or
+               command_name[i] == "FlyWithLua/Bravo++/toggle_mode_select" then
                 -- Log a debug message and skip validation for this internal command
-                log.debug("Skipping command validation for internal command: '" .. command_name .. "' (will be created later).")
-            elseif not safe_command_lookup(command_name) then -- Check if the command exists using XPLMFindCommand
-                table.insert(invalid_value_entries, {
-                    key = key,
-                    value = value_string,
-                    reason = "'" .. tostring(command_name) .. "' is not a valid X-Plane Command or caused an error during lookup."
-                })
+                log.debug("Skipping command validation for internal command: '" .. command_name[i] .. "' (will be created later).")
+            elseif not safe_command_lookup(command_name[i]) then -- Check if the command exists using XPLMFindCommand
+					table.insert(invalid_value_entries, {
+						key = key,
+						value = value_string,
+						reason = "'" .. tostring(command_name[i]) .. "' is not a valid X-Plane Command or caused an error during lookup."
+					})
+				end
             end
         end
     end
@@ -583,44 +596,66 @@ local button_map_actions = {}
 local up_down = { "UP", "DOWN" }
 for i = 1, #modes do
     button_map_actions[modes[i]] = {}
-    local select_map = {}
     for j = 1, #default_selections do
-        select_map[default_selections[j]] = {}
+        button_map_actions[modes[i]][default_selections[j]] = button_map_actions[modes[i]][default_selections[j]] or {}
         for k = 1, #default_button_labels do
+            button_map_actions[modes[i]][default_button_labels[k]] = button_map_actions[modes[i]][default_button_labels[k]] or {}
             local full_key = modes[i] .. "_" .. default_button_labels[k] .. "_BUTTON"
-            if default_selections[j] == "ALT" and nav_bindings[full_key] then
-                button_map_actions[modes[i]][default_button_labels[k]] = nav_bindings[full_key]
-                log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
+            local bindings = nil
+            if default_selections[j] == "ALT" and nav_bindings[full_key] then                
+                bindings = create_table(nav_bindings[full_key])
+                button_map_actions[modes[i]][default_button_labels[k]]["ON_CLICK"] = bindings[1]
+                log.info("Adding " .. full_key .. " = " .. bindings[1] .. " for ON_CLICK")
+                local on_hold_action = bindings[2] or bindings[1]
+                button_map_actions[modes[i]][default_button_labels[k]]["ON_HOLD"] = on_hold_action
+                log.info("Adding " .. full_key .. " = " .. on_hold_action .. " for ON_HOLD")
             elseif default_selections[j] == "ALT" and nav_bindings[full_key] == nil then
-                local switch_map = {}
+                -- local switch_map = {}
                 for l = 1, #up_down do
                     local full_key = modes[i] .. "_" .. default_button_labels[k] .. "_" .. up_down[l] .. "_BUTTON"
-                    if nav_bindings[full_key] then
-                        switch_map[up_down[l]] = nav_bindings[full_key]
-                        button_map_actions[modes[i]][default_button_labels[k]] = switch_map
-                        log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
-                    end
-                end            
-            end
-            local key = modes[i] .. "_" .. default_selections[j]
-            full_key = key .. "_" .. default_button_labels[k] .. "_BUTTON"
-            if nav_bindings[full_key] then
-                select_map[default_selections[j]][default_button_labels[k]] = nav_bindings[full_key]
-                button_map_actions[modes[i]] = select_map
-                log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
-            else
-                local switch_map = {}
-                for l = 1, #up_down do
-                    key = modes[i] .. "_" .. default_selections[j]
-                    full_key = key .. "_" .. default_button_labels[k] .. "_" .. up_down[l] .. "_BUTTON"
-                    if nav_bindings[full_key] then
-                        switch_map[up_down[l]] = nav_bindings[full_key]
-                        select_map[default_selections[j]][default_button_labels[k]] = switch_map
-                        button_map_actions[modes[i]] = select_map
-                        log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
+                    bindings = create_table(nav_bindings[full_key])
+                    if bindings[1] then
+                        button_map_actions[modes[i]][default_button_labels[k]][up_down[l]] = button_map_actions[modes[i]][default_button_labels[k]][up_down[l]] or {}
+                        button_map_actions[modes[i]][default_button_labels[k]][up_down[l]]["ON_CLICK"] = bindings[1]
+                        log.info("Adding " .. full_key .. " = " .. bindings[1] .. " for ON_CLICK")
+                        local on_hold_action = bindings[2] or bindings[1]
+                        button_map_actions[modes[i]][default_button_labels[k]][up_down[l]]["ON_HOLD"] = on_hold_action
+                        log.info("Adding " .. full_key .. " = " .. on_hold_action .. " for ON_HOLD")
+                        local on_long_click_action = "FlyWithLua/Bravo++/switch_mode_button"
+						button_map_actions[modes[i]][default_button_labels[k]][up_down[l]]["ON_LONG_CLICK"] = on_long_click_action
+                        log.info("Adding " .. full_key .. " = " .. on_long_click_action .. " for ON_LONG_CLICK")
                     end
                 end
-            end
+			end
+			local key = modes[i] .. "_" .. default_selections[j]
+			full_key = key .. "_" .. default_button_labels[k] .. "_BUTTON"
+			bindings = create_table(nav_bindings[full_key])
+			button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]] = button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]] or {}
+			
+			if bindings[1] then
+				button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]]["ON_CLICK"] = bindings[1]
+				log.info("Adding " .. full_key .. " = " .. bindings[1] .. " for ON_CLICK")
+				local on_hold_action = bindings[2] or bindings[1]
+				button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]]["ON_HOLD"] = on_hold_action
+				log.info("Adding " .. full_key .. " = " .. on_hold_action .. " for ON_HOLD")
+			else
+				for l = 1, #up_down do
+					key = modes[i] .. "_" .. default_selections[j]
+					full_key = key .. "_" .. default_button_labels[k] .. "_" .. up_down[l] .. "_BUTTON"
+					bindings = create_table(nav_bindings[full_key])
+					if bindings[1] then
+						button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]][up_down[l]] = button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]][up_down[l]] or {}
+						button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]][up_down[l]]["ON_CLICK"] = bindings[1]
+						log.info("Adding " .. full_key .. " = " .. bindings[1] .. " for ON_CLICK")
+						local on_hold_action = bindings[2] or "FlyWithLua/Bravo++/switch_mode_button"
+						button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]][up_down[l]]["ON_HOLD"] = on_hold_action
+						log.info("Adding " .. full_key .. " = " .. on_hold_action .. " for ON_HOLD")
+                        local on_long_click_action = "FlyWithLua/Bravo++/switch_mode_button"
+						button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]][up_down[l]]["ON_LONG_CLICK"] = on_long_click_action
+                        log.info("Adding " .. full_key .. " = " .. on_long_click_action .. " for ON_LONG_CLICK")
+					end
+				end
+			end
         end
     end
 end
@@ -846,13 +881,13 @@ function build_bravo_gui(wnd, x, y)
         if is_table(button_map_actions[current_mode]) then
             if is_table(button_map_actions[current_mode][current_selection]) and
                is_table(button_map_actions[current_mode][current_selection][button_name]) then
-                if is_string(button_map_actions[current_mode][current_selection][button_name]["UP"]) or
-                   is_string(button_map_actions[current_mode][current_selection][button_name]["DOWN"]) then
+                if is_table(button_map_actions[current_mode][current_selection][button_name]["UP"]) or
+                   is_table(button_map_actions[current_mode][current_selection][button_name]["DOWN"]) then
                     is_switch = true
                 end
             elseif is_table(button_map_actions[current_mode][button_name]) then
-                if is_string(button_map_actions[current_mode][button_name]["UP"]) or
-                   is_string(button_map_actions[current_mode][button_name]["DOWN"]) then
+                if is_table(button_map_actions[current_mode][button_name]["UP"]) or
+                   is_table(button_map_actions[current_mode][button_name]["DOWN"]) then
                     is_switch = true
                 end
             end
@@ -1485,50 +1520,58 @@ create_command(
 ---- BUTTON HANDLING
 --------------------------------------
 -- Define a threshold for what constitutes a "long press" in seconds
-local LONG_PRESS_THRESHOLD = 0.25 -- Adjust this value as needed (e.g., 0.25 seconds)
+local LONG_CLICK_THRESHOLD = 0.25 -- Adjust this value as needed (e.g., 0.25 seconds)
+local CONTINUOUS_PRESS_THRESHOLD = 0.4 -- Adjust this value as needed (e.g., 0.25 seconds)
 
 -- Declare global variables to track button state across command phases
 -- These are necessary because the different parts of create_command run in independent Lua blocks.
-local button_press_start_time = 0
-local button_is_continuous_mode = false
-local command_phase = "end" -- valid values are begin, continuous and end
 local command = "sim/none/none"
+local command_state = {}
 
 function start_timer(button_name)
-    button_press_start_time = os.clock()
-    button_is_continuous_mode = false
-    command_phase = "begin"
-    command = get_command_for_button(button_name)
+    command_state[button_name] = {}
+    command_state[button_name]["start_time"] = os.clock()
+    command_state[button_name]["is_continous_mode"] = false
+    command_state[button_name]["phase"] = "begin"
 end
 
-function handle_continuous_mode()
-    if os.clock() - button_press_start_time >= LONG_PRESS_THRESHOLD then
-        if not button_is_continuous_mode then
-            log.debug("Button held down long enough. Starting continuous mode.")
-            button_is_continuous_mode = true
-        end
-        trigger_command(command)
+function handle_continuous_mode(button_name)
+    if os.clock() - command_state[button_name]["start_time"] >= CONTINUOUS_PRESS_THRESHOLD then
+        if not command_state[button_name]["is_continous_mode"] then
+            log.debug("Button " .. button_name .. " held down long enough. Starting continuous mode.")
+            command_state[button_name]["is_continous_mode"] = true
+        end        
+        trigger_command_for(button_name)
     end
 end
 
-function handle_single_click_mode()
-    command_phase = "end"
-    trigger_command(command)
+function handle_single_click_mode(button_name)
+	log.debug("Calling handle_single_click_mode for " .. button_name)
+    if not command_state[button_name]["is_continous_mode"] and os.clock() - command_state[button_name]["start_time"] >= LONG_CLICK_THRESHOLD then
+		log.debug("Changing state to long_click")
+		command_state[button_name]["phase"] = "long_click"
+		trigger_command_for(button_name)
+	else
+		log.debug("Changing state to end")
+		command_state[button_name]["phase"] = "end"
+		trigger_command_for(button_name)
+	end
 end
 
-function get_command_for_button(button_name)
-    if is_string(button_map_actions[current_mode][button_name]) then
+function get_commands_for_button(button_name)
+    local command = "sim/none/none"
+    if is_string(button_map_actions[current_mode][button_name]["ON_CLICK"]) then
         command = button_map_actions[current_mode][button_name]
-    elseif current_switch_mode == "up" and is_table(button_map_actions[current_mode][button_name]) and is_string(button_map_actions[current_mode][button_name]["UP"]) then
+    elseif current_switch_mode == "up" and is_table(button_map_actions[current_mode][button_name]) and is_table(button_map_actions[current_mode][button_name]["UP"]) and is_string(button_map_actions[current_mode][button_name]["UP"]["ON_CLICK"]) then
         command = button_map_actions[current_mode][button_name]["UP"]
-    elseif current_switch_mode == "down" and is_table(button_map_actions[current_mode][button_name]) and  button_map_actions[current_mode][button_name]["DOWN"] then
+    elseif current_switch_mode == "down" and is_table(button_map_actions[current_mode][button_name]) and  is_table(button_map_actions[current_mode][button_name]["DOWN"] and is_string(button_map_actions[current_mode][button_name]["DOWN"]["ON_CLICK"])) then
         command = button_map_actions[current_mode][button_name]["DOWN"]
-    elseif is_table(button_map_actions[current_mode][current_selection]) then
-        if is_string(button_map_actions[current_mode][current_selection][button_name]) then
+    elseif is_table(button_map_actions[current_mode][current_selection]) and is_table(button_map_actions[current_mode][current_selection][button_name]) then
+        if is_string(button_map_actions[current_mode][current_selection][button_name]["ON_CLICK"]) then
             command = button_map_actions[current_mode][current_selection][button_name]
-        elseif current_switch_mode == "up" and is_table(button_map_actions[current_mode][current_selection][button_name]) and button_map_actions[current_mode][current_selection][button_name]["UP"] then
+        elseif current_switch_mode == "up" and is_string(button_map_actions[current_mode][current_selection][button_name]["UP"]["ON_CLICK"]) then
             command = button_map_actions[current_mode][current_selection][button_name]["UP"]
-        elseif current_switch_mode == "down" and is_table(button_map_actions[current_mode][current_selection][button_name]) and button_map_actions[current_mode][current_selection][button_name]["DOWN"] then
+        elseif current_switch_mode == "down" and is_string(button_map_actions[current_mode][current_selection][button_name]["DOWN"]["ON_CLICK"]) then
             command = button_map_actions[current_mode][current_selection][button_name]["DOWN"]
         else
             log.debug("Button action not found!")
@@ -1539,127 +1582,199 @@ function get_command_for_button(button_name)
     return command
 end
 
-function trigger_command(command)
+function trigger_command_for(button_name)
+    local commands = get_commands_for_button(button_name)
+    local button_is_continuous_mode = command_state[button_name]["is_continous_mode"]
+    local command_phase = command_state[button_name]["phase"]
     tryCatch(function()
         if button_is_continuous_mode then 
             if command_phase == "begin" then
-                log.debug("Trigger command begin: " .. command)
-                command_begin(command)
-                command_phase = "continuous"
+                log.debug("Trigger command begin: " .. commands["ON_HOLD"])
+                command_begin(commands["ON_HOLD"])
+                command_state[button_name]["phase"] = "continuous"
             elseif command_phase == "end" then
-                log.debug("Trigger command end: " .. command)
-                command_end(command)
+                log.debug("Trigger command end: " .. commands["ON_HOLD"])
+                command_end(commands["ON_HOLD"])
             end
         elseif not button_is_continuous_mode then
-            log.debug("Trigger command once: " .. command)
-            command_once(command)
+            if command_phase == "long_click" then
+                log.debug("Trigger command once: " .. commands["ON_LONG_CLICK"])
+                command_once(commands["ON_LONG_CLICK"])
+            else
+                log.debug("Trigger command once: " .. commands["ON_CLICK"])
+                command_once(commands["ON_CLICK"])
+            end
         end
 
     end, "handle_bravo_button")
 end
 
 -- Autopilot button
-function start_timer_for_plt_button()
+function start_timer_for_PLT_button()
     start_timer("PLT")
+end
+
+function handle_continuous_mode_for_PLT_button()
+    handle_continuous_mode("PLT")
+end
+
+function handle_single_click_mode_for_PLT_button()
+    handle_single_click_mode("PLT")
 end
 
 create_command(
     "FlyWithLua/Bravo++/autopilot_button",
     "Bravo++ toggles AUTOPILOT button",
-    "tryCatch(start_timer_for_plt_button,'start_timer_for_plt_button')", -- Call Lua function when pressed
-    "tryCatch(handle_continuous_mode,'handle_continuous_mode')",
-    "tryCatch(handle_single_click_mode,'handle_single_click_mode')"
+    "tryCatch(start_timer_for_PLT_button,'start_timer_for_PLT_button')", -- Call Lua function when pressed
+    "tryCatch(handle_continuous_mode_for_PLT_button,'handle_continuous_mode_for_PLT_button')",
+    "tryCatch(handle_single_click_mode_for_PLT_button,'handle_single_click_mode_for_PLT_button')"
 )
 
 -- IAS button
-function start_timer_for_ias_button()
+function start_timer_for_IAS_button()
     start_timer("IAS")
+end
+
+function handle_continuous_mode_for_IAS_button()
+    handle_continuous_mode("IAS")
+end
+
+function handle_single_click_mode_for_IAS_button()
+    handle_single_click_mode("IAS")
 end
 
 create_command(
     "FlyWithLua/Bravo++/ias_button",
     "Bravo++ toggles IAS button",
-    "tryCatch(start_timer_for_ias_button,'start_timer_for_ias_button')", -- Call Lua function when pressed
-    "tryCatch(handle_continuous_mode,'handle_continuous_mode')",
-    "tryCatch(handle_single_click_mode,'handle_single_click_mode')"
+    "tryCatch(start_timer_for_IAS_button,'start_timer_for_IAS_button')", -- Call Lua function when pressed
+    "tryCatch(handle_continuous_mode_for_IAS_button,'handle_continuous_mode_for_IAS_button')",
+    "tryCatch(handle_single_click_mode_for_IAS_button,'handle_single_click_mode_for_IAS_button')"
 )
 
 -- VS button
-function start_timer_for_vs_button()
+function start_timer_for_VS_button()
     start_timer("VS")
+end
+
+function handle_continuous_mode_for_VS_button()
+    handle_continuous_mode("VS")
+end
+
+function handle_single_click_mode_for_VS_button()
+    handle_single_click_mode("VS")
 end
 
 create_command(
     "FlyWithLua/Bravo++/vs_button",
     "Bravo++ toggles VS button",
-    "tryCatch(start_timer_for_vs_button,'start_timer_for_vs_button')", -- Call Lua function when pressed
-    "tryCatch(handle_continuous_mode,'handle_continuous_mode')",
-    "tryCatch(handle_single_click_mode,'handle_single_click_mode')"
+    "tryCatch(start_timer_for_VS_button,'start_timer_for_VS_button')", -- Call Lua function when pressed
+    "tryCatch(handle_continuous_mode_for_VS_button,'handle_continuous_mode_for_VS_button')",
+    "tryCatch(handle_single_click_mode_for_VS_button,'handle_single_click_mode_for_VS_button')"
 )
 
 -- ALT button
-function start_timer_for_alt_button()
+function start_timer_for_ALT_button()
     start_timer("ALT")
+end
+
+function handle_continuous_mode_for_ALT_button()
+    handle_continuous_mode("ALT")
+end
+
+function handle_single_click_mode_for_ALT_button()
+    handle_single_click_mode("ALT")
 end
 
 create_command(
     "FlyWithLua/Bravo++/alt_button",
     "Bravo++ toggles ALT button",
-    "tryCatch(start_timer_for_alt_button,'start_timer_for_alt_button')", -- Call Lua function when pressed
-    "tryCatch(handle_continuous_mode,'handle_continuous_mode')",
-    "tryCatch(handle_single_click_mode,'handle_single_click_mode')"
+    "tryCatch(start_timer_for_ALT_button,'start_timer_for_ALT_button')", -- Call Lua function when pressed
+    "tryCatch(handle_continuous_mode_for_ALT_button,'handle_continuous_mode_for_ALT_button')",
+    "tryCatch(handle_single_click_mode_for_ALT_button,'handle_single_click_mode_for_ALT_button')"
 )
 
 -- REV button
-function start_timer_for_rev_button()
+function start_timer_for_REV_button()
     start_timer("REV")
+end
+
+function handle_continuous_mode_for_REV_button()
+    handle_continuous_mode("REV")
+end
+
+function handle_single_click_mode_for_REV_button()
+    handle_single_click_mode("REV")
 end
 
 create_command(
     "FlyWithLua/Bravo++/rev_button",
     "Bravo++ toggles REV button",
-    "tryCatch(start_timer_for_rev_button,'start_timer_for_rev_button')", -- Call Lua function when pressed
-    "tryCatch(handle_continuous_mode,'handle_continuous_mode')",
-    "tryCatch(handle_single_click_mode,'handle_single_click_mode')"
+    "tryCatch(start_timer_for_REV_button,'start_timer_for_REV_button')", -- Call Lua function when pressed
+    "tryCatch(handle_continuous_mode_for_REV_button,'handle_continuous_mode_for_REV_button')",
+    "tryCatch(handle_single_click_mode_for_REV_button,'handle_single_click_mode_for_REV_button')"
 )
 
 -- APR button
-function start_timer_for_apr_button()
+function start_timer_for_APR_button()
     start_timer("APR")
+end
+
+function handle_continuous_mode_for_APR_button()
+    handle_continuous_mode("APR")
+end
+
+function handle_single_click_mode_for_APR_button()
+    handle_single_click_mode("APR")
 end
 
 create_command(
     "FlyWithLua/Bravo++/apr_button",
     "Bravo++ toggles APR button",
-    "tryCatch(start_timer_for_apr_button,'start_timer_for_apr_button')", -- Call Lua function when pressed
-    "tryCatch(handle_continuous_mode,'handle_continuous_mode')",
-    "tryCatch(handle_single_click_mode,'handle_single_click_mode')"
+    "tryCatch(start_timer_for_APR_button,'start_timer_for_APR_button')", -- Call Lua function when pressed
+    "tryCatch(handle_continuous_mode_for_APR_button,'handle_continuous_mode_for_APR_button')",
+    "tryCatch(handle_single_click_mode_for_APR_button,'handle_single_click_mode_for_APR_button')"
 )
 
 -- NAV button
-function start_timer_for_nav_button()
+function start_timer_for_NAV_button()
     start_timer("NAV")
+end
+
+function handle_continuous_mode_for_NAV_button()
+    handle_continuous_mode("NAV")
+end
+
+function handle_single_click_mode_for_NAV_button()
+    handle_single_click_mode("NAV")
 end
 
 create_command(
     "FlyWithLua/Bravo++/nav_button",
     "Bravo++ toggles NAV button",
-    "tryCatch(start_timer_for_nav_button,'start_timer_for_nav_button')", -- Call Lua function when pressed
-    "tryCatch(handle_continuous_mode,'handle_continuous_mode')",
-    "tryCatch(handle_single_click_mode,'handle_single_click_mode')"
+    "tryCatch(start_timer_for_NAV_button,'start_timer_for_NAV_button')", -- Call Lua function when pressed
+    "tryCatch(handle_continuous_mode_for_NAV_button,'handle_continuous_mode_for_NAV_button')",
+    "tryCatch(handle_single_click_mode_for_NAV_button,'handle_single_click_mode_for_NAV_button')"
 )
 
 -- HDG button
-function start_timer_for_hdg_button()
+function start_timer_for_HDG_button()
     start_timer("HDG")
+end
+
+function handle_continuous_mode_for_HDG_button()
+    handle_continuous_mode("HDG")
+end
+
+function handle_single_click_mode_for_HDG_button()
+    handle_single_click_mode("HDG")
 end
 
 create_command(
     "FlyWithLua/Bravo++/hdg_button",
     "Bravo++ toggles HDG button",
-    "tryCatch(start_timer_for_hdg_button,'start_timer_for_hdg_button')", -- Call Lua function when pressed
-    "tryCatch(handle_continuous_mode,'handle_continuous_mode')",
-    "tryCatch(handle_single_click_mode,'handle_single_click_mode')"
+    "tryCatch(start_timer_for_HDG_button,'start_timer_for_HDG_button')", -- Call Lua function when pressed
+    "tryCatch(handle_continuous_mode_for_HDG_button,'handle_continuous_mode_for_HDG_button')",
+    "tryCatch(handle_single_click_mode_for_HDG_button,'handle_single_click_mode_for_HDG_button')"
 )
 
 --------------------------------------
@@ -1806,18 +1921,6 @@ function all_leds_off()
     if log_led_state then
         log.debug("Set all leds to off")
     end
-end
-
-function is_boolean(cand)
-    return type(cand) == "boolean"
-end
-
-function is_string(cand)
-    return type(cand) == "string"
-end
-
-function is_table(cand)
-    return type(cand) == "table"
 end
 
 function send_hid_data()

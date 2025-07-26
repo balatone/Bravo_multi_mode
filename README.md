@@ -46,7 +46,7 @@ Open the ```BravoMultiMode.lua``` file under the ```Resources\plugins\FlyWithLua
 Go back to the ```ButtonLogUtil.lua``` and disable the logging by setting the ```local write_log``` back to false.
 
 ## Configuring the buttons in X-Plane
-Next you need to confgure the Honeycomb Bravo buttons to use Bravo++. You may want to create a base profile (called Bravo++) that X-Plane uses, since this can be reused between aircraft configurations. Otherwise chose an existing profile and start configuring the buttons.
+Next you need to configure the Honeycomb Bravo buttons to use Bravo++. You may want to create a base profile (called Bravo++) that X-Plane uses, since this can be reused between aircraft configurations. Otherwise chose an existing profile and start configuring the buttons.
 
 Here are the descriptions you should look for when configuring each button with their corresponding dataref:
 - HDG = Bravo++ toggles HDG button (FlyWithLua/Bravo++/hdg_button)
@@ -67,8 +67,10 @@ There are also datarefs that are used for toggling/scrolling through the modes. 
 
 Finally, there are two internal commands that are often assigned to one of the Honeycomb Bravo buttons. 
 - The ```I/O``` button (see oneof the example configs) is used for switching between the inner or outer scroll knob. The active state is shown in green on the Bravo++ window. The dataref is described as ```Bravo++ toggles INNER/OUTER mode```. 
-- The ```U/D``` button is used for switches and will toggle between up and down state. Each button that implements a switch will either have ```^^``` above or ```vv``` below the button label indicating what will happen if the button is pressed. This distinguishes it from  buttons that just toggle between two states. So by pressing the button labeled ```U/D``` you toggle how the switch will behave.  The dataref is described as ```Bravo++ toggles UP/DOWN switch mode```.
+- For switches a long click (above 250 ms, but below 400 msec) will toggle between up and down state . Each button that implements a switch will either have ```^^``` above or ```vv``` below the button label indicating what will happen if the button is pressed. This distinguishes it from  buttons that just toggle between two states. So by initiating a long click you toggle how the switch will behave.  The dataref is described as ```Bravo++ toggles UP/DOWN switch mode```.
 
+Finally, a small note on button behavior. A click (below 250 msec) will actuate the button or switch. A long click (between 250 - 400 msec) is use for switches and as described aboved will change the direction in which the switches will be actuated on the following click. Holding a button down for over 400 msec will sustain a switch and is useful for spring-loaded switches that cannot be activated with a simple click.
+ 
 ## Configuring the rocker switches in X-Plane
 The rocker switches have two Bravo++ commands each; one for the up position and one for down position. There are 7 rocker switches and they are named switch1, switch2, switch3, etc. As mentioned before, just search for "Bravo++" when binding the keys and you will find the 14 commands that need to be bound to the switches. 
 
