@@ -647,7 +647,7 @@ for i = 1, #modes do
 						button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]][up_down[l]] = button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]][up_down[l]] or {}
 						button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]][up_down[l]]["ON_CLICK"] = bindings[1]
 						log.info("Adding " .. full_key .. " = " .. bindings[1] .. " for ON_CLICK")
-						local on_hold_action = bindings[2] or "FlyWithLua/Bravo++/switch_mode_button"
+						local on_hold_action = bindings[2] or bindings[1]
 						button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]][up_down[l]]["ON_HOLD"] = on_hold_action
 						log.info("Adding " .. full_key .. " = " .. on_hold_action .. " for ON_HOLD")
                         local on_long_click_action = "FlyWithLua/Bravo++/switch_mode_button"
@@ -1023,42 +1023,167 @@ function draw_label(text, width, height, text_color_int)
     imgui.PopStyleColor()
 end
 
+-- Helper function to wrap text for a given width and font scale
+local function wrap_text_for_width(text_str, max_width, current_font_scale)
+    local lines = {}
+    local current_line = ""
+    local words = {}
+    local max_line_width = 0 -- NEW: Track the maximum width of any line
+
+    -- Split the text into words by one or more spaces [Conversational Turn 1]
+    for word in string.gmatch(text_str, "[^%s]+") do
+        table.insert(words, word)
+    end
+
+    -- Temporarily apply scale for accurate measurement [Conversational Turn 1]
+    imgui.SetWindowFontScale(current_font_scale) 
+    
+    local line_height = imgui.CalcTextSize("Wy") -- Get height of a typical line at this scale [Conversational Turn 1]
+
+    -- Handle empty text case
+    if #words == 0 then
+        imgui.SetWindowFontScale(1.0) -- Reset font scale after measurement [Conversational Turn 1]
+        return {}, 0, 0
+    end
+
+    for i, word in ipairs(words) do
+        local test_line = current_line
+        if current_line ~= "" then
+            test_line = test_line .. " " -- Add space if not the first word
+        end
+        test_line = test_line .. word
+
+        local test_w, _ = imgui.CalcTextSize(test_line) -- Get width of the test line
+
+        if test_w <= max_width then
+            current_line = test_line
+            max_line_width = math.max(max_line_width, test_w) -- Update max_line_width if this line is wider
+        else
+            -- If adding the current word makes the line exceed max_width, save current_line and start a new one
+            if current_line ~= "" then
+                table.insert(lines, current_line)
+            end
+            current_line = word -- Start a new line with the current word
+            -- Important: If the single 'word' itself is wider than max_width, it will be on its own line.
+            -- Its width should also be considered for max_line_width.
+            max_line_width = math.max(max_line_width, imgui.CalcTextSize(word)) -- Update for the new single word line
+        end
+    end
+    -- Add the last line if any content remains
+    if current_line ~= "" then
+        table.insert(lines, current_line)
+    end
+
+    imgui.SetWindowFontScale(1.0) -- Reset font scale after measurement [Conversational Turn 1]
+    -- NEW RETURN VALUE: Return table of lines, total height, AND the maximum line width found
+    return lines, #lines * line_height, max_line_width 
+end
+
+-- Main helper function to determine best font scale and wrapped text
+local function get_scaled_wrapped_text(text_string, button_width, button_height, min_font_scale)
+    min_font_scale = min_font_scale or 0.6 -- Define a minimum readable font scale (e.g., 60% of original) [Conversational Turn 1]
+
+    local best_scale = 1.0
+    local best_lines = {}
+    local best_height = 0
+    local border_width_buffer = 6
+    local found_fitting_scale = false -- Flag to track if a suitable scale was found
+
+    local current_scale = 1.0
+    -- Loop downwards from 1.0 to find the largest scale that fits both horizontally and vertically
+    while current_scale >= min_font_scale - 0.001 do -- Loop down to just below min_font_scale for precision [Conversational Turn 1]
+        -- Call updated wrap_text_for_width to get lines, required height, and widest line width
+        local lines, required_height, widest_line_width = wrap_text_for_width(tostring(text_string), button_width, current_scale)
+        
+        -- Check if BOTH total height AND the widest line's width fit
+        if required_height <= button_height and widest_line_width + border_width_buffer <= button_width then
+            best_scale = current_scale
+            best_lines = lines
+            best_height = required_height
+            found_fitting_scale = true -- Mark that a fitting scale has been found
+            break -- Found the largest scale that fits all criteria, so exit the loop
+        end
+        
+        -- If it doesn't fit, try a smaller scale
+        current_scale = current_scale - 0.05 -- Decrement step; adjust as needed for performance/granularity [Conversational Turn 1]
+    end
+
+    -- Fallback: If no scale within the tested range (down to min_font_scale) fully fit both criteria,
+    -- use the results from the minimum font scale as a last resort. This means there might still be
+    -- visual overflow if the text is exceptionally large or the button is exceptionally small.
+    if not found_fitting_scale then
+        best_lines, best_height, _ = wrap_text_for_width(tostring(text_string), button_width, min_font_scale)
+        best_scale = min_font_scale
+    end
+
+    return best_lines, best_height, best_scale
+end
+
 function draw_button(text, width, height, box_bg_color_int, text_color_int, is_switch_button)
-    local cx, cy = imgui.GetCursorScreenPos()
+    imgui.SetWindowFontScale(1.0) -- Always reset to default at the start [Conversational Turn 1]
+    local cx, cy = imgui.GetCursorScreenPos() -- Get current cursor position for drawing
+    imgui.Dummy(width, height) -- Reserve space for the button in the layout
+    imgui.DrawList_AddRectFilled(cx, cy, cx + width, cy + height, box_bg_color_int, 0) -- Draw button background
 
-    imgui.Dummy(width, height)
-    imgui.DrawList_AddRectFilled(cx, cy, cx + width, cy + height, box_bg_color_int, 0) -- 0 for no roundness
+    -- Step 1: Determine the appropriate font scale and wrap the text
+    -- The 'get_scaled_wrapped_text' function now handles splitting text into lines and
+    -- finding the largest font scale that allows the text to fit both horizontally and vertically.
+    local wrapped_lines, text_total_height, final_font_scale = get_scaled_wrapped_text(tostring(text), width, height, 0.6)
 
-    local text_w, text_h = imgui.CalcTextSize(tostring(text))
-    local text_draw_x = cx + (width - text_w) / 2
-    local text_draw_y = cy + (height - text_h) / 2
+    -- Apply the determined font scale for drawing the text on this button [Conversational Turn 1]
+    imgui.SetWindowFontScale(final_font_scale)
 
-    imgui.SetCursorScreenPos(text_draw_x, text_draw_y)
-    imgui.PushStyleColor(imgui.constant.Col.Text, text_color_int)
-    imgui.TextUnformatted(tostring(text))
-    imgui.PopStyleColor()
+    -- Step 2: Calculate the vertical starting position to center the block of text within the button
+    local start_text_y = cy + (height - text_total_height) / 2
+    
+    -- Step 3: Draw each wrapped line of text
+    local current_line_y = start_text_y
+    for _, line in ipairs(wrapped_lines) do
+        -- Recalculate size at the final_font_scale, this will now respect the scaling
+        local line_w, line_h = imgui.CalcTextSize(line) 
+        local line_draw_x = cx + (width - line_w) / 2 -- Center each line horizontally
+        
+        imgui.SetCursorScreenPos(line_draw_x, current_line_y) -- Set cursor for current line
+        imgui.PushStyleColor(imgui.constant.Col.Text, text_color_int) -- Set text color
+        imgui.TextUnformatted(line) -- Draw the line of text
+        imgui.PopStyleColor() -- Revert text color
+        
+        current_line_y = current_line_y + line_h -- Move the Y position down for the next line
+    end
 
+    -- Crucially, reset font scale to default (1.0) after drawing the button's text
+    imgui.SetWindowFontScale(1.0) 
+                                  
+    -- Step 4: Handle the drawing of the switch indicator (^^ or vv) if it's a switch button
     if is_switch_button then
         local ud_symbol = ""
-        local symbol_draw_y_offset_from_text = 0 -- This offset is relative to text_draw_y (top of main text)
+        local symbol_offset_y = 0 
 
-        if current_switch_mode == "up" then
+        -- Measure the symbol using the same final font scale determined for the main text
+        imgui.SetWindowFontScale(final_font_scale) 
+        local symbol_w, symbol_h = imgui.CalcTextSize("^^") -- Get height of the symbol at the scaled size
+        imgui.SetWindowFontScale(1.0) -- Reset immediately after measuring [Conversational Turn 1]
+
+        -- Determine symbol and its vertical offset
+        if current_switch_mode == "up" then -- `current_switch_mode` is a local variable in the script
             ud_symbol = "^^"
-            symbol_draw_y_offset_from_text = - (text_h + 5) -- Add 5 for a small padding above the text
+            symbol_offset_y = -(text_total_height / 2 + symbol_h + 5) -- 5 for small padding
         elseif current_switch_mode == "down" then
             ud_symbol = "vv"
-            symbol_draw_y_offset_from_text = text_h + 5 -- Add 5 for a small padding below the text
+            symbol_offset_y = (text_total_height / 2 + 5) -- 5 for small padding
         end
 
-        local symbol_w, symbol_h = imgui.CalcTextSize(ud_symbol)
-        local symbol_draw_x = cx + (width - symbol_w) / 2
-        local symbol_draw_y = text_draw_y + symbol_draw_y_offset_from_text
+        -- Apply the determined font scale before drawing the symbol
+        imgui.SetWindowFontScale(final_font_scale) 
+        local symbol_draw_x = cx + (width - symbol_w) / 2 -- Center the symbol horizontally
+        local symbol_draw_y = cy + height / 2 + symbol_offset_y -- Calculate the base Y (center of the button) and then apply the offset
 
         imgui.SetCursorScreenPos(symbol_draw_x, symbol_draw_y)
-        imgui.PushStyleColor(imgui.constant.Col.Text, 0xFF00FF00) -- Green (AABBGGRR) [5]
+        imgui.PushStyleColor(imgui.constant.Col.Text, 0xFF00FF00) -- Set symbol color to green
         imgui.TextUnformatted(ud_symbol)
         imgui.PopStyleColor()
-    end    
+        imgui.SetWindowFontScale(1.0) -- Reset font scale after drawing the symbol
+    end
 end
 
 function on_close_floating_window(my_floating_wnd)

@@ -141,11 +141,12 @@ So for the Cessna 172 we have the following:
 
 ```
 # List all the modes. AUTO must always be included.
-MODES = "AUTO,PFD,MFD"
+MODES = "AUTO,PFD,MFD,SYS"
 
 # Set up the labels
-PFD_SELECTOR_LABELS = "COM,NAV,BARO/CRS,RNG,FMS"
-MFD_SELECTOR_LABELS = "COM,NAV,BARO/CRS,RNG,FMS"
+PFD_SELECTOR_LABELS = "COM,NAV,CRS/BARO,HDG/RNG,FMS"
+MFD_SELECTOR_LABELS = "COM,NAV,CRS/BARO,HDG/RNG,FMS"
+SYS_SELECTOR_LABELS = "FUEL,,,,"
 ```
 
 There are 3 modes (AUTO,PFD and MFD) and the selector labels (the ones corresponding to the left twist knob on the Honeycomb Bravo) for each mode is specified by using the mode name and then adding ```_SELECTOR_LABELS```. The selector labels should have 5 values. Note that the ```AUTO``` will use the default selector names (ALT, VS, HDG, CRS and IAS), but can be overridden if explicitly specified in the config file.
@@ -153,17 +154,25 @@ There are 3 modes (AUTO,PFD and MFD) and the selector labels (the ones correspon
 After that we assign the button labels to each selector name.
 
 ```
+AUTO_ALT_BUTTON_LABELS = "HDG,NAV,APR,REV,ALT,VS,FLC,AP"
+AUTO_VS_BUTTON_LABELS  = "HDG,NAV,APR,REV,ALT,VS,FLC,AP"
+AUTO_HDG_BUTTON_LABELS = "HDG,NAV,APR,REV,ALT,VS,FLC,AP"
+AUTO_CRS_BUTTON_LABELS = "HDG,NAV,APR,REV,ALT,VS,FLC,AP"
+AUTO_IAS_BUTTON_LABELS = "HDG,NAV,APR,REV,ALT,VS,FLC,AP"
+
 PFD_ALT_BUTTON_LABELS = "   ,   ,COM1,COM2,1&2,<->,O/I,   "
 PFD_VS_BUTTON_LABELS  = "MKR,DME,NAV1,NAV2,1&2,<->,O/I,   "
-PFD_HDG_BUTTON_LABELS = "   ,   ,   ,   ,SYNC,STD,O/I,   "
-PFD_CRS_BUTTON_LABELS = "   ,   ,   ,   ,   ,   ,   ,   "
-PFD_IAS_BUTTON_LABELS = "MNU,FPL,PRC,CLR,ENT,PSH,O/I,DIR"
+PFD_HDG_BUTTON_LABELS = "   ,   ,   ,   ,STD BARO,CRS SYNC,O/I,   "
+PFD_CRS_BUTTON_LABELS = "OBS,CDI,DME,TMR/REF,NRST,HDG SYNC,O/I,ALERTS"
+PFD_IAS_BUTTON_LABELS = "-D->,MENU,FPL,PROC,CLR,ENT,O/I,   "
 
 MFD_ALT_BUTTON_LABELS = "   ,   ,COM1,COM2,1&2,<->,O/I,   "
 MFD_VS_BUTTON_LABELS  = "MKR,DME,NAV1,NAV2,1&2,<->,O/I,   "
-MFD_HDG_BUTTON_LABELS = "   ,   ,   ,   ,SYNC,STD,O/I,   "
-MFD_CRS_BUTTON_LABELS = "   ,   ,   ,   ,   ,   ,   ,   "
-MFD_IAS_BUTTON_LABELS = "MNU,FPL,PRC,CLR,ENT,PSH,O/I,DIR"
+MFD_HDG_BUTTON_LABELS = "   ,   ,   ,   ,STD BARO,CRS SYNC,O/I,   "
+MFD_CRS_BUTTON_LABELS = "SYS,   ,   ,   ,   ,HDG SYNC,O/I,   "
+MFD_IAS_BUTTON_LABELS = "-D->,MENU,FPL,PROC,CLR,ENT,O/I,   "
+
+SYS_ALT_BUTTON_LABELS = "   ,   ,   ,   ,   ,   ,FUEL SHUTOFF,   "
 ```
 
 A button label is specifed by using the ```mode name``` + ```selector name``` separated by ```_``` and ending in ```_BUTTON_LABELS```. Note that the selector name is not the same as the selector label name. Here we have to use the default selector names which are: ALT, VS, HDG, CRS and IAS.
@@ -182,7 +191,7 @@ So for the autopilot mode (AUTO), to assign incrementing and decrementing the al
 ```
 AUTO_ALT_UP = "sim/autopilot/altitude_up"
 AUTO_ALT_DOWN = "sim/autopilot/altitude_down"
-AUTO_ALT_KNOB_LABELS="feet"
+AUTO_ALT_KNOB_LABELS="Feet"
 ```
 
 Here we specify the mode AUTO and when the left selector knob is set to ALT we want it to increase and decrease the altitude by assigning the datarefs corresponding datarefs. DataRefs can be found using DataRef Editor or DataRef Tool as specified at the beginnign of the document under ```Prereqisites```.
@@ -195,6 +204,7 @@ PFD_ALT_OUTER_UP = "sim/GPS/g1000n1_com_outer_up"
 PFD_ALT_OUTER_DOWN = "sim/GPS/g1000n1_com_outer_down"
 PFD_ALT_INNER_UP = "sim/GPS/g1000n1_com_inner_up"
 PFD_ALT_INNER_DOWN = "sim/GPS/g1000n1_com_inner_down"
+PFD_ALT_KNOB_LABELS="MHz,KHz"
 ```
 
 Here we are specifying the PFD mode with the left selector set to ALT, but we also want different behaviour based on the value of the CF (coarse/fine) selector. The CF selector is internal to Bravo++ and is made available through its own dataref. 
@@ -202,7 +212,7 @@ Here we are specifying the PFD mode with the left selector set to ALT, but we al
 ### Actions for the buttons and button leds
 The Honeycomb Bravo has 8 buttons that can be configured to trigger a command depending on the mode and the selector that has been set. This gives the possibility of configuring up to 40 buttons per mode!
 
-The buttons also support simple click and long press (i.e. holding down the button). This is enabled on all the buttons and holding down the button simulates spring-loaded switches which are often used for tests or actions that should not be activated continually. 
+The buttons support short click and long press (i.e. holding down the button). This is enabled on all the buttons and holding down the button simulates spring-loaded switches which are often used for tests or actions that should not be activated continually. If you want the same command to be used for short click and long press, then you only need to specify that one command dataref. If you want to invoke a different command on a long press, then you need to specify the second command after the first one, separated by a comma. 
 
 To specify a command to a button you use a similar pattern to what has been used for the previous sections: ```mode name``` + ```selector name``` (optional) + ```button name``` + ```switch direction``` (optional) separated with ````_``` and ending with ```_BUTTON```. Note that the ```selector name``` and ```switch direction``` are optional and the reason is that it is possible that you want an a button to trigger the same action regardless of what the selector is set to. This is how you want the autopilot to behave for example. The ```switch direction``` is only used when the same command cannot be used to toggle the state of a switch and requires 2 separate commands. So just like with the twist knob in the previous section, after the name you specify the name of the dataref to use after the = sign.   
 
@@ -220,9 +230,22 @@ PFD_ALT_VS_BUTTON = "sim/GPS/g1000n1_com_ff"
 PFD_ALT_IAS_BUTTON = "FlyWithLua/Bravo++/cf_mode_button"
 ``` 
 
-Here we have an example from the PFD of the G1000. The first line says that when the ```PFD``` mode is selected and the selector knob is set to ```ALT``` and the ```APR``` button is pressed, it should either mute or unmute the speaker. The second line specifies the same conditions as the first, but here it relates to the led light. So here it checks the value of the dataref ```sim/cockpit2/radios/actuators/audio_selection_com1``` and if the value is 0, then it should turn off the led light. Note that the led light specification is optional and you can see in line 5-6 that there is no led specified. This will result in the text color in the Bravo++ window being a different color (green-blue) than those with led lights. The last line shows how to specify the toggling of the INNER/OUTER mode using a Bravo++ dataref.
+Here we have an example from the PFD of the G1000. The first line says that when the ```PFD``` mode is selected and the selector knob is set to ```ALT``` and the ```APR``` button is pressed, it should either mute or unmute the speaker. The second line specifies the same conditions as the first, but here it relates to the led light. So here it checks the value of the dataref ```sim/cockpit2/radios/actuators/audio_selection_com1``` and if the value is 0, then it should turn off the led light. Note that the led light specification is optional and you can see in line 5-6 that there is no led specified. This will result in the text color in the Bravo++ window being a different color (yellow) than those with led lights. The last line shows how to specify the toggling of the INNER/OUTER mode using a Bravo++ dataref.
 
-Let's look at another example from the King Air C90B configuration.
+
+```
+PFD_IAS_HDG_BUTTON = "sim/GPS/g1000n1_direct"
+PFD_IAS_NAV_BUTTON = "sim/GPS/g1000n1_menu"
+PFD_IAS_APR_BUTTON = "sim/GPS/g1000n1_fpl"
+PFD_IAS_REV_BUTTON = "sim/GPS/g1000n1_proc"
+PFD_IAS_ALT_BUTTON = "sim/GPS/g1000n1_clr"
+PFD_IAS_VS_BUTTON = "sim/GPS/g1000n1_ent"
+PFD_IAS_IAS_BUTTON = "FlyWithLua/Bravo++/cf_mode_button,sim/GPS/g1000n1_cursor"
+```
+
+Here we have an example from the same config file that allows us to interact with the fms, but if you note the last line, there are now two commands. The first command, just like in the previous example, will toggle the INNER/OUTER mode. This will occur when you press and release the button fairly quickly (i.e. a simple click). The second command is used for a continous press (more than 400 milliseconds) and will activate/deactivate the cursor when in the flight plan or procedures menu.  
+
+Now let's look at another example, this time from the King Air C90B configuration.
 
 ```
 SYS_HDG_HDG_BUTTON = "laminar/c90/electrical/switch/auto_ignition_L"
@@ -235,7 +258,7 @@ SYS_HDG_APR_BUTTON_LED = "sim/cockpit2/switches/prop_feather_mode,0"
 SYS_HDG_IAS_BUTTON = "FlyWithLua/Bravo++/switch_mode_button"
 ```
  
-So the first line specified the command to turn on the left engine's auto ignition and the second specifies the dataref to check for the led condition, but notice that there are two numbers specified. Here the dataref is an array that contains more than one value, so on this case we need to specify an index starting from 1, so that we know which value to compare to. So in this case it will check if the value in the first place in the array is equal to 0. If it is it will turn off the led light. Looking at line 4 you see the same dataref, but this time it specified 2 instead of 1. This is because in line 3 we turn on the right engine's auto ignition so we need to check the corresponding value in the array.
+The first line specifies the command to turn on the left engine's auto ignition and the second line specifies the dataref to check for the led condition, but notice that there are two numbers specified. Here the dataref is an array that contains more than one value, so on this case we need to specify an index starting from 1, so that we know which value to compare to. So in this case it will check if the value in the first place in the array is equal to 0. If it is, it will turn off the led light. Looking at line 4 you see the same dataref, but this time it specified 2 instead of 1. This is because in line 3 we turn on the right engine's auto ignition so we need to check the corresponding value in the array.
 
 On line 5 -6 we see an example of a switch where we specify the dataref for the UP and DOWN command. This will result in a slightly different rendering of the button in the Bravo++ window where you will either see a ```^^``` above or ```vv``` below the button. Line 7 shows the Bravo++ dataref for toggling between UP or DOWN when using switches.  
 
