@@ -61,15 +61,16 @@ Here are the descriptions you should look for when configuring each button with 
 For finding the corresponding command in X-Plane just search for "Bravo++" and you should see all the available options you can map to.
 
 There are also datarefs that are used for toggling/scrolling through the modes. I would suggest having it on a button accessible to the hand that is not used for the Honeycomb Bravo (left hand for most people) on the joystick or yoke. 
-- For toggling through the modes in one direction you should map it to the command with description ```Bravo++ toggles MODE```. So all you do is click on the button and it will move down one mode.
-- If you prefer scrolling through the modes with the right twist knob located on the Honeycomb Bravo, then you need to map the following command with description ```Bravo++ activates the mode select when button is held in``` The way this works is that you need to keep the button pressed down while you scroll with the right knob. When you are done you release the button.
+- For toggling through the modes in one direction you should map it to the command with description ```Bravo++ toggles MODE```. So all you do is click on the button and it will move over one mode.
+- If you prefer scrolling through the modes with the right twist knob located on the Honeycomb Bravo, then you need to map the following command with description ```Bravo++ activates the mode select when button is held in```. The way this works is that you need to keep the button pressed down while you scroll with the right knob. When you are done you release the button.
 - If you don't like these options, you can also map the commands that move the selection up or down to any key or button you like using the provided commands with description ```Bravo++ cycle mode up``` and ```Bravo++ cycle mode down```
 
-Finally, there are two internal commands that are often assigned to one of the Honeycomb Bravo buttons. 
-- The ```I/O``` button (see oneof the example configs) is used for switching between the inner or outer scroll knob. The active state is shown in green on the Bravo++ window. The dataref is described as ```Bravo++ toggles INNER/OUTER mode```. 
-- For switches a long click (above 250 ms, but below 400 msec) will toggle between up and down state . Each button that implements a switch will either have ```^^``` above or ```vv``` below the button label indicating what will happen if the button is pressed. This distinguishes it from  buttons that just toggle between two states. So by initiating a long click you toggle how the switch will behave.  The dataref is described as ```Bravo++ toggles UP/DOWN switch mode```.
+A small note on button behavior. A click (below 250 msec) will actuate the button or switch and the arrows will stay green during this time. A long click (between 250 - 750 msec) is use for switches and will change the direction in which the switches will be actuated on the following click. In order to help with the timing, the arrow will turn yellow indicating that you can release it to do a long click. Holding a button down for over 750 msec will assume you want to sustain a switch and is useful for spring-loaded switches that cannot be activated with a simple click. The arrows will turn a magenta color and will remain so until you release the button. 
 
-Finally, a small note on button behavior. A click (below 250 msec) will actuate the button or switch. A long click (between 250 - 400 msec) is use for switches and as described aboved will change the direction in which the switches will be actuated on the following click. Holding a button down for over 400 msec will sustain a switch and is useful for spring-loaded switches that cannot be activated with a simple click.
+Finally, there are two internal commands that are often assigned to one of the Honeycomb Bravo buttons. 
+- The ```I/O``` button (see one of the example configs) is used for switching between the inner or outer scroll knob. The active state is shown in the knob depiction in the Bravo++ window. The dataref is described as ```Bravo++ toggles INNER/OUTER mode```.
+- For switches a long click will toggle between up and down state. Each button that implements a switch will either have ```^^``` above or ```vv``` below the button label indicating what will happen if the button is pressed. This distinguishes it from  buttons that just toggle between two states. So by initiating a long click you toggle how the switch will behave.  The dataref is described as ```Bravo++ toggles UP/DOWN switch mode```.
+
  
 ## Configuring the rocker switches in X-Plane
 The rocker switches have two Bravo++ commands each; one for the up position and one for down position. There are 7 rocker switches and they are named switch1, switch2, switch3, etc. As mentioned before, just search for "Bravo++" when binding the keys and you will find the 14 commands that need to be bound to the switches. 
@@ -151,7 +152,9 @@ SYS_SELECTOR_LABELS = "FUEL,,,,"
 
 There are 3 modes (AUTO,PFD and MFD) and the selector labels (the ones corresponding to the left twist knob on the Honeycomb Bravo) for each mode is specified by using the mode name and then adding ```_SELECTOR_LABELS```. The selector labels should have 5 values. Note that the ```AUTO``` will use the default selector names (ALT, VS, HDG, CRS and IAS), but can be overridden if explicitly specified in the config file.
 
-After that we assign the button labels to each selector name.
+Another useful feature for more complicated aircrafts is using the same mode name appended with "_" and a number. This will allow you to assign more than eight buttons to the same mode. You can see an example of this in the King Air C90B configuration file.
+
+Next we assign the button labels to each selector name.
 
 ```
 AUTO_ALT_BUTTON_LABELS = "HDG,NAV,APR,REV,ALT,VS,FLC,AP"
@@ -243,7 +246,7 @@ PFD_IAS_VS_BUTTON = "sim/GPS/g1000n1_ent"
 PFD_IAS_IAS_BUTTON = "FlyWithLua/Bravo++/cf_mode_button,sim/GPS/g1000n1_cursor"
 ```
 
-Here we have an example from the same config file that allows us to interact with the fms, but if you note the last line, there are now two commands. The first command, just like in the previous example, will toggle the INNER/OUTER mode. This will occur when you press and release the button fairly quickly (i.e. a simple click). The second command is used for a continous press (more than 400 milliseconds) and will activate/deactivate the cursor when in the flight plan or procedures menu.  
+Here we have an example from the same config file that allows us to interact with the fms, but if you note the last line, there are now two commands. The first command, just like in the previous example, will toggle the INNER/OUTER mode. This will occur when you press and release the button fairly quickly (i.e. a simple click). The second command is used for a continous press (more than 750 milliseconds) and will activate/deactivate the cursor when in the flight plan or procedures menu.  
 
 Now let's look at another example, this time from the King Air C90B configuration.
 

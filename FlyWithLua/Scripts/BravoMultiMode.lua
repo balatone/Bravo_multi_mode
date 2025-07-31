@@ -163,19 +163,34 @@ local no_button_labels = { "   ", "   ", "   ", "   ", "   ", "   ", "   ", "   
 --- VALIDATION OF THE CONFIG FILE
 -----------------------------------------------------
 function validate_config_keys()
-    local valid_keys_set = {} -- Using a table as a set for quick lookups
-
-    -- Add a helper function to add keys to our set
+    local valid_keys_set = {}
     local function add_key(key)
         valid_keys_set[key] = true
     end
 
-    -- Configuration for MODES itself
-    add_key("MODES")
+    local missing_required_keys = {}   -- New table to track explicitly required keys
+    local validation_failed = false    -- Flag to indicate if any validation step fails
 
-    -- Selector Labels: MODE_SELECTOR_LABELS
-    for _, mode in ipairs(modes) do
-        add_key(mode .. "_SELECTOR_LABELS")
+    -- **Step 1: Check for the presence and validity of the "MODES" key**
+    -- 'modes' is a global variable populated from nav_bindings.MODES.
+    -- If nav_bindings["MODES"] is nil or an empty string, 'modes' will be an empty table.
+    if not nav_bindings["MODES"] or #modes == 0 then
+        table.insert(missing_required_keys, "MODES")
+        validation_failed = true
+    end
+    add_key("MODES") -- Mark 'MODES' as a valid key to prevent it from being flagged as 'invalid' if it exists.
+
+    -- **Step 2: Check for _SELECTOR_LABELS for each declared mode**
+    -- This loop will only execute if 'modes' contains actual mode names (i.e., 'MODES' was properly defined).
+    if #modes > 0 then
+        for _, mode in ipairs(modes) do
+            local selector_label_key = mode .. "_SELECTOR_LABELS"
+            add_key(selector_label_key) -- Mark this specific selector label key as valid if it appears.
+            if mode ~= "AUTO" and not nav_bindings[selector_label_key] then
+                table.insert(missing_required_keys, selector_label_key)
+                validation_failed = true
+            end
+        end
     end
 
     -- Button Labels: MODE_SELECTION_BUTTON_LABELS
@@ -188,7 +203,6 @@ function validate_config_keys()
 
     -- Switch labels, actions and leds
     add_key("SWITCH_LABELS")
-
     for i = 1, 7 do
         add_key("SWITCH" .. i .. "_LED")
         add_key("SWITCH" .. i .. "_UP")
@@ -198,21 +212,14 @@ function validate_config_keys()
     -- Button Actions and LEDs (including general mode-level and specific mode-selection combinations)
     for _, mode in ipairs(modes) do
         for _, button_label in ipairs(default_button_labels) do
-            -- General button actions/LEDs (often used for ALT selection)
             add_key(mode .. "_" .. button_label .. "_BUTTON")
             add_key(mode .. "_" .. button_label .. "_BUTTON_LED")
-
-            -- Switch button actions (UP/DOWN variants for general buttons)
             for _, ud_mode in ipairs(up_down_modes) do
                 add_key(mode .. "_" .. button_label .. "_" .. string.upper(ud_mode) .. "_BUTTON")
             end
-
             for _, selection in ipairs(default_selections) do
-                -- Specific button actions/LEDs for mode and selection
                 add_key(mode .. "_" .. selection .. "_" .. button_label .. "_BUTTON")
                 add_key(mode .. "_" .. selection .. "_" .. button_label .. "_BUTTON_LED")
-
-                -- Switch button actions (UP/DOWN variants for specific buttons)
                 for _, ud_mode in ipairs(up_down_modes) do
                     add_key(mode .. "_" .. selection .. "_" .. button_label .. "_" .. string.upper(ud_mode) .. "_BUTTON")
                 end
@@ -223,12 +230,9 @@ function validate_config_keys()
     -- Twist Knob Actions
     for _, mode in ipairs(modes) do
         for _, selection in ipairs(default_selections) do
-            -- Inner knob direct UP/DOWN (as per source code logic, e.g., PFD_ALT_INNER_UP)
             for _, ud_mode in ipairs(up_down_modes) do
                 add_key(mode .. "_" .. selection .. "_" .. string.upper(ud_mode))
             end
-
-            -- Outer/Inner knob with explicit specifiers (e.g., PFD_ALT_OUTER_UP)
             for _, oi_mode in ipairs(outer_inner_modes) do
                 for _, ud_mode in ipairs(up_down_modes) do
                     add_key(mode .. "_" .. selection .. "_" .. string.upper(oi_mode) .. "_" .. string.upper(ud_mode))
@@ -239,11 +243,8 @@ function validate_config_keys()
 
     -- Global LED Bindings (Annunciator and Gear)
     add_key("GEAR_DEPLOYMENT_LED")
-	
     for _, label in ipairs(annunciator_labels) do
         add_key(label .. "_LED")
-        -- Account for indexed annunciator labels like AUX_FUEL_PUMP_1_LED, DOOR_1_LED
-        -- Assuming a max index based on observed data (e.g., DOOR_3_LED)
         for i = 1, 16 do
             add_key(label .. "_" .. tostring(i) .. "_LED")
         end
@@ -253,19 +254,30 @@ function validate_config_keys()
     add_key("TRIM_INCREMENT")
     add_key("TRIM_BOOST")
 
-
+    -- **Step 3: Check for invalid (unrecognized) keys**
+    -- This part identifies keys in the config file that are not defined as valid.
     local invalid_keys_found = {}
     for key, _ in pairs(nav_bindings) do
         if not valid_keys_set[key] then
             table.insert(invalid_keys_found, key)
+            validation_failed = true
         end
     end
 
-    if #invalid_keys_found > 0 then
+    -- **Step 4: Report validation results**
+    if validation_failed then
         log.error("--- Configuration Keys Validation Failed ---")
-        log.error("Found " .. #invalid_keys_found .. " invalid configuration keys in config file:")
-        for _, key in ipairs(invalid_keys_found) do
-            log.error("  Invalid key: \"" .. key .. "\"")
+        if #missing_required_keys > 0 then
+            log.error("Found " .. #missing_required_keys .. " MISSING REQUIRED configuration keys:")
+            for _, key in ipairs(missing_required_keys) do
+                log.error(" Missing key: \"" .. key .. "\"")
+            end
+        end
+        if #invalid_keys_found > 0 then
+            log.error("Found " .. #invalid_keys_found .. " INVALID (unrecognized) configuration keys in config file:")
+            for _, key in ipairs(invalid_keys_found) do
+                log.error(" Invalid key: \"" .. key .. "\"")
+            end
         end
         log.error("---------------------------------------------")
         return false -- Indicates validation failed
@@ -375,7 +387,14 @@ function validate_config_values()
                 })
             end
         elseif key == "MODES" then
-            log.debug("Skipping validation for configuration key: '" .. key .. "' (mode definition).")
+            local values = create_table(value_string)
+            if values[1] ~= "AUTO" then
+                table.insert(invalid_value_entries, {
+                    key = key,
+                    value = value_string,
+                    reason = "The first value in MODES must always be AUTO."
+                })                
+            end
         elseif ends_with(key, "_LED") then
             local binding_parameters = create_table(value_string)
             local current_entry_valid = true
@@ -775,9 +794,9 @@ local vertical_spacing = 40
 local height = 150
 
 if #switch_map_labels > 0 then
-	height = 40*4 + 12
+	height = 40*4 + 20
 else
-	height = 40*3 + 12
+	height = 40*3 + 20
 end
 
 my_floating_wnd = float_wnd_create(550, height, 1, true)
@@ -792,6 +811,11 @@ float_wnd_set_position(my_floating_wnd, SCREEN_WIDTH * 0.25, SCREEN_HEIGHT * 0.2
 -- float_wnd_set_onclick(my_floating_wnd, "on_click_floating_window")
 float_wnd_set_onclose(my_floating_wnd, "on_close_floating_window")
 
+function get_name_before_index(full_mode_string)
+    local conceptual_name = full_mode_string:gsub("_%d+$", "")
+    return conceptual_name
+end
+
 function build_bravo_gui(wnd, x, y)
     local win_width = imgui.GetWindowWidth()
     local win_height = imgui.GetWindowHeight()
@@ -802,31 +826,49 @@ function build_bravo_gui(wnd, x, y)
 
     local vertical_spacing = 0.75*vertical_spacing
 
-    -- Modes display
-    local h_offset_mode = 10 -- Initial horizontal offset for buttons
-    local h_spacing_mode = 5 -- Horizontal spacing between button columns
-    local y_offset_mode = 10
-    local mode_width = 60
+    local conceptual_mode_active = {} -- Stores boolean: true if current_mode falls under this conceptual name
+    local conceptual_mode_order = {}  -- Stores unique conceptual names in the order they first appear
+    local conceptual_name_seen = {}   -- Helper to track if a conceptual name has been added to order
 
-    imgui.NewLine() -- Start a new line after selection label for buttons
-    imgui.SetCursorPosX(h_offset_mode) 
-    imgui.SetCursorPosY(y_offset_mode)
-
-    imgui.SetWindowFontScale(1.2)
+    -- Populate conceptual_mode_active and conceptual_mode_order tables
     for i = 1, #modes do
-        local h_offset_mode = h_offset_mode + (i - 1) * (mode_width + h_spacing_mode)
-        imgui.SetCursorPosX(h_offset_mode) 
+        local name_conceptual = get_name_before_index(modes[i]) -- Get the base name, e.g., "AUTO" from "AUTO_2"
+        if not conceptual_name_seen[name_conceptual] then
+            table.insert(conceptual_mode_order, name_conceptual) -- Add unique conceptual name to maintain order
+            conceptual_name_seen[name_conceptual] = true
+        end
+        -- If the current actual mode (e.g., "AUTO_2") matches the mode in the loop (modes[i]),
+        -- then mark its conceptual name (e.g., "AUTO") as active for highlighting.
+        if current_mode == modes[i] then
+            conceptual_mode_active[name_conceptual] = true
+        end
+    end
+
+    -- Replace the existing mode display loop (which starts around imgui.SetCursorPosX(h_offset_mode))
+    -- with the following code:
+
+    -- Parameters for mode label display
+    local h_offset_mode = 10 -- Initial horizontal offset for the first mode label
+    local h_spacing_mode = 5 -- Horizontal spacing between mode labels
+    local y_offset_mode = 10 -- Vertical position for mode labels
+    local mode_width = 60 -- Fixed width for each mode label
+
+    imgui.NewLine() -- Start a new line for the mode labels
+    imgui.SetWindowFontScale(1.2) -- Set font scale for mode labels
+
+    -- Step 2: Draw the conceptual mode names based on the collected info
+    for i, conceptual_name_to_draw in ipairs(conceptual_mode_order) do
+        local current_x_position = h_offset_mode + (i - 1) * (mode_width + h_spacing_mode)
+        imgui.SetCursorPosX(current_x_position)
         imgui.SetCursorPosY(y_offset_mode)
 
-        local text_color = 0xFF000000
-        -- imgui.SetCursorPosY((i - 1)*vertical_spacing)
-        if current_mode == modes[i] then
-            text_color = 0xFF00FF00 -- Green (AABBGGRR)
-        else
-            text_color = 0xFF111111 -- Dark Grey (AABBGGRR)
+        local text_color_for_label = 0xFF111111 -- Default color: Dark Grey
+        if conceptual_mode_active[conceptual_name_to_draw] then
+            text_color_for_label = 0xFF00FF00 -- Highlight color: Green
         end
-        draw_label(modes[i], mode_width, 20, text_color)
+        draw_label(conceptual_name_to_draw, mode_width, 20, text_color_for_label)
     end
+    imgui.SetWindowFontScale(1.0) -- Restore default font scale for subsequent UI elements
 
     local h_offset_select = h_offset_mode -- Initial horizontal offset for buttons
     local h_spacing_select = 5 -- Horizontal spacing between button columns
@@ -855,7 +897,7 @@ function build_bravo_gui(wnd, x, y)
     -- Button Labels and States
     local h_offset_button = h_offset_mode -- Initial horizontal offset for buttons
     local h_spacing_button = 5 -- Horizontal spacing between button columns
-    local y_offset_button = 80
+    local y_offset_button = 90 -- 80
     local button_width = 60    -- Width of button as used in draw_button
     local button_color = 0xFF575049
 	local button_off_label_color = 0xFF111111 -- 0xFF5A5A5A
@@ -897,12 +939,12 @@ function build_bravo_gui(wnd, x, y)
 		
 		if i == #current_buttons then
 			current_button_x = h_offset_button + (i - 2) * (button_width + h_spacing_button)
-			y_offset_button = 40
+			y_offset_button = y_offset_button - 45
 		end
 
         imgui.SetCursorPosX(current_button_x)
         imgui.SetCursorPosY(y_offset_button)            
-        draw_button(button_label, button_width, 30, button_color, button_label_color, is_switch)
+        draw_button(button_name, button_label, button_width, 30, button_color, button_label_color, is_switch)
     end
 
     -- Switch Labels and States
@@ -931,31 +973,39 @@ function build_bravo_gui(wnd, x, y)
         draw_button(switch_label, switch_width, 30, switch_color, switch_label_color, false)        
     end
 
-    -- Define coordinates and properties for the graphical scroll wheel
-    -- These coordinates are relative to the ImGui window's top-left content area.
-    local graphic_center_x = 505 -- Position from the right edge of the window
-    local graphic_center_y = 75            -- Position from the top edge of the window
-
+    -- **Call the new draw_knob function**
+    local graphic_center_x = 505
+    local graphic_center_y = 75
     local outer_radius = 36
     local inner_radius = 25
-    local num_segments = 32 -- Number of segments to draw for smooth circles
-    local outline_thickness = 2 -- Thickness for the black outlines
+    local num_segments = 32
+    local outline_thickness = 2
 
+    draw_knob(
+        graphic_center_x, graphic_center_y,
+        outer_radius, inner_radius,
+        num_segments, outline_thickness,
+        current_mode, current_selection, current_cf_mode,
+        twist_knob_map_actions, twist_knob_map_labels
+    )
+end
+
+function draw_knob(centerX, centerY, outerRad, innerRad, segments, thickness, current_mode, current_selection, current_cf_mode, twist_knob_map_actions, twist_knob_map_labels)
+    -- Base colors for the knob components (from original build_bravo_gui)
     local outer_outline_color = 0xFF222222 -- Opaque Gray
     local inner_outline_color = 0xFF222222 -- Opaque Gray
-    local outer_color = 0xFF505050    -- Opaque Dark Gray for the interior of the circles
-    local inner_color = 0xFF505050    -- Opaque Dark Gray for the interior of the circles
-    
-    local highlight_color = 0xFF505050 -- Semi-transparent Green
-    local highlight_outline_color = 0xFF505050 -- Opaque Green
-    local knob_text_color = 0xFFFFFFFF
+    local outer_color = 0xFF505050        -- Opaque Dark Gray for the interior
+    local inner_color = 0xFF505050        -- Opaque Dark Gray for the interior
+    local knob_text_color = 0xFFFFFFFF    -- White for the text
 
+    -- Highlight colors (semi-transparent and opaque green, also from original)
+    local highlight_color = 0x4400FF00      -- Semi-transparent Green
+    local highlight_outline_color = 0xFF00FF00 -- Opaque Green
+
+    -- **Apply highlighting logic based on current_cf_mode and available actions**
     if is_table(twist_knob_map_actions[current_mode]) and is_table(twist_knob_map_actions[current_mode][current_selection]) then
         if is_table(twist_knob_map_actions[current_mode][current_selection]["INNER"]) then
-            -- outer_outline_color = 0xFF000000 -- Opaque Black
-            -- inner_outline_color = 0xFF000000 -- Opaque Black
-            highlight_color = 0x4400FF00 -- Semi-transparent Green
-            highlight_outline_color = 0xFF00FF00
+            -- This path is for knobs with explicit inner/outer functionality
             if current_cf_mode == "outer" then
                 outer_color = highlight_color
                 outer_outline_color = highlight_outline_color
@@ -964,48 +1014,69 @@ function build_bravo_gui(wnd, x, y)
                 inner_outline_color = highlight_outline_color
             end
         elseif is_string(twist_knob_map_actions[current_mode][current_selection]["UP"]) then
-            -- outer_outline_color = 0xFF000000 -- Opaque Black
-            -- inner_outline_color = 0xFF000000 -- Opaque Black
-            highlight_color = 0x4400FF00 -- Semi-transparent Green
-            highlight_outline_color = 0xFF00FF00
+            -- This path is for simpler knobs that use only "UP" / "DOWN" without "INNER" / "OUTER" distinction
             outer_color = highlight_color
             outer_outline_color = highlight_outline_color
             inner_color = highlight_color
             inner_outline_color = highlight_outline_color
         end
-    end 
-    
-    imgui.DrawList_AddCircle(graphic_center_x, graphic_center_y, outer_radius, outer_outline_color, num_segments, outline_thickness)
-    imgui.DrawList_AddCircleFilled(graphic_center_x, graphic_center_y, outer_radius, outer_color, num_segments)
-    imgui.DrawList_AddCircle(graphic_center_x, graphic_center_y, inner_radius, inner_outline_color, num_segments, outline_thickness)
-    imgui.DrawList_AddCircleFilled(graphic_center_x, graphic_center_y, inner_radius, inner_color, num_segments)
+    end
 
+    -- **Draw the circles that form the knob's appearance**
+    imgui.DrawList_AddCircle(centerX, centerY, outerRad, outer_outline_color, segments, thickness)
+    imgui.DrawList_AddCircleFilled(centerX, centerY, outerRad, outer_color, segments)
+    imgui.DrawList_AddCircle(centerX, centerY, innerRad, inner_outline_color, segments, thickness)
+    imgui.DrawList_AddCircleFilled(centerX, centerY, innerRad, inner_color, segments)
+
+    -- **Draw the text label on the knob**
     if is_table(twist_knob_map_labels[current_mode]) then
-        imgui.SetWindowFontScale(0.8)
+        local text_to_display = nil
         if is_table(twist_knob_map_labels[current_mode][current_selection]) then
-            local text = twist_knob_map_labels[current_mode][current_selection][string.upper(current_cf_mode)]
-            if text ~= nil then
-                local text_w, text_h = imgui.CalcTextSize(tostring(text))
-				if text_w > 35 then
-					imgui.SetWindowFontScale(0.6)
-				end
-                imgui.SetCursorPosX(graphic_center_x - text_w/2) 
-                imgui.SetCursorPosY(graphic_center_y - text_h/2)
-                draw_label(text, text_w, text_h, knob_text_color)
-            end
+            -- Retrieve text for inner/outer knob, dependent on current_cf_mode
+            text_to_display = twist_knob_map_labels[current_mode][current_selection][string.upper(current_cf_mode)]
         elseif is_string(twist_knob_map_labels[current_mode][current_selection]) then
-            local text = twist_knob_map_labels[current_mode][current_selection]
-            if text ~= nil then
-                local text_w, text_h = imgui.CalcTextSize(tostring(text))
-				if text_w > 35 then
-					imgui.SetWindowFontScale(0.6)
-				end
-                imgui.SetCursorPosX(graphic_center_x - text_w/2) 
-                imgui.SetCursorPosY(graphic_center_y - text_h/2)
-                draw_label(text, text_w, text_h, knob_text_color)
-            end
+            -- Retrieve text for simple knob (single label)
+            text_to_display = twist_knob_map_labels[current_mode][current_selection]
         end
-    end 
+
+        if text_to_display ~= nil then
+            -- Determine the available text area within the knob
+            -- The knob's inner circle has a radius of 'innerRad'.
+            -- So, the maximum square area for text within it would be 2 * innerRad on each side.
+            local knob_text_max_width = innerRad * 2
+            local knob_text_max_height = innerRad * 2 -- Allow text to span vertically if needed
+
+            -- **Use get_scaled_wrapped_text to get wrapped lines and the optimal font scale**
+            local wrapped_lines, text_total_height, final_font_scale =
+                get_scaled_wrapped_text(tostring(text_to_display), knob_text_max_width, knob_text_max_height, 0.6) -- 0.6 is the minimum font scale used in draw_button
+
+            -- Apply the determined font scale for drawing the text
+            imgui.SetWindowFontScale(final_font_scale)
+
+            -- Calculate the vertical starting position to center the block of text within the knob
+            local start_text_y = centerY - text_total_height / 2
+
+            -- Draw each wrapped line of text
+            local current_line_y = start_text_y
+            for _, line in ipairs(wrapped_lines) do
+                -- Recalculate line size at the final_font_scale for accurate centering
+                local line_w, line_h = imgui.CalcTextSize(line)
+                local line_draw_x = centerX - line_w / 2 -- Center each line horizontally within the knob
+
+                -- Set cursor position for the current line's top-left corner
+                imgui.SetCursorPosX(line_draw_x)
+                imgui.SetCursorPosY(current_line_y)
+
+                -- Call the global draw_label function to render the text for this line
+                draw_label(line, line_w, line_h, knob_text_color)
+
+                current_line_y = current_line_y + line_h -- Move the Y position down for the next line
+            end
+
+            -- Restore the original font scale to avoid affecting subsequent UI elements
+            imgui.SetWindowFontScale(1.0)
+        end
+    end
 end
 
 function draw_label(text, width, height, text_color_int)
@@ -1080,7 +1151,7 @@ local function wrap_text_for_width(text_str, max_width, current_font_scale)
 end
 
 -- Main helper function to determine best font scale and wrapped text
-local function get_scaled_wrapped_text(text_string, button_width, button_height, min_font_scale)
+function get_scaled_wrapped_text(text_string, button_width, button_height, min_font_scale)
     min_font_scale = min_font_scale or 0.6 -- Define a minimum readable font scale (e.g., 60% of original) [Conversational Turn 1]
 
     local best_scale = 1.0
@@ -1119,7 +1190,9 @@ local function get_scaled_wrapped_text(text_string, button_width, button_height,
     return best_lines, best_height, best_scale
 end
 
-function draw_button(text, width, height, box_bg_color_int, text_color_int, is_switch_button)
+local arrow_color = 0xFF00FF00
+
+function draw_button(button_name, text, width, height, box_bg_color_int, text_color_int, is_switch_button)
     imgui.SetWindowFontScale(1.0) -- Always reset to default at the start [Conversational Turn 1]
     local cx, cy = imgui.GetCursorScreenPos() -- Get current cursor position for drawing
     imgui.Dummy(width, height) -- Reserve space for the button in the layout
@@ -1157,7 +1230,8 @@ function draw_button(text, width, height, box_bg_color_int, text_color_int, is_s
     -- Step 4: Handle the drawing of the switch indicator (^^ or vv) if it's a switch button
     if is_switch_button then
         local ud_symbol = ""
-        local symbol_offset_y = 0 
+        local symbol_offset_y = 0
+        local padding = -2
 
         -- Measure the symbol using the same final font scale determined for the main text
         imgui.SetWindowFontScale(final_font_scale) 
@@ -1167,19 +1241,22 @@ function draw_button(text, width, height, box_bg_color_int, text_color_int, is_s
         -- Determine symbol and its vertical offset
         if current_switch_mode == "up" then -- `current_switch_mode` is a local variable in the script
             ud_symbol = "^^"
-            symbol_offset_y = -(text_total_height / 2 + symbol_h + 5) -- 5 for small padding
+            -- symbol_offset_y = -(text_total_height / 2 + symbol_h + padding)
+            symbol_offset_y = -(height / 2 + symbol_h + padding)
         elseif current_switch_mode == "down" then
             ud_symbol = "vv"
-            symbol_offset_y = (text_total_height / 2 + 5) -- 5 for small padding
+            -- symbol_offset_y = (text_total_height / 2 + padding)
+            symbol_offset_y = (height / 2 + padding)
         end
 
         -- Apply the determined font scale before drawing the symbol
         imgui.SetWindowFontScale(final_font_scale) 
         local symbol_draw_x = cx + (width - symbol_w) / 2 -- Center the symbol horizontally
         local symbol_draw_y = cy + height / 2 + symbol_offset_y -- Calculate the base Y (center of the button) and then apply the offset
+        -- local symbol_draw_y = cy + height / 2 -- Calculate the base Y (center of the button) and then apply the offset
 
         imgui.SetCursorScreenPos(symbol_draw_x, symbol_draw_y)
-        imgui.PushStyleColor(imgui.constant.Col.Text, 0xFF00FF00) -- Set symbol color to green
+		imgui.PushStyleColor(imgui.constant.Col.Text, arrow_color) -- Set symbol color to yellow
         imgui.TextUnformatted(ud_symbol)
         imgui.PopStyleColor()
         imgui.SetWindowFontScale(1.0) -- Reset font scale after drawing the symbol
@@ -1646,7 +1723,7 @@ create_command(
 --------------------------------------
 -- Define a threshold for what constitutes a "long press" in seconds
 local LONG_CLICK_THRESHOLD = 0.25 -- Adjust this value as needed (e.g., 0.25 seconds)
-local CONTINUOUS_PRESS_THRESHOLD = 0.4 -- Adjust this value as needed (e.g., 0.25 seconds)
+local CONTINUOUS_PRESS_THRESHOLD = 0.75 -- Adjust this value as needed (e.g., 0.25 seconds)
 
 -- Declare global variables to track button state across command phases
 -- These are necessary because the different parts of create_command run in independent Lua blocks.
@@ -1665,8 +1742,14 @@ function handle_continuous_mode(button_name)
         if not command_state[button_name]["is_continous_mode"] then
             log.debug("Button " .. button_name .. " held down long enough. Starting continuous mode.")
             command_state[button_name]["is_continous_mode"] = true
+			arrow_color = 0xFFED10D8
         end        
         trigger_command_for(button_name)
+	elseif os.clock() - command_state[button_name]["start_time"] >= LONG_CLICK_THRESHOLD then
+		local commands = get_commands_for_button(button_name)
+		if commands["ON_LONG_CLICK"] ~= nil then
+			arrow_color = 0xFF18D1CB
+		end	
     end
 end
 
@@ -1681,6 +1764,7 @@ function handle_single_click_mode(button_name)
 		command_state[button_name]["phase"] = "end"
 		trigger_command_for(button_name)
 	end
+	arrow_color = 0xFF00FF00
 end
 
 function get_commands_for_button(button_name)
@@ -1722,7 +1806,7 @@ function trigger_command_for(button_name)
                 command_end(commands["ON_HOLD"])
             end
         elseif not button_is_continuous_mode then
-            if command_phase == "long_click" then
+            if command_phase == "long_click" and commands["ON_LONG_CLICK"] ~= nil then
                 log.debug("Trigger command once: " .. commands["ON_LONG_CLICK"])
                 command_once(commands["ON_LONG_CLICK"])
             else
