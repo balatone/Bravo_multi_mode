@@ -944,7 +944,7 @@ function build_bravo_gui(wnd, x, y)
 
         imgui.SetCursorPosX(current_button_x)
         imgui.SetCursorPosY(y_offset_button)            
-        draw_button(button_name, button_label, button_width, 30, button_color, button_label_color, is_switch)
+        draw_button(button_label, button_width, 30, button_color, button_label_color, is_switch)
     end
 
     -- Switch Labels and States
@@ -1192,7 +1192,7 @@ end
 
 local arrow_color = 0xFF00FF00
 
-function draw_button(button_name, text, width, height, box_bg_color_int, text_color_int, is_switch_button)
+function draw_button(text, width, height, box_bg_color_int, text_color_int, is_switch_button)
     imgui.SetWindowFontScale(1.0) -- Always reset to default at the start [Conversational Turn 1]
     local cx, cy = imgui.GetCursorScreenPos() -- Get current cursor position for drawing
     imgui.Dummy(width, height) -- Reserve space for the button in the layout
