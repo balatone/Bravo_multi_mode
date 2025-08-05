@@ -786,11 +786,52 @@ for i = 1, #modes do
     end
 end
 
+local button_is_switch_map = {}
+
+log.info("Initializing the button switch map...")
+for _, mode_name in ipairs(modes) do
+    button_is_switch_map[mode_name] = {}
+    for _, selection_name in ipairs(default_selections) do
+        button_is_switch_map[mode_name][selection_name] = {}
+        for _, button_label_name in ipairs(default_button_labels) do
+            local is_current_button_a_switch = false
+
+            -- Replicate the original 'is_switch' logic to populate the static map
+            if is_table(button_map_actions[mode_name]) then
+                -- The original script has a special handling for the "ALT" selection
+                -- where button actions are stored one level higher in the table structure.
+                if selection_name == "ALT" then
+                    -- Check for mode-button combination (e.g., AUTO_HDG)
+                    if is_table(button_map_actions[mode_name][button_label_name]) then
+                        if is_table(button_map_actions[mode_name][button_label_name]["UP"]) or
+                            is_table(button_map_actions[mode_name][button_label_name]["DOWN"]) then
+                            is_current_button_a_switch = true
+                        end
+                    end
+                else
+                    -- Check for mode-selection-button combination (normal case)
+                    if is_table(button_map_actions[mode_name][selection_name]) and
+                        is_table(button_map_actions[mode_name][selection_name][button_label_name]) then
+                        if is_table(button_map_actions[mode_name][selection_name][button_label_name]["UP"]) or
+                            is_table(button_map_actions[mode_name][selection_name][button_label_name]["DOWN"]) then
+                            is_current_button_a_switch = true
+                        end
+                    end
+                end
+            end
+            button_is_switch_map[mode_name][selection_name][button_label_name] = is_current_button_a_switch
+        end
+    end
+end
+
+log.info("Initializing rocker switch led states...")
+local rocker_switch_led_states = {}
+
 -----------------------------------------------------
 --- CREATE THE GUI PANEL
 -----------------------------------------------------
 local current_buttons = default_button_labels
-local vertical_spacing = 40
+local vertical_spacing = 30
 local height = 150
 
 if #switch_map_labels > 0 then
@@ -816,42 +857,38 @@ function get_name_before_index(full_mode_string)
     return conceptual_name
 end
 
-function build_bravo_gui(wnd, x, y)
-    local win_width = imgui.GetWindowWidth()
-    local win_height = imgui.GetWindowHeight()
+-- Initialize the static tables pertaining to mode
+local conceptual_mode_order = {}  -- Stores unique conceptual names in the order they first appear
+local conceptual_name_seen = {}   -- Helper to track if a conceptual name has been added to order
 
+for i = 1, #modes do
+    local name_conceptual = get_name_before_index(modes[i]) -- Get the base name, e.g., "AUTO" from "AUTO_2"
+    if not conceptual_name_seen[name_conceptual] then
+        table.insert(conceptual_mode_order, name_conceptual) -- Add unique conceptual name to maintain order
+        conceptual_name_seen[name_conceptual] = true
+    end
+end
+
+local H_OFFSET = 10
+local H_SPACING = 5
+local Y_OFFSET = 10
+local WIDGET_WIDTH = 60
+
+function build_bravo_gui(wnd, x, y)
     -- Set the ImGui window background style color using AABBGGRR hex format.
     -- imgui.PushStyleColor(imgui.constant.Col.Border, 0xFF262626)
     imgui.PushStyleColor(imgui.constant.Col.WindowBg, 0xCC333333) -- Light Grey
 
-    local vertical_spacing = 0.75*vertical_spacing
-
     local conceptual_mode_active = {} -- Stores boolean: true if current_mode falls under this conceptual name
-    local conceptual_mode_order = {}  -- Stores unique conceptual names in the order they first appear
-    local conceptual_name_seen = {}   -- Helper to track if a conceptual name has been added to order
 
-    -- Populate conceptual_mode_active and conceptual_mode_order tables
-    for i = 1, #modes do
-        local name_conceptual = get_name_before_index(modes[i]) -- Get the base name, e.g., "AUTO" from "AUTO_2"
-        if not conceptual_name_seen[name_conceptual] then
-            table.insert(conceptual_mode_order, name_conceptual) -- Add unique conceptual name to maintain order
-            conceptual_name_seen[name_conceptual] = true
-        end
-        -- If the current actual mode (e.g., "AUTO_2") matches the mode in the loop (modes[i]),
-        -- then mark its conceptual name (e.g., "AUTO") as active for highlighting.
-        if current_mode == modes[i] then
-            conceptual_mode_active[name_conceptual] = true
-        end
-    end
-
-    -- Replace the existing mode display loop (which starts around imgui.SetCursorPosX(h_offset_mode))
-    -- with the following code:
+    local current_mode_conceptual_name = get_name_before_index(current_mode) -- Get conceptual name for current mode
+    conceptual_mode_active[current_mode_conceptual_name] = true -- Set only the current mode's conceptual name active
 
     -- Parameters for mode label display
-    local h_offset_mode = 10 -- Initial horizontal offset for the first mode label
-    local h_spacing_mode = 5 -- Horizontal spacing between mode labels
-    local y_offset_mode = 10 -- Vertical position for mode labels
-    local mode_width = 60 -- Fixed width for each mode label
+    local h_offset_mode = H_OFFSET -- Initial horizontal offset for the first mode label
+    local h_spacing_mode = H_SPACING -- Horizontal spacing between mode labels
+    local y_offset_mode = Y_OFFSET -- Vertical position for mode labels
+    local mode_width = WIDGET_WIDTH -- Fixed width for each mode label
 
     imgui.NewLine() -- Start a new line for the mode labels
     imgui.SetWindowFontScale(1.2) -- Set font scale for mode labels
@@ -870,10 +907,10 @@ function build_bravo_gui(wnd, x, y)
     end
     imgui.SetWindowFontScale(1.0) -- Restore default font scale for subsequent UI elements
 
-    local h_offset_select = h_offset_mode -- Initial horizontal offset for buttons
-    local h_spacing_select = 5 -- Horizontal spacing between button columns
-    local y_offset_select = 40
-    local select_width = mode_width
+    local h_offset_select = H_OFFSET -- Initial horizontal offset for buttons
+    local h_spacing_select = H_SPACING -- Horizontal spacing between button columns
+    local y_offset_select = 45
+    local select_width = WIDGET_WIDTH
 
     -- Current Selection Label
     for i = 1, #selection_map_labels[current_mode] do
@@ -895,10 +932,10 @@ function build_bravo_gui(wnd, x, y)
     imgui.SetWindowFontScale(1.0)
 
     -- Button Labels and States
-    local h_offset_button = h_offset_mode -- Initial horizontal offset for buttons
-    local h_spacing_button = 5 -- Horizontal spacing between button columns
-    local y_offset_button = 90 -- 80
-    local button_width = 60    -- Width of button as used in draw_button
+    local h_offset_button = H_OFFSET -- Initial horizontal offset for buttons
+    local h_spacing_button = H_SPACING -- Horizontal spacing between button columns
+    local y_offset_button = 90
+    local button_width = WIDGET_WIDTH    -- Width of button as used in draw_button
     local button_color = 0xFF575049
 	local button_off_label_color = 0xFF111111 -- 0xFF5A5A5A
 	local button_on_label_color = 0xFFFFFFFF
@@ -919,21 +956,10 @@ function build_bravo_gui(wnd, x, y)
             button_label_color = button_off_label_color
         end
 
-        local is_switch = false
-        if is_table(button_map_actions[current_mode]) then
-            if is_table(button_map_actions[current_mode][current_selection]) and
-               is_table(button_map_actions[current_mode][current_selection][button_name]) then
-                if is_table(button_map_actions[current_mode][current_selection][button_name]["UP"]) or
-                   is_table(button_map_actions[current_mode][current_selection][button_name]["DOWN"]) then
-                    is_switch = true
-                end
-            elseif is_table(button_map_actions[current_mode][button_name]) then
-                if is_table(button_map_actions[current_mode][button_name]["UP"]) or
-                   is_table(button_map_actions[current_mode][button_name]["DOWN"]) then
-                    is_switch = true
-                end
-            end
-        end
+        local is_switch = button_is_switch_map[current_mode] and
+                          button_is_switch_map[current_mode][current_selection] and
+                          button_is_switch_map[current_mode][current_selection][button_name] or
+                          false -- Default to false if the entry is somehow missing
 
         local current_button_x = h_offset_button + (i - 1) * (button_width + h_spacing_button)
 		
@@ -950,7 +976,7 @@ function build_bravo_gui(wnd, x, y)
     -- Switch Labels and States
     local h_offset_switch = h_offset_mode -- Initial horizontal offset for buttons
     local h_spacing_switch = 5 -- Horizontal spacing between button columns
-    local y_offset_switch = 170
+    local y_offset_switch = 180 -- 170
     local switch_width = 60    -- Width of button as used in draw_button
     local switch_color = button_color
 
@@ -973,7 +999,6 @@ function build_bravo_gui(wnd, x, y)
         draw_button(switch_label, switch_width, 30, switch_color, switch_label_color, false)        
     end
 
-    -- **Call the new draw_knob function**
     local graphic_center_x = 505
     local graphic_center_y = 75
     local outer_radius = 36
@@ -1150,9 +1175,21 @@ local function wrap_text_for_width(text_str, max_width, current_font_scale)
     return lines, #lines * line_height, max_line_width 
 end
 
+local cached_scaling_data = {}
 -- Main helper function to determine best font scale and wrapped text
 function get_scaled_wrapped_text(text_string, button_width, button_height, min_font_scale)
     min_font_scale = min_font_scale or 0.6 -- Define a minimum readable font scale (e.g., 60% of original) [Conversational Turn 1]
+    local key = text_string .. tostring(button_width) .. tostring(button_height) .. tostring(min_font_scale)
+
+    local cached_data = cached_scaling_data[key]
+    if cached_data then
+        -- Access the values by their named fields
+        local lines = cached_data.wrapped_lines
+        local height = cached_data.total_height
+        local scale = cached_data.final_scale
+        log.debug("Cache hit for text: " .. tostring(text_string))
+        return lines, height, scale
+    end
 
     local best_scale = 1.0
     local best_lines = {}
@@ -1186,6 +1223,13 @@ function get_scaled_wrapped_text(text_string, button_width, button_height, min_f
         best_lines, best_height, _ = wrap_text_for_width(tostring(text_string), button_width, min_font_scale)
         best_scale = min_font_scale
     end
+
+    -- Cache the results
+    cached_scaling_data[key] = {
+        wrapped_lines = best_lines,
+        total_height = best_height,
+        final_scale = best_scale
+    }
 
     return best_lines, best_height, best_scale
 end
@@ -2126,6 +2170,11 @@ function all_leds_off()
         end
     end
 
+	for i = 1,7 do
+		local key = "SWITCH" .. i .. "_LED"
+		rocker_switch_led_states[key] = false
+	end
+	
     led_state_modified = true
     if log_led_state then
         log.debug("Set all leds to off")
@@ -2213,9 +2262,36 @@ for i = 1, 7 do
 end
 
 function get_led_state_for_switch(switch_label)
-    local dataref = switch_map_leds[switch_label]
-    if is_dataref_magic_table(dataref) then
-        return get_led_state_for_dataref(dataref, switch_map_leds_cond[switch_label], switch_map_leds_index[switch_label])
+	return rocker_switch_led_states[switch_label] or false
+end
+
+function handle_rocker_switch_led_changes()
+    -- Iterate through the predefined rocker switch labels (SWITCH1_LED, SWITCH2_LED, etc.)
+    -- `switch_map_leds` stores the `dataref_table` objects, `switch_map_leds_cond` stores the condition,
+    -- and `switch_map_leds_index` stores the array index for each switch [4].
+    for i = 1, 7 do -- There are 7 rocker switches [5]
+        local switch_label_key = "SWITCH" .. i .. "_LED" -- Construct the key like "SWITCH1_LED"
+
+        local dataref_table_obj = switch_map_leds[switch_label_key] -- Get the dataref_table object
+
+        -- Only proceed if a DataRef is actually configured for this switch LED
+        if is_dataref_magic_table(dataref_table_obj) then
+            local condition_value = switch_map_leds_cond[switch_label_key]
+            local dataref_index = switch_map_leds_index[switch_label_key]
+
+            -- Call the existing helper function to get the current LED state from the DataRef
+            local current_state_from_dataref = get_led_state_for_dataref(
+                dataref_table_obj,
+                condition_value,
+                dataref_index
+            )
+
+            -- Check if the state has changed to minimize unnecessary updates
+            if rocker_switch_led_states[switch_label_key] ~= current_state_from_dataref then
+                rocker_switch_led_states[switch_label_key] = current_state_from_dataref
+                led_state_modified = true -- Mark `led_state_modified` to trigger a HID update for the device
+            end
+        end
     end
 end
 
@@ -2409,6 +2485,9 @@ function handle_led_changes()
 		tryCatch(handle_gear_led_changes, "handle_gear_led_changes")
 		tryCatch(handle_annunciator_row1_led_changes, "handle_annunciator_row1_led_changes")
 		tryCatch(handle_annunciator_row2_led_changes, "handle_annunciator_row2_led_changes")
+
+        -- Handle the rocker switches
+		tryCatch(handle_rocker_switch_led_changes, "handle_rocker_switch_led_changes")
 		
     elseif master_state == true then
         log.debug("No voltage detected. Turning all leds off.")
