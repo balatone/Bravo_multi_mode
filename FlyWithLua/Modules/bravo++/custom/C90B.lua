@@ -1,4 +1,4 @@
-local log = require("log")
+local log = require("bravo++.log")
 
 -- **************************************************************
 -- Custom dataref commands for the Laminar King Air C90B
@@ -12,7 +12,7 @@ end
 local aircraft_name = string.sub(AIRCRAFT_FILENAME, 1, string.len(AIRCRAFT_FILENAME) - 4)
 
 if aircraft_name ~= "C90B" then
-    log.info("The current aircraft is not the C90B. The C90B.lua script will not be loaded.")
+    log.info("The current aircraft is not the C90B. The lua script will not be loaded.")
     return
 end
 --------------------------------------
@@ -24,7 +24,7 @@ local cabin_pressure_debounce_delay = 0.04 -- Time in seconds
 local cabin_pressure_dataref = dataref_table("sim/cockpit2/pressurization/actuators/cabin_altitude_ft")
 local cabin_pressure_min = -1000
 local cabin_pressure_max = 10000
-local increment = 120.0 
+local increment = 120.0
 local boost_factor = 1
 
 function handle_cabin_pressure_up()

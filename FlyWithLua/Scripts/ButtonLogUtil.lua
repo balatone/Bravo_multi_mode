@@ -3,7 +3,7 @@
 -- This is used to configure the alt_selector_button in BravoMultiMode.lua
 --------------------------------------------------------------------------
 
-local log = require("log")
+local log = require("bravo++.log")
 
 -- Set this to true if you want to log the last button that was pressed
 local write_log = false

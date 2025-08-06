@@ -1,6 +1,14 @@
 require("bit")
 require("graphics")
-local log = require("log")
+
+-- Modules needed for logging and general functionality
+local util = require("bravo++.util")
+local log = require("bravo++.log")
+
+-- Custom commands that will only be imported when corresponding aircraft is loaded
+local custom_directory = MODULES_DIRECTORY .. "bravo++" .. DIRECTORY_SEPARATOR .. "custom" .. DIRECTORY_SEPARATOR
+dofile( custom_directory .. "C90B.lua")
+dofile(custom_directory .. "DA42.lua")
 
 -- Change the logging level to log.LOG_DEBUG if troubleshooting
 log.LOG_LEVEL = log.LOG_INFO
@@ -26,44 +34,28 @@ if not SUPPORTS_FLOATING_WINDOWS then
     return
 end
 
-local function trim(s)
-    return (s:gsub("^%s*(.-)%s*$", "%1"))
-end
-
-function is_dataref_magic_table(candidate_table)
-    -- First, check if it's a Lua table at all
-    if type(candidate_table) ~= "table" then
-        return false
+-----------------------------------------------------
+--- HELPER FUNCTIONS THAT NEED TO BE GLOBAL
+-----------------------------------------------------
+-- Helper function to find index in table (used for cycling modes)
+function table.find(t, value)
+    for i, v in ipairs(t) do
+        if v == value then return i end
     end
-    if type(candidate_table.reftype) == "number" then
-        return true
-    end
-    -- If 'reftype' is nil or not a number, it's not a magic DataRef table.
-    return false
+    return nil -- Not found.
 end
 
--- Must determine if it's an array using reftype
-function is_dataref_array(dr_table)
-    for k,v in pairs(dr_table) do
-        if tostring(k) == "reftype" and (tostring(v) == "8" or tostring(v) == "16") then
-            return true
-        end
-    end
-    return false
+-- Function that logs any function that fails
+function tryCatch(tryBlock, source)
+  local success, errorMessage = pcall(tryBlock)
+  if not success then
+    log.error("Caught error from " .. source .. " : " .. errorMessage)
+  end
 end
 
-function is_boolean(cand)
-    return type(cand) == "boolean"
-end
-
-function is_string(cand)
-    return type(cand) == "string"
-end
-
-function is_table(cand)
-    return type(cand) == "table"
-end
-
+-----------------------------------------------------
+--- READING THE CONFIG FILE
+-----------------------------------------------------
 local function read_config_file(nav_cfg_path, nav_bindings)
     local cfg_file = io.open(nav_cfg_path, "r")
     if cfg_file then
@@ -72,7 +64,7 @@ local function read_config_file(nav_cfg_path, nav_bindings)
             if not line:match("^%s*#") and line:match("=") then
                 local key, value = line:match("^%s*([%w_]+)%s*=%s*(.-)%s*$")
                 if key and value then
-                    value = trim(value)
+                    value = util.trim(value)
                     -- Remove surrounding quotes only if both present
                     value = value:match('^"(.-)"$') or value
                     nav_bindings[key] = value
@@ -118,31 +110,9 @@ local annunciator_labels = {
         "MASTER_CAUTION", "VACUUM", "HYD_LOW_PRESSURE", "AUX_FUEL_PUMP", "PARKING_BRAKE", "VOLTS_LOW", "DOOR"}
 
 
-local function create_table(value_string)
-    local value_table = {}
-    local idx = 1
-
-    if value_string == nil then
-        return value_table
-    end
-
-    local gmatch_result = string.gmatch(value_string .. ",", "([^,]*),")
-    if gmatch_result then
-        for value in gmatch_result do
-            value_table[idx] = value
-            idx = idx + 1
-        end
-    else
-        log.error("Error: " ..
-            value_string ..
-            "is not a valid comma-separated value. Make sure the values only contain alpha-numeric and non-special characters. If you want a blank value, use one or more spaces.")
-    end
-    return value_table
-end
-
 -- Mode management
 -- local modes = {"AUTO", "PFD", "MFD"} -- Add more modes as needed
-local modes = create_table(nav_bindings.MODES)
+local modes = util.create_table(nav_bindings.MODES)
 local current_mode = modes[1]
 local outer_inner_modes = { "outer", "inner" }
 local current_cf_mode = outer_inner_modes[1]
@@ -162,7 +132,7 @@ local no_button_labels = { "   ", "   ", "   ", "   ", "   ", "   ", "   ", "   
 -----------------------------------------------------
 --- VALIDATION OF THE CONFIG FILE
 -----------------------------------------------------
-function validate_config_keys()
+local function validate_config_keys()
     local valid_keys_set = {}
     local function add_key(key)
         valid_keys_set[key] = true
@@ -287,50 +257,6 @@ function validate_config_keys()
     end
 end
 
--- Helper function to check if a string ends with a specific suffix
-local function ends_with(str, suffix)
-    return #str >= #suffix and str:sub(-#suffix) == suffix
-end
-
---- Helper function to safely call dataref_table and return its result.
--- Catches any errors thrown by dataref_table that pcall can intercept, and logs if DataRef is not found.
--- Returns the actual result (table or nil) if no error occurred.
-local function safe_dataref_lookup(dataref_name_string)
-    -- Defensive check: Ensure the input is a string
-    if type(dataref_name_string) ~= "string" then
-        log.error("safe_dataref_lookup received non-string argument: '" .. tostring(dataref_name_string) .. "'")
-        return nil
-    end
-
-    local cmd_ref = XPLMFindDataRef(dataref_name_string) --
-    if cmd_ref == nil then
-        log.warning("Dataref '" .. tostring(dataref_name_string) .. "' not found in X-Plane's command list.")
-        return nil
-    end
-    return dataref_table(dataref_name_string)
-end
-
---- Helper function to safely check if an X-Plane command exists.
--- Returns true if the command is found, false otherwise.
-local function safe_command_lookup(command_name_string)
-    -- Defensive check: Ensure the input is a string
-    if type(command_name_string) ~= "string" then
-        log.error("safe_command_lookup received non-string argument: '" .. tostring(command_name_string) .. "'")
-        return false
-    end
-
-    -- XPLMFindCommand returns a userdata (a reference) if the command exists, or nil if not.
-    -- This function doesn't typically throw Lua errors that pcall would catch,
-    -- but rather returns nil directly on failure to find.
-    local cmd_ref = XPLMFindCommand(command_name_string) --
-    if cmd_ref == nil then
-        log.warning("Command '" .. tostring(command_name_string) .. "' not found in X-Plane's command list.")
-        return false
-    end
-    -- If cmd_ref is not nil, it's a valid userdata reference to the command.
-    return true
-end
-
 local two_param_led_keys = {}
 
 two_param_led_keys["GEAR_DEPLOYMENT_LED"] = true
@@ -345,13 +271,13 @@ for _, label in ipairs(annunciator_labels) do
 end
 
 --- Validates the values assigned to configuration keys in the nav_bindings table.
-function validate_config_values()
+local function validate_config_values()
     local invalid_value_entries = {}
     log.info("Starting configuration value validation...")
 
     for key, value_string in pairs(nav_bindings) do
-        if ends_with(key, "_SELECTOR_LABELS") then
-            local values = create_table(value_string)
+        if util.ends_with(key, "_SELECTOR_LABELS") then
+            local values = util.create_table(value_string)
             if #values ~= 5 then
                 table.insert(invalid_value_entries, {
                     key = key,
@@ -359,8 +285,8 @@ function validate_config_values()
                     reason = "Invalid number of values for SELECTOR_LABELS. Expected 5, but found " .. #values .. "."
                 })
             end
-        elseif ends_with(key, "_BUTTON_LABELS") then
-            local values = create_table(value_string)
+        elseif util.ends_with(key, "_BUTTON_LABELS") then
+            local values = util.create_table(value_string)
             if #values ~= 8 then
                 table.insert(invalid_value_entries, {
                     key = key,
@@ -368,8 +294,8 @@ function validate_config_values()
                     reason = "Invalid number of values for BUTTON_LABELS. Expected 8, but found " .. #values .. "."
                 })
             end
-        elseif ends_with(key, "_KNOB_LABELS") then
-            local values = create_table(value_string)
+        elseif util.ends_with(key, "_KNOB_LABELS") then
+            local values = util.create_table(value_string)
             if #values < 1 and #values > 2  then
                 table.insert(invalid_value_entries, {
                     key = key,
@@ -378,7 +304,7 @@ function validate_config_values()
                 })
             end
         elseif key == "SWITCH_LABELS" then
-            local values = create_table(value_string)
+            local values = util.create_table(value_string)
             if #values ~= 7 then
                 table.insert(invalid_value_entries, {
                     key = key,
@@ -387,7 +313,7 @@ function validate_config_values()
                 })
             end
         elseif key == "MODES" then
-            local values = create_table(value_string)
+            local values = util.create_table(value_string)
             if values[1] ~= "AUTO" then
                 table.insert(invalid_value_entries, {
                     key = key,
@@ -395,8 +321,8 @@ function validate_config_values()
                     reason = "The first value in MODES must always be AUTO."
                 })                
             end
-        elseif ends_with(key, "_LED") then
-            local binding_parameters = create_table(value_string)
+        elseif util.ends_with(key, "_LED") then
+            local binding_parameters = util.create_table(value_string)
             local current_entry_valid = true
 
             if #binding_parameters < 2 or #binding_parameters > 3 then
@@ -409,7 +335,7 @@ function validate_config_values()
             else
                 -- Common validation for all _LED keys (DataRef existence and condition parameter type)
                 local dr_string = binding_parameters[1]
-                local dr_table = safe_dataref_lookup(dr_string)
+                local dr_table = util.safe_dataref_lookup(dr_string)
                 local cond_param = tonumber(binding_parameters[2])
 
                 if dr_table == nil then
@@ -449,7 +375,7 @@ function validate_config_values()
                         local index_param = tonumber(binding_parameters[3])
                         local is_array_dataref = false
                         if dr_table ~= nil then -- Only check array type if DataRef was valid
-                            is_array_dataref = is_dataref_array(dr_table)
+                            is_array_dataref = util.is_dataref_array(dr_table)
                         end
 
                         if not is_array_dataref then
@@ -470,7 +396,7 @@ function validate_config_values()
                     elseif #binding_parameters == 2 then
                         local is_array_dataref = false
                         if dr_table ~= nil then -- Only check array type if DataRef was valid
-                            is_array_dataref = is_dataref_array(dr_table)
+                            is_array_dataref = util.is_dataref_array(dr_table)
                         end
                         if is_array_dataref then
                             table.insert(invalid_value_entries, {
@@ -499,7 +425,7 @@ function validate_config_values()
                 })
             end
         else -- For other keys, assume the value is a command string
-            local command_name = create_table(value_string)
+            local command_name = util.create_table(value_string)
             -- Check if it's a known internal command that will be created by this script
                 for i = 1, #command_name do
             if command_name[i] == "FlyWithLua/Bravo++/cf_mode_button" or 
@@ -507,7 +433,7 @@ function validate_config_values()
                command_name[i] == "FlyWithLua/Bravo++/toggle_mode_select" then
                 -- Log a debug message and skip validation for this internal command
                 log.debug("Skipping command validation for internal command: '" .. command_name[i] .. "' (will be created later).")
-            elseif not safe_command_lookup(command_name[i]) then -- Check if the command exists using XPLMFindCommand
+            elseif not util.safe_command_lookup(command_name[i]) then -- Check if the command exists using XPLMFindCommand
 					table.insert(invalid_value_entries, {
 						key = key,
 						value = value_string,
@@ -542,9 +468,9 @@ if not keys_valid or not values_valid then return end
 log.info("Initializing the selector labels map...")
 local selection_map_labels = {}
 for i = 1, #modes do
-    if modes[i] ~= "AUTO" then
-        local key = modes[i] .. "_SELECTOR_LABELS"
-        selection_map_labels[modes[i]] = create_table(nav_bindings[key])
+    local key = modes[i] .. "_SELECTOR_LABELS"
+    if modes[i] ~= "AUTO" or (modes[i] == "AUTO" and nav_bindings[key] ~= nil) then
+        selection_map_labels[modes[i]] = util.create_table(nav_bindings[key])
         log.info("Adding " .. key .. " = " .. nav_bindings[key])
     else
         selection_map_labels[modes[i]] = default_selections
@@ -561,7 +487,7 @@ for i = 1, #modes do
         local key = modes[i] .. "_" .. default_selections[j] .. "_BUTTON_LABELS"
         if modes[i] ~= "AUTO" or (modes[i] == "AUTO" and nav_bindings[key] ~= nil) then
             if nav_bindings[key] ~= nil then
-                select_map[default_selections[j]] = create_table(nav_bindings[key])
+                select_map[default_selections[j]] = util.create_table(nav_bindings[key])
                 button_map_labels[modes[i]] = select_map
                 log.info("Adding " .. key .. " = " .. nav_bindings[key])
 			else
@@ -582,7 +508,7 @@ log.info("Initializing the switch labels...")
 local switch_map_labels = {}
 
 if nav_bindings["SWITCH_LABELS"] ~= nil then
-    switch_map_labels = create_table(nav_bindings["SWITCH_LABELS"])
+    switch_map_labels = util.create_table(nav_bindings["SWITCH_LABELS"])
 end
 
 -- The labels used for the right twist knob
@@ -594,7 +520,7 @@ for i = 1, #modes do
         select_map[default_selections[j]] = {}
         local key = modes[i] .. "_" .. default_selections[j] .. "_KNOB_LABELS"
         if nav_bindings[key] ~= nil then
-            local bindings = create_table(nav_bindings[key])
+            local bindings = util.create_table(nav_bindings[key])
             if #bindings > 1 then
                 select_map[default_selections[j]]["OUTER"] = bindings[1]
                 select_map[default_selections[j]]["INNER"] = bindings[2]
@@ -610,19 +536,24 @@ for i = 1, #modes do
 end
 
 -- The button actions that will be used depending on mode and selection
-log.info("Initializing the button action map...")
+log.info("Initializing the button action map and button switch map...")
 local button_map_actions = {}
+local button_is_switch_map = {}
 local up_down = { "UP", "DOWN" }
 for i = 1, #modes do
     button_map_actions[modes[i]] = {}
+     button_is_switch_map[modes[i]] = {}
     for j = 1, #default_selections do
         button_map_actions[modes[i]][default_selections[j]] = button_map_actions[modes[i]][default_selections[j]] or {}
+		button_is_switch_map[modes[i]][default_selections[j]] = button_is_switch_map[modes[i]][default_selections[j]] or {}
         for k = 1, #default_button_labels do
             button_map_actions[modes[i]][default_button_labels[k]] = button_map_actions[modes[i]][default_button_labels[k]] or {}
             local full_key = modes[i] .. "_" .. default_button_labels[k] .. "_BUTTON"
             local bindings = nil
+            local is_current_button_a_switch = false
+			
             if default_selections[j] == "ALT" and nav_bindings[full_key] then                
-                bindings = create_table(nav_bindings[full_key])
+                bindings = util.create_table(nav_bindings[full_key])
                 button_map_actions[modes[i]][default_button_labels[k]]["ON_CLICK"] = bindings[1]
                 log.info("Adding " .. full_key .. " = " .. bindings[1] .. " for ON_CLICK")
                 local on_hold_action = bindings[2] or bindings[1]
@@ -632,7 +563,7 @@ for i = 1, #modes do
                 -- local switch_map = {}
                 for l = 1, #up_down do
                     local full_key = modes[i] .. "_" .. default_button_labels[k] .. "_" .. up_down[l] .. "_BUTTON"
-                    bindings = create_table(nav_bindings[full_key])
+                    bindings = util.create_table(nav_bindings[full_key])
                     if bindings[1] then
                         button_map_actions[modes[i]][default_button_labels[k]][up_down[l]] = button_map_actions[modes[i]][default_button_labels[k]][up_down[l]] or {}
                         button_map_actions[modes[i]][default_button_labels[k]][up_down[l]]["ON_CLICK"] = bindings[1]
@@ -643,12 +574,14 @@ for i = 1, #modes do
                         local on_long_click_action = "FlyWithLua/Bravo++/switch_mode_button"
 						button_map_actions[modes[i]][default_button_labels[k]][up_down[l]]["ON_LONG_CLICK"] = on_long_click_action
                         log.info("Adding " .. full_key .. " = " .. on_long_click_action .. " for ON_LONG_CLICK")
+						is_current_button_a_switch = true				
                     end
                 end
 			end
+
 			local key = modes[i] .. "_" .. default_selections[j]
 			full_key = key .. "_" .. default_button_labels[k] .. "_BUTTON"
-			bindings = create_table(nav_bindings[full_key])
+			bindings = util.create_table(nav_bindings[full_key])
 			button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]] = button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]] or {}
 			
 			if bindings[1] then
@@ -661,7 +594,7 @@ for i = 1, #modes do
 				for l = 1, #up_down do
 					key = modes[i] .. "_" .. default_selections[j]
 					full_key = key .. "_" .. default_button_labels[k] .. "_" .. up_down[l] .. "_BUTTON"
-					bindings = create_table(nav_bindings[full_key])
+					bindings = util.create_table(nav_bindings[full_key])
 					if bindings[1] then
 						button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]][up_down[l]] = button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]][up_down[l]] or {}
 						button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]][up_down[l]]["ON_CLICK"] = bindings[1]
@@ -669,16 +602,17 @@ for i = 1, #modes do
 						local on_hold_action = bindings[2] or bindings[1]
 						button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]][up_down[l]]["ON_HOLD"] = on_hold_action
 						log.info("Adding " .. full_key .. " = " .. on_hold_action .. " for ON_HOLD")
-                        local on_long_click_action = "FlyWithLua/Bravo++/switch_mode_button"
+						local on_long_click_action = "FlyWithLua/Bravo++/switch_mode_button"
 						button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]][up_down[l]]["ON_LONG_CLICK"] = on_long_click_action
-                        log.info("Adding " .. full_key .. " = " .. on_long_click_action .. " for ON_LONG_CLICK")
+						log.info("Adding " .. full_key .. " = " .. on_long_click_action .. " for ON_LONG_CLICK")
+						is_current_button_a_switch = true				
 					end
 				end
 			end
+			button_is_switch_map[modes[i]][default_selections[j]][default_button_labels[k]] = is_current_button_a_switch
         end
     end
 end
-
 -- The button led that will be displayed depending on mode and selection
 log.info("Initializing the button led map...")
 local button_map_leds = {}
@@ -708,7 +642,7 @@ for i = 1, #modes do
 				select_map3["ALL"] = select_map3["ALL"] or {}
 				select_map4["ALL"] = select_map4["ALL"] or {}
                 log.debug("navbinding: " .. nav_bindings[full_key])
-                local binding = create_table(nav_bindings[full_key])
+                local binding = util.create_table(nav_bindings[full_key])
                 log.debug("datref: " .. binding[1])
                 log.debug("cond: " .. binding[2])
                 select_map["ALL"][default_button_labels[k]] = dataref_table(binding[1])
@@ -729,7 +663,7 @@ for i = 1, #modes do
                 full_key = key .. "_" .. default_button_labels[k] .. "_BUTTON_LED"
                 if nav_bindings[full_key] then
                     log.debug("navbinding: " .. nav_bindings[full_key])
-                    local binding = create_table(nav_bindings[full_key])
+                    local binding = util.create_table(nav_bindings[full_key])
                     log.debug("datref: " .. binding[1])
                     log.debug("cond: " .. binding[2])
                     select_map[default_selections[j]][default_button_labels[k]] = dataref_table(binding[1])
@@ -786,44 +720,6 @@ for i = 1, #modes do
     end
 end
 
-local button_is_switch_map = {}
-
-log.info("Initializing the button switch map...")
-for _, mode_name in ipairs(modes) do
-    button_is_switch_map[mode_name] = {}
-    for _, selection_name in ipairs(default_selections) do
-        button_is_switch_map[mode_name][selection_name] = {}
-        for _, button_label_name in ipairs(default_button_labels) do
-            local is_current_button_a_switch = false
-
-            -- Replicate the original 'is_switch' logic to populate the static map
-            if is_table(button_map_actions[mode_name]) then
-                -- The original script has a special handling for the "ALT" selection
-                -- where button actions are stored one level higher in the table structure.
-                if selection_name == "ALT" then
-                    -- Check for mode-button combination (e.g., AUTO_HDG)
-                    if is_table(button_map_actions[mode_name][button_label_name]) then
-                        if is_table(button_map_actions[mode_name][button_label_name]["UP"]) or
-                            is_table(button_map_actions[mode_name][button_label_name]["DOWN"]) then
-                            is_current_button_a_switch = true
-                        end
-                    end
-                else
-                    -- Check for mode-selection-button combination (normal case)
-                    if is_table(button_map_actions[mode_name][selection_name]) and
-                        is_table(button_map_actions[mode_name][selection_name][button_label_name]) then
-                        if is_table(button_map_actions[mode_name][selection_name][button_label_name]["UP"]) or
-                            is_table(button_map_actions[mode_name][selection_name][button_label_name]["DOWN"]) then
-                            is_current_button_a_switch = true
-                        end
-                    end
-                end
-            end
-            button_is_switch_map[mode_name][selection_name][button_label_name] = is_current_button_a_switch
-        end
-    end
-end
-
 log.info("Initializing rocker switch led states...")
 local rocker_switch_led_states = {}
 
@@ -852,20 +748,307 @@ float_wnd_set_position(my_floating_wnd, SCREEN_WIDTH * 0.25, SCREEN_HEIGHT * 0.2
 -- float_wnd_set_onclick(my_floating_wnd, "on_click_floating_window")
 float_wnd_set_onclose(my_floating_wnd, "on_close_floating_window")
 
-function get_name_before_index(full_mode_string)
-    local conceptual_name = full_mode_string:gsub("_%d+$", "")
-    return conceptual_name
-end
-
 -- Initialize the static tables pertaining to mode
 local conceptual_mode_order = {}  -- Stores unique conceptual names in the order they first appear
 local conceptual_name_seen = {}   -- Helper to track if a conceptual name has been added to order
 
 for i = 1, #modes do
-    local name_conceptual = get_name_before_index(modes[i]) -- Get the base name, e.g., "AUTO" from "AUTO_2"
+    local name_conceptual = util.get_name_before_index(modes[i]) -- Get the base name, e.g., "AUTO" from "AUTO_2"
     if not conceptual_name_seen[name_conceptual] then
         table.insert(conceptual_mode_order, name_conceptual) -- Add unique conceptual name to maintain order
         conceptual_name_seen[name_conceptual] = true
+    end
+end
+
+-- Helper function to wrap text for a given width and font scale
+local function wrap_text_for_width(text_str, max_width, current_font_scale)
+    local lines = {}
+    local current_line = ""
+    local words = {}
+    local max_line_width = 0 -- NEW: Track the maximum width of any line
+
+    -- Split the text into words by one or more spaces [Conversational Turn 1]
+    for word in string.gmatch(text_str, "[^%s]+") do
+        table.insert(words, word)
+    end
+
+    -- Temporarily apply scale for accurate measurement [Conversational Turn 1]
+    imgui.SetWindowFontScale(current_font_scale) 
+    
+    local line_height = imgui.CalcTextSize("Wy") -- Get height of a typical line at this scale [Conversational Turn 1]
+
+    -- Handle empty text case
+    if #words == 0 then
+        imgui.SetWindowFontScale(1.0) -- Reset font scale after measurement [Conversational Turn 1]
+        return {}, 0, 0
+    end
+
+    for i, word in ipairs(words) do
+        local test_line = current_line
+        if current_line ~= "" then
+            test_line = test_line .. " " -- Add space if not the first word
+        end
+        test_line = test_line .. word
+
+        local test_w, _ = imgui.CalcTextSize(test_line) -- Get width of the test line
+
+        if test_w <= max_width then
+            current_line = test_line
+            max_line_width = math.max(max_line_width, test_w) -- Update max_line_width if this line is wider
+        else
+            -- If adding the current word makes the line exceed max_width, save current_line and start a new one
+            if current_line ~= "" then
+                table.insert(lines, current_line)
+            end
+            current_line = word -- Start a new line with the current word
+            -- Important: If the single 'word' itself is wider than max_width, it will be on its own line.
+            -- Its width should also be considered for max_line_width.
+            max_line_width = math.max(max_line_width, imgui.CalcTextSize(word)) -- Update for the new single word line
+        end
+    end
+    -- Add the last line if any content remains
+    if current_line ~= "" then
+        table.insert(lines, current_line)
+    end
+
+    imgui.SetWindowFontScale(1.0) -- Reset font scale after measurement [Conversational Turn 1]
+    -- NEW RETURN VALUE: Return table of lines, total height, AND the maximum line width found
+    return lines, #lines * line_height, max_line_width 
+end
+
+local cached_scaling_data = {}
+-- Main helper function to determine best font scale and wrapped text
+local function get_scaled_wrapped_text(text_string, button_width, button_height, min_font_scale)
+    min_font_scale = min_font_scale or 0.6 -- Define a minimum readable font scale (e.g., 60% of original) [Conversational Turn 1]
+    local key = text_string .. tostring(button_width) .. tostring(button_height) .. tostring(min_font_scale)
+
+    local cached_data = cached_scaling_data[key]
+    if cached_data then
+        -- Access the values by their named fields
+        local lines = cached_data.wrapped_lines
+        local height = cached_data.total_height
+        local scale = cached_data.final_scale
+        -- log.debug("Cache hit for text: " .. tostring(text_string))
+        return lines, height, scale
+    end
+
+    local best_scale = 1.0
+    local best_lines = {}
+    local best_height = 0
+    local border_width_buffer = 6
+    local found_fitting_scale = false -- Flag to track if a suitable scale was found
+
+    local current_scale = 1.0
+    -- Loop downwards from 1.0 to find the largest scale that fits both horizontally and vertically
+    while current_scale >= min_font_scale - 0.001 do -- Loop down to just below min_font_scale for precision [Conversational Turn 1]
+        -- Call updated wrap_text_for_width to get lines, required height, and widest line width
+        local lines, required_height, widest_line_width = wrap_text_for_width(tostring(text_string), button_width, current_scale)
+        
+        -- Check if BOTH total height AND the widest line's width fit
+        if required_height <= button_height and widest_line_width + border_width_buffer <= button_width then
+            best_scale = current_scale
+            best_lines = lines
+            best_height = required_height
+            found_fitting_scale = true -- Mark that a fitting scale has been found
+            break -- Found the largest scale that fits all criteria, so exit the loop
+        end
+        
+        -- If it doesn't fit, try a smaller scale
+        current_scale = current_scale - 0.05 -- Decrement step; adjust as needed for performance/granularity [Conversational Turn 1]
+    end
+
+    -- Fallback: If no scale within the tested range (down to min_font_scale) fully fit both criteria,
+    -- use the results from the minimum font scale as a last resort. This means there might still be
+    -- visual overflow if the text is exceptionally large or the button is exceptionally small.
+    if not found_fitting_scale then
+        best_lines, best_height, _ = wrap_text_for_width(tostring(text_string), button_width, min_font_scale)
+        best_scale = min_font_scale
+    end
+
+    -- Cache the results
+    cached_scaling_data[key] = {
+        wrapped_lines = best_lines,
+        total_height = best_height,
+        final_scale = best_scale
+    }
+
+    return best_lines, best_height, best_scale
+end
+
+local function draw_label(text, width, height, text_color_int)
+    local cx, cy = imgui.GetCursorScreenPos()
+
+    imgui.Dummy(width, height)
+
+    local text_w, text_h = imgui.CalcTextSize(tostring(text))
+    local text_draw_x = cx + (width - text_w) / 2
+    local text_draw_y = cy + (height - text_h) / 2
+
+    imgui.SetCursorScreenPos(text_draw_x, text_draw_y)
+    imgui.PushStyleColor(imgui.constant.Col.Text, text_color_int)
+    imgui.TextUnformatted(tostring(text))
+    imgui.PopStyleColor()
+end
+
+local function draw_knob(centerX, centerY, outerRad, innerRad, segments, thickness, current_mode, current_selection, current_cf_mode, twist_knob_map_actions, twist_knob_map_labels)
+    -- Base colors for the knob components (from original build_bravo_gui)
+    local outer_outline_color = 0xFF222222 -- Opaque Gray
+    local inner_outline_color = 0xFF222222 -- Opaque Gray
+    local outer_color = 0xFF505050        -- Opaque Dark Gray for the interior
+    local inner_color = 0xFF505050        -- Opaque Dark Gray for the interior
+    local knob_text_color = 0xFFFFFFFF    -- White for the text
+
+    -- Highlight colors (semi-transparent and opaque green, also from original)
+    local highlight_color = 0x4400FF00      -- Semi-transparent Green
+    local highlight_outline_color = 0xFF00FF00 -- Opaque Green
+
+    -- **Apply highlighting logic based on current_cf_mode and available actions**
+    if util.is_table(twist_knob_map_actions[current_mode]) and util.is_table(twist_knob_map_actions[current_mode][current_selection]) then
+        if util.is_table(twist_knob_map_actions[current_mode][current_selection]["INNER"]) then
+            -- This path is for knobs with explicit inner/outer functionality
+            if current_cf_mode == "outer" then
+                outer_color = highlight_color
+                outer_outline_color = highlight_outline_color
+            elseif current_cf_mode == "inner" then
+                inner_color = highlight_color
+                inner_outline_color = highlight_outline_color
+            end
+        elseif util.is_string(twist_knob_map_actions[current_mode][current_selection]["UP"]) then
+            -- This path is for simpler knobs that use only "UP" / "DOWN" without "INNER" / "OUTER" distinction
+            outer_color = highlight_color
+            outer_outline_color = highlight_outline_color
+            inner_color = highlight_color
+            inner_outline_color = highlight_outline_color
+        end
+    end
+
+    -- **Draw the circles that form the knob's appearance**
+    imgui.DrawList_AddCircle(centerX, centerY, outerRad, outer_outline_color, segments, thickness)
+    imgui.DrawList_AddCircleFilled(centerX, centerY, outerRad, outer_color, segments)
+    imgui.DrawList_AddCircle(centerX, centerY, innerRad, inner_outline_color, segments, thickness)
+    imgui.DrawList_AddCircleFilled(centerX, centerY, innerRad, inner_color, segments)
+
+    -- **Draw the text label on the knob**
+    if util.is_table(twist_knob_map_labels[current_mode]) then
+        local text_to_display = nil
+        if util.is_table(twist_knob_map_labels[current_mode][current_selection]) then
+            -- Retrieve text for inner/outer knob, dependent on current_cf_mode
+            text_to_display = twist_knob_map_labels[current_mode][current_selection][string.upper(current_cf_mode)]
+        elseif util.is_string(twist_knob_map_labels[current_mode][current_selection]) then
+            -- Retrieve text for simple knob (single label)
+            text_to_display = twist_knob_map_labels[current_mode][current_selection]
+        end
+
+        if text_to_display ~= nil then
+            -- Determine the available text area within the knob
+            -- The knob's inner circle has a radius of 'innerRad'.
+            -- So, the maximum square area for text within it would be 2 * innerRad on each side.
+            local knob_text_max_width = innerRad * 2
+            local knob_text_max_height = innerRad * 2 -- Allow text to span vertically if needed
+
+            -- **Use get_scaled_wrapped_text to get wrapped lines and the optimal font scale**
+            local wrapped_lines, text_total_height, final_font_scale =
+                get_scaled_wrapped_text(tostring(text_to_display), knob_text_max_width, knob_text_max_height, 0.6) -- 0.6 is the minimum font scale used in draw_button
+
+            -- Apply the determined font scale for drawing the text
+            imgui.SetWindowFontScale(final_font_scale)
+
+            -- Calculate the vertical starting position to center the block of text within the knob
+            local start_text_y = centerY - text_total_height / 2
+
+            -- Draw each wrapped line of text
+            local current_line_y = start_text_y
+            for _, line in ipairs(wrapped_lines) do
+                -- Recalculate line size at the final_font_scale for accurate centering
+                local line_w, line_h = imgui.CalcTextSize(line)
+                local line_draw_x = centerX - line_w / 2 -- Center each line horizontally within the knob
+
+                -- Set cursor position for the current line's top-left corner
+                imgui.SetCursorPosX(line_draw_x)
+                imgui.SetCursorPosY(current_line_y)
+
+                -- Call the global draw_label function to render the text for this line
+                draw_label(line, line_w, line_h, knob_text_color)
+
+                current_line_y = current_line_y + line_h -- Move the Y position down for the next line
+            end
+
+            -- Restore the original font scale to avoid affecting subsequent UI elements
+            imgui.SetWindowFontScale(1.0)
+        end
+    end
+end
+
+local arrow_color = 0xFF00FF00
+
+local function draw_button(text, width, height, box_bg_color_int, text_color_int, is_switch_button)
+    imgui.SetWindowFontScale(1.0) -- Always reset to default at the start [Conversational Turn 1]
+    local cx, cy = imgui.GetCursorScreenPos() -- Get current cursor position for drawing
+    imgui.Dummy(width, height) -- Reserve space for the button in the layout
+    imgui.DrawList_AddRectFilled(cx, cy, cx + width, cy + height, box_bg_color_int, 0) -- Draw button background
+
+    -- Step 1: Determine the appropriate font scale and wrap the text
+    -- The 'get_scaled_wrapped_text' function now handles splitting text into lines and
+    -- finding the largest font scale that allows the text to fit both horizontally and vertically.
+    local wrapped_lines, text_total_height, final_font_scale = get_scaled_wrapped_text(tostring(text), width, height, 0.6)
+
+    -- Apply the determined font scale for drawing the text on this button [Conversational Turn 1]
+    imgui.SetWindowFontScale(final_font_scale)
+
+    -- Step 2: Calculate the vertical starting position to center the block of text within the button
+    local start_text_y = cy + (height - text_total_height) / 2
+    
+    -- Step 3: Draw each wrapped line of text
+    local current_line_y = start_text_y
+    for _, line in ipairs(wrapped_lines) do
+        -- Recalculate size at the final_font_scale, this will now respect the scaling
+        local line_w, line_h = imgui.CalcTextSize(line) 
+        local line_draw_x = cx + (width - line_w) / 2 -- Center each line horizontally
+        
+        imgui.SetCursorScreenPos(line_draw_x, current_line_y) -- Set cursor for current line
+        imgui.PushStyleColor(imgui.constant.Col.Text, text_color_int) -- Set text color
+        imgui.TextUnformatted(line) -- Draw the line of text
+        imgui.PopStyleColor() -- Revert text color
+        
+        current_line_y = current_line_y + line_h -- Move the Y position down for the next line
+    end
+
+    -- Crucially, reset font scale to default (1.0) after drawing the button's text
+    imgui.SetWindowFontScale(1.0) 
+                                  
+    -- Step 4: Handle the drawing of the switch indicator (^^ or vv) if it's a switch button
+    if is_switch_button then
+        local ud_symbol = ""
+        local symbol_offset_y = 0
+        local padding = -2
+
+        -- Measure the symbol using the same final font scale determined for the main text
+        imgui.SetWindowFontScale(final_font_scale) 
+        local symbol_w, symbol_h = imgui.CalcTextSize("^^") -- Get height of the symbol at the scaled size
+        imgui.SetWindowFontScale(1.0) -- Reset immediately after measuring [Conversational Turn 1]
+
+        -- Determine symbol and its vertical offset
+        if current_switch_mode == "up" then -- `current_switch_mode` is a local variable in the script
+            ud_symbol = "^^"
+            -- symbol_offset_y = -(text_total_height / 2 + symbol_h + padding)
+            symbol_offset_y = -(height / 2 + symbol_h + padding)
+        elseif current_switch_mode == "down" then
+            ud_symbol = "vv"
+            -- symbol_offset_y = (text_total_height / 2 + padding)
+            symbol_offset_y = (height / 2 + padding)
+        end
+
+        -- Apply the determined font scale before drawing the symbol
+        imgui.SetWindowFontScale(final_font_scale) 
+        local symbol_draw_x = cx + (width - symbol_w) / 2 -- Center the symbol horizontally
+        local symbol_draw_y = cy + height / 2 + symbol_offset_y -- Calculate the base Y (center of the button) and then apply the offset
+        -- local symbol_draw_y = cy + height / 2 -- Calculate the base Y (center of the button) and then apply the offset
+
+        imgui.SetCursorScreenPos(symbol_draw_x, symbol_draw_y)
+		imgui.PushStyleColor(imgui.constant.Col.Text, arrow_color) -- Set symbol color to yellow
+        imgui.TextUnformatted(ud_symbol)
+        imgui.PopStyleColor()
+        imgui.SetWindowFontScale(1.0) -- Reset font scale after drawing the symbol
     end
 end
 
@@ -881,7 +1064,7 @@ function build_bravo_gui(wnd, x, y)
 
     local conceptual_mode_active = {} -- Stores boolean: true if current_mode falls under this conceptual name
 
-    local current_mode_conceptual_name = get_name_before_index(current_mode) -- Get conceptual name for current mode
+    local current_mode_conceptual_name = util.get_name_before_index(current_mode) -- Get conceptual name for current mode
     conceptual_mode_active[current_mode_conceptual_name] = true -- Set only the current mode's conceptual name active
 
     -- Parameters for mode label display
@@ -1015,298 +1198,6 @@ function build_bravo_gui(wnd, x, y)
     )
 end
 
-function draw_knob(centerX, centerY, outerRad, innerRad, segments, thickness, current_mode, current_selection, current_cf_mode, twist_knob_map_actions, twist_knob_map_labels)
-    -- Base colors for the knob components (from original build_bravo_gui)
-    local outer_outline_color = 0xFF222222 -- Opaque Gray
-    local inner_outline_color = 0xFF222222 -- Opaque Gray
-    local outer_color = 0xFF505050        -- Opaque Dark Gray for the interior
-    local inner_color = 0xFF505050        -- Opaque Dark Gray for the interior
-    local knob_text_color = 0xFFFFFFFF    -- White for the text
-
-    -- Highlight colors (semi-transparent and opaque green, also from original)
-    local highlight_color = 0x4400FF00      -- Semi-transparent Green
-    local highlight_outline_color = 0xFF00FF00 -- Opaque Green
-
-    -- **Apply highlighting logic based on current_cf_mode and available actions**
-    if is_table(twist_knob_map_actions[current_mode]) and is_table(twist_knob_map_actions[current_mode][current_selection]) then
-        if is_table(twist_knob_map_actions[current_mode][current_selection]["INNER"]) then
-            -- This path is for knobs with explicit inner/outer functionality
-            if current_cf_mode == "outer" then
-                outer_color = highlight_color
-                outer_outline_color = highlight_outline_color
-            elseif current_cf_mode == "inner" then
-                inner_color = highlight_color
-                inner_outline_color = highlight_outline_color
-            end
-        elseif is_string(twist_knob_map_actions[current_mode][current_selection]["UP"]) then
-            -- This path is for simpler knobs that use only "UP" / "DOWN" without "INNER" / "OUTER" distinction
-            outer_color = highlight_color
-            outer_outline_color = highlight_outline_color
-            inner_color = highlight_color
-            inner_outline_color = highlight_outline_color
-        end
-    end
-
-    -- **Draw the circles that form the knob's appearance**
-    imgui.DrawList_AddCircle(centerX, centerY, outerRad, outer_outline_color, segments, thickness)
-    imgui.DrawList_AddCircleFilled(centerX, centerY, outerRad, outer_color, segments)
-    imgui.DrawList_AddCircle(centerX, centerY, innerRad, inner_outline_color, segments, thickness)
-    imgui.DrawList_AddCircleFilled(centerX, centerY, innerRad, inner_color, segments)
-
-    -- **Draw the text label on the knob**
-    if is_table(twist_knob_map_labels[current_mode]) then
-        local text_to_display = nil
-        if is_table(twist_knob_map_labels[current_mode][current_selection]) then
-            -- Retrieve text for inner/outer knob, dependent on current_cf_mode
-            text_to_display = twist_knob_map_labels[current_mode][current_selection][string.upper(current_cf_mode)]
-        elseif is_string(twist_knob_map_labels[current_mode][current_selection]) then
-            -- Retrieve text for simple knob (single label)
-            text_to_display = twist_knob_map_labels[current_mode][current_selection]
-        end
-
-        if text_to_display ~= nil then
-            -- Determine the available text area within the knob
-            -- The knob's inner circle has a radius of 'innerRad'.
-            -- So, the maximum square area for text within it would be 2 * innerRad on each side.
-            local knob_text_max_width = innerRad * 2
-            local knob_text_max_height = innerRad * 2 -- Allow text to span vertically if needed
-
-            -- **Use get_scaled_wrapped_text to get wrapped lines and the optimal font scale**
-            local wrapped_lines, text_total_height, final_font_scale =
-                get_scaled_wrapped_text(tostring(text_to_display), knob_text_max_width, knob_text_max_height, 0.6) -- 0.6 is the minimum font scale used in draw_button
-
-            -- Apply the determined font scale for drawing the text
-            imgui.SetWindowFontScale(final_font_scale)
-
-            -- Calculate the vertical starting position to center the block of text within the knob
-            local start_text_y = centerY - text_total_height / 2
-
-            -- Draw each wrapped line of text
-            local current_line_y = start_text_y
-            for _, line in ipairs(wrapped_lines) do
-                -- Recalculate line size at the final_font_scale for accurate centering
-                local line_w, line_h = imgui.CalcTextSize(line)
-                local line_draw_x = centerX - line_w / 2 -- Center each line horizontally within the knob
-
-                -- Set cursor position for the current line's top-left corner
-                imgui.SetCursorPosX(line_draw_x)
-                imgui.SetCursorPosY(current_line_y)
-
-                -- Call the global draw_label function to render the text for this line
-                draw_label(line, line_w, line_h, knob_text_color)
-
-                current_line_y = current_line_y + line_h -- Move the Y position down for the next line
-            end
-
-            -- Restore the original font scale to avoid affecting subsequent UI elements
-            imgui.SetWindowFontScale(1.0)
-        end
-    end
-end
-
-function draw_label(text, width, height, text_color_int)
-    local cx, cy = imgui.GetCursorScreenPos()
-
-    imgui.Dummy(width, height)
-
-    local text_w, text_h = imgui.CalcTextSize(tostring(text))
-    local text_draw_x = cx + (width - text_w) / 2
-    local text_draw_y = cy + (height - text_h) / 2
-
-    imgui.SetCursorScreenPos(text_draw_x, text_draw_y)
-    imgui.PushStyleColor(imgui.constant.Col.Text, text_color_int)
-    imgui.TextUnformatted(tostring(text))
-    imgui.PopStyleColor()
-end
-
--- Helper function to wrap text for a given width and font scale
-local function wrap_text_for_width(text_str, max_width, current_font_scale)
-    local lines = {}
-    local current_line = ""
-    local words = {}
-    local max_line_width = 0 -- NEW: Track the maximum width of any line
-
-    -- Split the text into words by one or more spaces [Conversational Turn 1]
-    for word in string.gmatch(text_str, "[^%s]+") do
-        table.insert(words, word)
-    end
-
-    -- Temporarily apply scale for accurate measurement [Conversational Turn 1]
-    imgui.SetWindowFontScale(current_font_scale) 
-    
-    local line_height = imgui.CalcTextSize("Wy") -- Get height of a typical line at this scale [Conversational Turn 1]
-
-    -- Handle empty text case
-    if #words == 0 then
-        imgui.SetWindowFontScale(1.0) -- Reset font scale after measurement [Conversational Turn 1]
-        return {}, 0, 0
-    end
-
-    for i, word in ipairs(words) do
-        local test_line = current_line
-        if current_line ~= "" then
-            test_line = test_line .. " " -- Add space if not the first word
-        end
-        test_line = test_line .. word
-
-        local test_w, _ = imgui.CalcTextSize(test_line) -- Get width of the test line
-
-        if test_w <= max_width then
-            current_line = test_line
-            max_line_width = math.max(max_line_width, test_w) -- Update max_line_width if this line is wider
-        else
-            -- If adding the current word makes the line exceed max_width, save current_line and start a new one
-            if current_line ~= "" then
-                table.insert(lines, current_line)
-            end
-            current_line = word -- Start a new line with the current word
-            -- Important: If the single 'word' itself is wider than max_width, it will be on its own line.
-            -- Its width should also be considered for max_line_width.
-            max_line_width = math.max(max_line_width, imgui.CalcTextSize(word)) -- Update for the new single word line
-        end
-    end
-    -- Add the last line if any content remains
-    if current_line ~= "" then
-        table.insert(lines, current_line)
-    end
-
-    imgui.SetWindowFontScale(1.0) -- Reset font scale after measurement [Conversational Turn 1]
-    -- NEW RETURN VALUE: Return table of lines, total height, AND the maximum line width found
-    return lines, #lines * line_height, max_line_width 
-end
-
-local cached_scaling_data = {}
--- Main helper function to determine best font scale and wrapped text
-function get_scaled_wrapped_text(text_string, button_width, button_height, min_font_scale)
-    min_font_scale = min_font_scale or 0.6 -- Define a minimum readable font scale (e.g., 60% of original) [Conversational Turn 1]
-    local key = text_string .. tostring(button_width) .. tostring(button_height) .. tostring(min_font_scale)
-
-    local cached_data = cached_scaling_data[key]
-    if cached_data then
-        -- Access the values by their named fields
-        local lines = cached_data.wrapped_lines
-        local height = cached_data.total_height
-        local scale = cached_data.final_scale
-        log.debug("Cache hit for text: " .. tostring(text_string))
-        return lines, height, scale
-    end
-
-    local best_scale = 1.0
-    local best_lines = {}
-    local best_height = 0
-    local border_width_buffer = 6
-    local found_fitting_scale = false -- Flag to track if a suitable scale was found
-
-    local current_scale = 1.0
-    -- Loop downwards from 1.0 to find the largest scale that fits both horizontally and vertically
-    while current_scale >= min_font_scale - 0.001 do -- Loop down to just below min_font_scale for precision [Conversational Turn 1]
-        -- Call updated wrap_text_for_width to get lines, required height, and widest line width
-        local lines, required_height, widest_line_width = wrap_text_for_width(tostring(text_string), button_width, current_scale)
-        
-        -- Check if BOTH total height AND the widest line's width fit
-        if required_height <= button_height and widest_line_width + border_width_buffer <= button_width then
-            best_scale = current_scale
-            best_lines = lines
-            best_height = required_height
-            found_fitting_scale = true -- Mark that a fitting scale has been found
-            break -- Found the largest scale that fits all criteria, so exit the loop
-        end
-        
-        -- If it doesn't fit, try a smaller scale
-        current_scale = current_scale - 0.05 -- Decrement step; adjust as needed for performance/granularity [Conversational Turn 1]
-    end
-
-    -- Fallback: If no scale within the tested range (down to min_font_scale) fully fit both criteria,
-    -- use the results from the minimum font scale as a last resort. This means there might still be
-    -- visual overflow if the text is exceptionally large or the button is exceptionally small.
-    if not found_fitting_scale then
-        best_lines, best_height, _ = wrap_text_for_width(tostring(text_string), button_width, min_font_scale)
-        best_scale = min_font_scale
-    end
-
-    -- Cache the results
-    cached_scaling_data[key] = {
-        wrapped_lines = best_lines,
-        total_height = best_height,
-        final_scale = best_scale
-    }
-
-    return best_lines, best_height, best_scale
-end
-
-local arrow_color = 0xFF00FF00
-
-function draw_button(text, width, height, box_bg_color_int, text_color_int, is_switch_button)
-    imgui.SetWindowFontScale(1.0) -- Always reset to default at the start [Conversational Turn 1]
-    local cx, cy = imgui.GetCursorScreenPos() -- Get current cursor position for drawing
-    imgui.Dummy(width, height) -- Reserve space for the button in the layout
-    imgui.DrawList_AddRectFilled(cx, cy, cx + width, cy + height, box_bg_color_int, 0) -- Draw button background
-
-    -- Step 1: Determine the appropriate font scale and wrap the text
-    -- The 'get_scaled_wrapped_text' function now handles splitting text into lines and
-    -- finding the largest font scale that allows the text to fit both horizontally and vertically.
-    local wrapped_lines, text_total_height, final_font_scale = get_scaled_wrapped_text(tostring(text), width, height, 0.6)
-
-    -- Apply the determined font scale for drawing the text on this button [Conversational Turn 1]
-    imgui.SetWindowFontScale(final_font_scale)
-
-    -- Step 2: Calculate the vertical starting position to center the block of text within the button
-    local start_text_y = cy + (height - text_total_height) / 2
-    
-    -- Step 3: Draw each wrapped line of text
-    local current_line_y = start_text_y
-    for _, line in ipairs(wrapped_lines) do
-        -- Recalculate size at the final_font_scale, this will now respect the scaling
-        local line_w, line_h = imgui.CalcTextSize(line) 
-        local line_draw_x = cx + (width - line_w) / 2 -- Center each line horizontally
-        
-        imgui.SetCursorScreenPos(line_draw_x, current_line_y) -- Set cursor for current line
-        imgui.PushStyleColor(imgui.constant.Col.Text, text_color_int) -- Set text color
-        imgui.TextUnformatted(line) -- Draw the line of text
-        imgui.PopStyleColor() -- Revert text color
-        
-        current_line_y = current_line_y + line_h -- Move the Y position down for the next line
-    end
-
-    -- Crucially, reset font scale to default (1.0) after drawing the button's text
-    imgui.SetWindowFontScale(1.0) 
-                                  
-    -- Step 4: Handle the drawing of the switch indicator (^^ or vv) if it's a switch button
-    if is_switch_button then
-        local ud_symbol = ""
-        local symbol_offset_y = 0
-        local padding = -2
-
-        -- Measure the symbol using the same final font scale determined for the main text
-        imgui.SetWindowFontScale(final_font_scale) 
-        local symbol_w, symbol_h = imgui.CalcTextSize("^^") -- Get height of the symbol at the scaled size
-        imgui.SetWindowFontScale(1.0) -- Reset immediately after measuring [Conversational Turn 1]
-
-        -- Determine symbol and its vertical offset
-        if current_switch_mode == "up" then -- `current_switch_mode` is a local variable in the script
-            ud_symbol = "^^"
-            -- symbol_offset_y = -(text_total_height / 2 + symbol_h + padding)
-            symbol_offset_y = -(height / 2 + symbol_h + padding)
-        elseif current_switch_mode == "down" then
-            ud_symbol = "vv"
-            -- symbol_offset_y = (text_total_height / 2 + padding)
-            symbol_offset_y = (height / 2 + padding)
-        end
-
-        -- Apply the determined font scale before drawing the symbol
-        imgui.SetWindowFontScale(final_font_scale) 
-        local symbol_draw_x = cx + (width - symbol_w) / 2 -- Center the symbol horizontally
-        local symbol_draw_y = cy + height / 2 + symbol_offset_y -- Calculate the base Y (center of the button) and then apply the offset
-        -- local symbol_draw_y = cy + height / 2 -- Calculate the base Y (center of the button) and then apply the offset
-
-        imgui.SetCursorScreenPos(symbol_draw_x, symbol_draw_y)
-		imgui.PushStyleColor(imgui.constant.Col.Text, arrow_color) -- Set symbol color to yellow
-        imgui.TextUnformatted(ud_symbol)
-        imgui.PopStyleColor()
-        imgui.SetWindowFontScale(1.0) -- Reset font scale after drawing the symbol
-    end
-end
-
 function on_close_floating_window(my_floating_wnd)
     if bravo then
         hid_close(bravo)
@@ -1316,7 +1207,18 @@ end
 --------------------------------------------------------------
 --- CREATE THE FUNCTIONS FOR REFRESHING THE MODE AND SELECTOR
 --------------------------------------------------------------
-function find_position(n)
+local function set_current_selector(idx)
+    index = idx
+    if current_selection_label ~= selection_map_labels[current_mode][index] then
+        current_selection_label = selection_map_labels[current_mode][index]
+        current_selection = default_selections[index]
+		prime_button_led_states_for_mode_change()
+        led_state_modified = true
+        handle_led_changes()
+    end
+end
+
+local function find_position(n)
     if n == 0 or (bit.band(n, (n - 1)) ~= 0) then
         return -1
     end
@@ -1491,18 +1393,6 @@ create_command(
     ""
 )
 
-
-function set_current_selector(idx)
-    index = idx
-    if current_selection_label ~= selection_map_labels[current_mode][index] then
-        current_selection_label = selection_map_labels[current_mode][index]
-        current_selection = default_selections[index]
-		prime_button_led_states_for_mode_change()
-        led_state_modified = true
-        handle_led_changes()
-    end
-end
-
 function set_current_buttons()
     if button_map_labels[current_mode][current_selection] ~= nil then
         current_buttons = button_map_labels[current_mode][current_selection]
@@ -1516,7 +1406,7 @@ do_every_frame("tryCatch(set_current_buttons,'set_current_buttons')")
 ---- ROCKER SWITCHES
 --------------------------------------
 
-function handle_rocker_switch(rocker_number, dir)
+local function handle_rocker_switch(rocker_number, dir)
     local key = "SWITCH" .. rocker_number .. "_" .. dir
     local binding = nav_bindings[key]
     log.info("SWITCH: " .. binding)
@@ -1774,57 +1664,20 @@ local CONTINUOUS_PRESS_THRESHOLD = 0.75 -- Adjust this value as needed (e.g., 0.
 local command = "sim/none/none"
 local command_state = {}
 
-function start_timer(button_name)
-    command_state[button_name] = {}
-    command_state[button_name]["start_time"] = os.clock()
-    command_state[button_name]["is_continous_mode"] = false
-    command_state[button_name]["phase"] = "begin"
-end
-
-function handle_continuous_mode(button_name)
-    if os.clock() - command_state[button_name]["start_time"] >= CONTINUOUS_PRESS_THRESHOLD then
-        if not command_state[button_name]["is_continous_mode"] then
-            log.debug("Button " .. button_name .. " held down long enough. Starting continuous mode.")
-            command_state[button_name]["is_continous_mode"] = true
-			arrow_color = 0xFFED10D8
-        end        
-        trigger_command_for(button_name)
-	elseif os.clock() - command_state[button_name]["start_time"] >= LONG_CLICK_THRESHOLD then
-		local commands = get_commands_for_button(button_name)
-		if commands["ON_LONG_CLICK"] ~= nil then
-			arrow_color = 0xFF18D1CB
-		end	
-    end
-end
-
-function handle_single_click_mode(button_name)
-	log.debug("Calling handle_single_click_mode for " .. button_name)
-    if not command_state[button_name]["is_continous_mode"] and os.clock() - command_state[button_name]["start_time"] >= LONG_CLICK_THRESHOLD then
-		log.debug("Changing state to long_click")
-		command_state[button_name]["phase"] = "long_click"
-		trigger_command_for(button_name)
-	else
-		log.debug("Changing state to end")
-		command_state[button_name]["phase"] = "end"
-		trigger_command_for(button_name)
-	end
-	arrow_color = 0xFF00FF00
-end
-
-function get_commands_for_button(button_name)
+local function get_commands_for_button(button_name)
     local command = "sim/none/none"
-    if is_string(button_map_actions[current_mode][button_name]["ON_CLICK"]) then
+    if util.is_string(button_map_actions[current_mode][button_name]["ON_CLICK"]) then
         command = button_map_actions[current_mode][button_name]
-    elseif current_switch_mode == "up" and is_table(button_map_actions[current_mode][button_name]) and is_table(button_map_actions[current_mode][button_name]["UP"]) and is_string(button_map_actions[current_mode][button_name]["UP"]["ON_CLICK"]) then
+    elseif current_switch_mode == "up" and util.is_table(button_map_actions[current_mode][button_name]) and util.is_table(button_map_actions[current_mode][button_name]["UP"]) and util.is_string(button_map_actions[current_mode][button_name]["UP"]["ON_CLICK"]) then
         command = button_map_actions[current_mode][button_name]["UP"]
-    elseif current_switch_mode == "down" and is_table(button_map_actions[current_mode][button_name]) and  is_table(button_map_actions[current_mode][button_name]["DOWN"] and is_string(button_map_actions[current_mode][button_name]["DOWN"]["ON_CLICK"])) then
+    elseif current_switch_mode == "down" and util.is_table(button_map_actions[current_mode][button_name]) and  util.is_table(button_map_actions[current_mode][button_name]["DOWN"]) and util.is_string(button_map_actions[current_mode][button_name]["DOWN"]["ON_CLICK"]) then
         command = button_map_actions[current_mode][button_name]["DOWN"]
-    elseif is_table(button_map_actions[current_mode][current_selection]) and is_table(button_map_actions[current_mode][current_selection][button_name]) then
-        if is_string(button_map_actions[current_mode][current_selection][button_name]["ON_CLICK"]) then
+    elseif util.is_table(button_map_actions[current_mode][current_selection]) and util.is_table(button_map_actions[current_mode][current_selection][button_name]) then
+        if util.is_string(button_map_actions[current_mode][current_selection][button_name]["ON_CLICK"]) then
             command = button_map_actions[current_mode][current_selection][button_name]
-        elseif current_switch_mode == "up" and is_string(button_map_actions[current_mode][current_selection][button_name]["UP"]["ON_CLICK"]) then
+        elseif current_switch_mode == "up" and util.is_string(button_map_actions[current_mode][current_selection][button_name]["UP"]["ON_CLICK"]) then
             command = button_map_actions[current_mode][current_selection][button_name]["UP"]
-        elseif current_switch_mode == "down" and is_string(button_map_actions[current_mode][current_selection][button_name]["DOWN"]["ON_CLICK"]) then
+        elseif current_switch_mode == "down" and util.is_string(button_map_actions[current_mode][current_selection][button_name]["DOWN"]["ON_CLICK"]) then
             command = button_map_actions[current_mode][current_selection][button_name]["DOWN"]
         else
             log.debug("Button action not found!")
@@ -1835,7 +1688,7 @@ function get_commands_for_button(button_name)
     return command
 end
 
-function trigger_command_for(button_name)
+local function trigger_command_for(button_name)
     local commands = get_commands_for_button(button_name)
     local button_is_continuous_mode = command_state[button_name]["is_continous_mode"]
     local command_phase = command_state[button_name]["phase"]
@@ -1860,6 +1713,43 @@ function trigger_command_for(button_name)
         end
 
     end, "handle_bravo_button")
+end
+
+local function start_timer(button_name)
+    command_state[button_name] = {}
+    command_state[button_name]["start_time"] = os.clock()
+    command_state[button_name]["is_continous_mode"] = false
+    command_state[button_name]["phase"] = "begin"
+end
+
+local function handle_continuous_mode(button_name)
+    if os.clock() - command_state[button_name]["start_time"] >= CONTINUOUS_PRESS_THRESHOLD then
+        if not command_state[button_name]["is_continous_mode"] then
+            log.debug("Button " .. button_name .. " held down long enough. Starting continuous mode.")
+            command_state[button_name]["is_continous_mode"] = true
+			arrow_color = 0xFFED10D8
+        end        
+        trigger_command_for(button_name)
+	elseif os.clock() - command_state[button_name]["start_time"] >= LONG_CLICK_THRESHOLD then
+		local commands = get_commands_for_button(button_name)
+		if commands["ON_LONG_CLICK"] ~= nil then
+			arrow_color = 0xFF18D1CB
+		end	
+    end
+end
+
+local function handle_single_click_mode(button_name)
+	log.debug("Calling handle_single_click_mode for " .. button_name)
+    if not command_state[button_name]["is_continous_mode"] and os.clock() - command_state[button_name]["start_time"] >= LONG_CLICK_THRESHOLD then
+		log.debug("Changing state to long_click")
+		command_state[button_name]["phase"] = "long_click"
+		trigger_command_for(button_name)
+	else
+		log.debug("Changing state to end")
+		command_state[button_name]["phase"] = "end"
+		trigger_command_for(button_name)
+	end
+	arrow_color = 0xFF00FF00
 end
 
 -- Autopilot button
@@ -2058,12 +1948,12 @@ local led_state_modified = false
 
 -- BUTTON LED handling
 function get_button_led_state(button_name)
-    if is_table(button_map_leds_state[current_mode]["ALL"]) and is_boolean(button_map_leds_state[current_mode]["ALL"][button_name]) then
+    if util.is_table(button_map_leds_state[current_mode]["ALL"]) and util.is_boolean(button_map_leds_state[current_mode]["ALL"][button_name]) then
         if log_led_state then
             log.debug("get_led_state for mode ALL and button name " .. button_name)
         end
         return button_map_leds_state[current_mode]["ALL"][button_name]
-    elseif is_table(button_map_leds_state[current_mode][current_selection]) and is_boolean(button_map_leds_state[current_mode][current_selection][button_name]) then
+    elseif util.is_table(button_map_leds_state[current_mode][current_selection]) and util.is_boolean(button_map_leds_state[current_mode][current_selection][button_name]) then
         if log_led_state then
             log.debug("get_led_state for mode " .. current_mode .. ", current selection " .. current_selection .. " and button name " .. button_name)
         end
@@ -2076,16 +1966,15 @@ function get_button_led_state(button_name)
     end
 end
 
-
-function set_button_led_state(button_name, state)
+local function set_button_led_state(button_name, state)
     local current_led_state = get_button_led_state(button_name)
     if current_led_state ~= nil and state ~= current_led_state then
         if log_led_state then
             log.debug("get_led_state for " .. button_name .. " = " .. tostring(current_led_state))
         end
-        if is_table(button_map_leds_state[current_mode]["ALL"]) and is_boolean(button_map_leds_state[current_mode]["ALL"][button_name]) then
+        if util.is_table(button_map_leds_state[current_mode]["ALL"]) and util.is_boolean(button_map_leds_state[current_mode]["ALL"][button_name]) then
             button_map_leds_state[current_mode]["ALL"][button_name] = state
-        elseif is_table(button_map_leds_state[current_mode][current_selection]) and  is_boolean(button_map_leds_state[current_mode][current_selection][button_name]) then
+        elseif util.is_table(button_map_leds_state[current_mode][current_selection]) and  util.is_boolean(button_map_leds_state[current_mode][current_selection][button_name]) then
             button_map_leds_state[current_mode][current_selection][button_name] = state
         end
         led_state_modified = true
@@ -2102,63 +1991,19 @@ end
 
 local buffer = {}
 
-function get_led(led)
+local function get_led(led)
     -- logMsg("buffer[" .. led[1] .. "][" .. led[2] .. "]")
     return buffer[led[1]][led[2]]
 end
 
-function set_led(led, state)
+local function set_led(led, state)
     if state ~= get_led(led) then
         buffer[led[1]][led[2]] = state
         led_state_modified = true
     end
 end
 
--- New helper function to "prime" button LED states for change detection.
--- This temporarily forces the internal state for relevant buttons to 'true'
--- so that handle_led_changes can detect a change to 'false' if needed.
-function prime_button_led_states_for_mode_change()
-    -- Iterate through all possible physical button labels as defined in default_button_labels [1]
-	local led_detected = false -- Used to check whether there are any leds in this selection
-    for i = 1, #default_button_labels do
-        local button_label = default_button_labels[i]
-
-        -- Check and set for "ALL" selection within the current mode context
-        -- The "ALL" selection is used for LEDs that are common across all selector positions within a mode [2, 3]
-        if is_table(button_map_leds_state[current_mode]) and is_table(button_map_leds_state[current_mode]["ALL"]) then
-            -- Only prime if the LED state entry actually exists for this button in the "ALL" category [4, 5]
-            if is_boolean(button_map_leds_state[current_mode]["ALL"][button_label]) then
-                button_map_leds_state[current_mode]["ALL"][button_label] = false
-                -- Manually setting led_state_modified to true ensures a HID update will be sent [6, 7].
-                -- This is a safeguard in case no other state changes occur that would trigger it.
-				if log_led_state then
-                    log.debug("Setting led to true for [" .. current_mode .. "][ALL][" .. button_label .."]")
-                end
-                led_state_modified = true
-				led_detected = true
-            end
-        elseif is_table(button_map_leds_state[current_mode]) and is_table(button_map_leds_state[current_mode][current_selection]) then
-            -- Only prime if the LED state entry actually exists for this button in this specific selection [5, 9]
-            if is_boolean(button_map_leds_state[current_mode][current_selection][button_label]) then
-                button_map_leds_state[current_mode][current_selection][button_label] = false
-                -- As above, manually forcing led_state_modified to ensure a HID update.
-                if log_led_state then
-                    log.debug("Setting led to true for [" .. current_mode .. "][" .. current_selection .. "][" .. button_label .."]")
-                end
-                led_state_modified = true
-				led_detected = true
-            end
-        end
-    end
-	if not led_detected then -- Ensures all leds are off if no leds are used
-		all_leds_off()
-	end
-    if log_led_state then
-        log.debug("Internal button LED states 'primed' to true for mode change evaluation.")
-    end
-end
-
-function all_leds_off()
+local function all_leds_off()
     for i = 1, #default_button_labels do
         set_button_led_state(default_button_labels[i], false)
     end
@@ -2181,7 +2026,51 @@ function all_leds_off()
     end
 end
 
-function send_hid_data()
+-- New helper function to "prime" button LED states for change detection.
+-- This temporarily forces the internal state for relevant buttons to 'true'
+-- so that handle_led_changes can detect a change to 'false' if needed.
+function prime_button_led_states_for_mode_change()
+    -- Iterate through all possible physical button labels as defined in default_button_labels [1]
+	local led_detected = false -- Used to check whether there are any leds in this selection
+    for i = 1, #default_button_labels do
+        local button_label = default_button_labels[i]
+
+        -- Check and set for "ALL" selection within the current mode context
+        -- The "ALL" selection is used for LEDs that are common across all selector positions within a mode [2, 3]
+        if util.is_table(button_map_leds_state[current_mode]) and util.is_table(button_map_leds_state[current_mode]["ALL"]) then
+            -- Only prime if the LED state entry actually exists for this button in the "ALL" category [4, 5]
+            if util.is_boolean(button_map_leds_state[current_mode]["ALL"][button_label]) then
+                button_map_leds_state[current_mode]["ALL"][button_label] = false
+                -- Manually setting led_state_modified to true ensures a HID update will be sent [6, 7].
+                -- This is a safeguard in case no other state changes occur that would trigger it.
+				if log_led_state then
+                    log.debug("Setting led to true for [" .. current_mode .. "][ALL][" .. button_label .."]")
+                end
+                led_state_modified = true
+				led_detected = true
+            end
+        elseif util.is_table(button_map_leds_state[current_mode]) and util.is_table(button_map_leds_state[current_mode][current_selection]) then
+            -- Only prime if the LED state entry actually exists for this button in this specific selection [5, 9]
+            if util.is_boolean(button_map_leds_state[current_mode][current_selection][button_label]) then
+                button_map_leds_state[current_mode][current_selection][button_label] = false
+                -- As above, manually forcing led_state_modified to ensure a HID update.
+                if log_led_state then
+                    log.debug("Setting led to true for [" .. current_mode .. "][" .. current_selection .. "][" .. button_label .."]")
+                end
+                led_state_modified = true
+				led_detected = true
+            end
+        end
+    end
+	if not led_detected then -- Ensures all leds are off if no leds are used
+		all_leds_off()
+	end
+    if log_led_state then
+        log.debug("Internal button LED states 'primed' to true for mode change evaluation.")
+    end
+end
+
+local function send_hid_data()
     local data = {}
 
     for bank = 1, 4 do
@@ -2190,9 +2079,9 @@ function send_hid_data()
 
     for i = 1, #default_button_labels do
         local button_name = default_button_labels[i]
-        if is_table(button_map_leds_state[current_mode]["ALL"]) and button_map_leds_state[current_mode]["ALL"][button_name] == true then
+        if util.is_table(button_map_leds_state[current_mode]["ALL"]) and button_map_leds_state[current_mode]["ALL"][button_name] == true then
             data[1] = bit.bor(data[1], bit.lshift(1, i - 1))
-        elseif is_table(button_map_leds_state[current_mode][current_selection]) and button_map_leds_state[current_mode][current_selection][button_name] == true then
+        elseif util.is_table(button_map_leds_state[current_mode][current_selection]) and button_map_leds_state[current_mode][current_selection][button_name] == true then
             data[1] = bit.bor(data[1], bit.lshift(1, i - 1))
         end
     end
@@ -2216,12 +2105,12 @@ function send_hid_data()
     end
 end
 
-function get_led_state_for_dataref(dr_table, cond, index)
+local function get_led_state_for_dataref(dr_table, cond, index)
     if dr_table == nil then
         return false
     end
-    if is_dataref_array(dr_table) then
-		--if is_string(index) then
+    if util.is_dataref_array(dr_table) then
+		--if util.is_string(index) then
 		--	log.debug("index: " .. index)
 		--end
 		if index == nil then
@@ -2251,8 +2140,8 @@ local switch_map_leds_index = {}
 
 for i = 1, 7 do
     local key = "SWITCH" .. i .. "_LED"
-    if is_string(nav_bindings[key]) then
-        local binding = create_table(nav_bindings[key])
+    if util.is_string(nav_bindings[key]) then
+        local binding = util.create_table(nav_bindings[key])
         switch_map_leds[key] = dataref_table(binding[1])
         switch_map_leds_cond[key] = binding[2]
         if #binding == 3 then
@@ -2265,7 +2154,7 @@ function get_led_state_for_switch(switch_label)
 	return rocker_switch_led_states[switch_label] or false
 end
 
-function handle_rocker_switch_led_changes()
+local function handle_rocker_switch_led_changes()
     -- Iterate through the predefined rocker switch labels (SWITCH1_LED, SWITCH2_LED, etc.)
     -- `switch_map_leds` stores the `dataref_table` objects, `switch_map_leds_cond` stores the condition,
     -- and `switch_map_leds_index` stores the array index for each switch [4].
@@ -2275,7 +2164,7 @@ function handle_rocker_switch_led_changes()
         local dataref_table_obj = switch_map_leds[switch_label_key] -- Get the dataref_table object
 
         -- Only proceed if a DataRef is actually configured for this switch LED
-        if is_dataref_magic_table(dataref_table_obj) then
+        if util.is_dataref_magic_table(dataref_table_obj) then
             local condition_value = switch_map_leds_cond[switch_label_key]
             local dataref_index = switch_map_leds_index[switch_label_key]
 
@@ -2301,7 +2190,7 @@ local master_state = false
 -- Landing gear LEDs
 local gear = nil
 if nav_bindings["GEAR_DEPLOYMENT_LED"] ~= nil then
-    local binding = create_table(nav_bindings["GEAR_DEPLOYMENT_LED"])
+    local binding = util.create_table(nav_bindings["GEAR_DEPLOYMENT_LED"])
     gear = dataref_table(binding[1])
 end
 
@@ -2310,18 +2199,18 @@ local annunciator_map_leds_cond = {}
 
 for i = 1, #annunciator_labels do
     local key = annunciator_labels[i] .. "_LED"
-    if is_string(nav_bindings[key]) then
-        local binding = create_table(nav_bindings[key])
+    if util.is_string(nav_bindings[key]) then
+        local binding = util.create_table(nav_bindings[key])
         annunciator_map_leds[annunciator_labels[i]] = dataref_table(binding[1])
         annunciator_map_leds_cond[annunciator_labels[i]] = binding[2]
-    elseif is_string(nav_bindings[annunciator_labels[i] .. "_1_LED"]) then
+    elseif util.is_string(nav_bindings[annunciator_labels[i] .. "_1_LED"]) then
         annunciator_map_leds[annunciator_labels[i]] = {}
         annunciator_map_leds_cond[annunciator_labels[i]] = {}
         local idx = 1
         local key = annunciator_labels[i] .. "_" .. tostring(idx) .. "_LED"
         -- logMsg("key: " .. key)
-        while is_string(nav_bindings[key]) do
-            local binding = create_table(nav_bindings[key])
+        while util.is_string(nav_bindings[key]) do
+            local binding = util.create_table(nav_bindings[key])
             annunciator_map_leds[annunciator_labels[i]][idx] = dataref_table(binding[1])
             annunciator_map_leds_cond[annunciator_labels[i]] = binding[2]
             idx = idx + 1
@@ -2331,12 +2220,12 @@ for i = 1, #annunciator_labels do
     end 
 end
 
-function get_led_state_for_annunciator(annunciator_label)
+local function get_led_state_for_annunciator(annunciator_label)
     local dataref = annunciator_map_leds[annunciator_label]
     -- logMsg("get dataref for: " .. annunciator_label)
-    if is_dataref_magic_table(dataref) then
+    if util.is_dataref_magic_table(dataref) then
         return get_led_state_for_dataref(dataref, annunciator_map_leds_cond[annunciator_label])
-    elseif is_table(dataref) then
+    elseif util.is_table(dataref) then
         for i = 1, #dataref do
             if get_led_state_for_dataref(dataref[i], annunciator_map_leds_cond[annunciator_label]) == true then
                 return true
@@ -2350,30 +2239,30 @@ end
 all_leds_off()
 send_hid_data()
 
-function handle_button_led_changes()
+local function handle_button_led_changes()
 	for i = 1, #default_button_labels do
         local led_state_for_dataref = nil
         local led_state_for_button = nil
 		local button_label = default_button_labels[i]
 
 		-- log.debug("Before if: [" .. current_mode .. "][" .. current_selection .. "][" .. button_label .. "]")
-		if is_table(button_map_leds[current_mode]["ALL"]) then
+		if util.is_table(button_map_leds[current_mode]["ALL"]) then
 			local dataref = button_map_leds[current_mode]["ALL"][button_label]
             if dataref ~= nil then
                 local index = nil
-                if is_table(button_map_leds_index[current_mode]["ALL"]) then
+                if util.is_table(button_map_leds_index[current_mode]["ALL"]) then
                     index = button_map_leds_index[current_mode]["ALL"][button_label]
                 end
                 
                 led_state_for_dataref = get_led_state_for_dataref(dataref, button_map_leds_cond[current_mode]["ALL"][button_label], index)
                 led_state_for_button = button_map_leds_state[current_mode]["ALL"][button_label]
             end
-		elseif is_table(button_map_leds[current_mode][current_selection]) then
+		elseif util.is_table(button_map_leds[current_mode][current_selection]) then
 			local dataref = button_map_leds[current_mode][current_selection][button_label]
 
             if dataref ~= nil then
                 local index = nil
-                if is_table(button_map_leds_index[current_mode][current_selection]) then
+                if util.is_table(button_map_leds_index[current_mode][current_selection]) then
                     index = button_map_leds_index[current_mode][current_selection][button_label]
                 end
 
@@ -2388,7 +2277,7 @@ function handle_button_led_changes()
 	end            
 end
 
-function handle_gear_led_changes()
+local function handle_gear_led_changes()
 	-- Landing gear
 	local gear_leds = {}
 
@@ -2429,7 +2318,7 @@ function handle_gear_led_changes()
 	set_led(LED_LDG_R_RED, gear_leds[3][2])
 end
 
-function handle_annunciator_row1_led_changes()
+local function handle_annunciator_row1_led_changes()
 	-- MASTER WARNING
 	set_led(LED_ANC_MSTR_WARNG, get_led_state_for_annunciator("MASTER_WARNING"))
 
@@ -2452,7 +2341,7 @@ function handle_annunciator_row1_led_changes()
 	set_led(LED_ANC_APU, get_led_state_for_annunciator("APU"))
 end
 
-function handle_annunciator_row2_led_changes()
+local function handle_annunciator_row2_led_changes()
 	-- MASTER CAUTION
 	set_led(LED_ANC_MSTR_CTN, get_led_state_for_annunciator("MASTER_CAUTION"))
 
@@ -2504,7 +2393,7 @@ end
 
 local last_call = os.clock()
 
-function do_more_often(func_to_execute, description, interval_seconds)
+local function do_more_often(func_to_execute, description, interval_seconds)
     local current_time = os.clock()
     -- Check if enough time has passed since the last successful call
     -- The condition (current_time - last_call) >= interval_seconds correctly calculates elapsed time [Conversation History]
@@ -2522,22 +2411,3 @@ end
 
 -- Register the corrected function to be called every frame
 do_every_frame('handle_led_changes_task()')
-
--- do_every_frame('tryCatch(handle_led_changes)')
--- do_every_frame('handle_led_changes()')
-
--- Helper function to find index in table (used for cycling modes)
-function table.find(t, value)
-    for i, v in ipairs(t) do
-        if v == value then return i end
-    end
-    return nil -- Not found.
-end
-
--- Function that logs any function that fails
-function tryCatch(tryBlock, source)
-  local success, errorMessage = pcall(tryBlock)
-  if not success then
-    log.error("Caught error from " .. source .. " : " .. errorMessage)
-  end
-end
