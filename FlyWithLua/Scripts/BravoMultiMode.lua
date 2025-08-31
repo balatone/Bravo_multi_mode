@@ -1409,9 +1409,13 @@ do_every_frame("tryCatch(set_current_buttons,'set_current_buttons')")
 local function handle_rocker_switch(rocker_number, dir)
     local key = "SWITCH" .. rocker_number .. "_" .. dir
     local binding = nav_bindings[key]
-    log.info("SWITCH: " .. binding)
-    local command_dataref = binding or "sim/none/none"
-    command_once(command_dataref)
+    if binding then
+        log.info("SWITCH: " .. binding)
+        local command_dataref = binding or "sim/none/none"
+        command_once(command_dataref)
+    else
+        log.warning("Nothing to do.")
+    end
 end
 
 function rocker_switch1_up()
@@ -2235,10 +2239,6 @@ local function get_led_state_for_annunciator(annunciator_label)
     end
 end
 
--- Initialize the initial state
-all_leds_off()
-send_hid_data()
-
 local function handle_button_led_changes()
 	for i = 1, #default_button_labels do
         local led_state_for_dataref = nil
@@ -2305,7 +2305,7 @@ local function handle_gear_led_changes()
 			gear_leds[i] = {nil, nil} -- green, red
 
 			-- Gear deployed
-			gear_leds[i][1] = true
+			gear_leds[i][1] = false
 			gear_leds[i][2] = false
 		end
 	end
@@ -2364,32 +2364,44 @@ local function handle_annunciator_row2_led_changes()
 	set_led(LED_ANC_DOOR, get_led_state_for_annunciator("DOOR"))
 end
 
+-- A time delay is required on the initial loading of the aircraft in order to set the leds correctly
+local leds_first_sync_done = false
+local leds_first_sync_timer = os.clock()
+local led_first_time_delay = 4 -- 4 second delay before setting the leds
+
 function handle_led_changes()
-    if bus_voltage[0] > 0 then
-        master_state = true
+    if leds_first_sync_done then
+        if bus_voltage[0] > 0 then
+            master_state = true
 
-		tryCatch(handle_button_led_changes, "handle_button_led_changes")
-		
-        -- Handle the remaining leds
-		tryCatch(handle_gear_led_changes, "handle_gear_led_changes")
-		tryCatch(handle_annunciator_row1_led_changes, "handle_annunciator_row1_led_changes")
-		tryCatch(handle_annunciator_row2_led_changes, "handle_annunciator_row2_led_changes")
+            tryCatch(handle_button_led_changes, "handle_button_led_changes")
+            
+            -- Handle the remaining leds
+            tryCatch(handle_gear_led_changes, "handle_gear_led_changes")
+            tryCatch(handle_annunciator_row1_led_changes, "handle_annunciator_row1_led_changes")
+            tryCatch(handle_annunciator_row2_led_changes, "handle_annunciator_row2_led_changes")
 
-        -- Handle the rocker switches
-		tryCatch(handle_rocker_switch_led_changes, "handle_rocker_switch_led_changes")
-		
-    elseif master_state == true then
-        log.debug("No voltage detected. Turning all leds off.")
-        -- No bus voltage, disable all LEDs
-        master_state = false
-        tryCatch(all_leds_off, 'all_leds_off')
-    end
+            -- Handle the rocker switches
+            tryCatch(handle_rocker_switch_led_changes, "handle_rocker_switch_led_changes")
+            
+        elseif master_state == true then
+            log.debug("No voltage detected. Turning all leds off.")
+            -- No bus voltage, disable all LEDs
+            master_state = false
+            tryCatch(all_leds_off, 'all_leds_off')
+        end
 
-    -- If we have any LED changes, send them to the device
-    if led_state_modified == true then
-        tryCatch(send_hid_data,'send_hid_data')
+        -- If we have any LED changes, send them to the device
+        if led_state_modified == true then
+            tryCatch(send_hid_data,'send_hid_data')
+        end
+    elseif os.clock() - leds_first_sync_timer > led_first_time_delay then
+        leds_first_sync_done = true
     end
 end
+
+-- Initialize the initial state
+all_leds_off()
 
 local last_call = os.clock()
 
