@@ -542,7 +542,8 @@ local button_is_switch_map = {}
 local up_down = { "UP", "DOWN" }
 for i = 1, #modes do
     button_map_actions[modes[i]] = {}
-     button_is_switch_map[modes[i]] = {}
+    button_is_switch_map[modes[i]] = {}
+	button_is_switch_map[modes[i]]["ALL"] = {}
     for j = 1, #default_selections do
         button_map_actions[modes[i]][default_selections[j]] = button_map_actions[modes[i]][default_selections[j]] or {}
 		button_is_switch_map[modes[i]][default_selections[j]] = button_is_switch_map[modes[i]][default_selections[j]] or {}
@@ -551,6 +552,7 @@ for i = 1, #modes do
             local full_key = modes[i] .. "_" .. default_button_labels[k] .. "_BUTTON"
             local bindings = nil
             local is_current_button_a_switch = false
+			local is_select_context_aware = false
 			
             if default_selections[j] == "ALT" and nav_bindings[full_key] then                
                 bindings = util.create_table(nav_bindings[full_key])
@@ -590,6 +592,7 @@ for i = 1, #modes do
 				local on_hold_action = bindings[2] or bindings[1]
 				button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]]["ON_HOLD"] = on_hold_action
 				log.info("Adding " .. full_key .. " = " .. on_hold_action .. " for ON_HOLD")
+				is_select_context_aware = true
 			else
 				for l = 1, #up_down do
 					key = modes[i] .. "_" .. default_selections[j]
@@ -605,11 +608,17 @@ for i = 1, #modes do
 						local on_long_click_action = "FlyWithLua/Bravo++/switch_mode_button"
 						button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]][up_down[l]]["ON_LONG_CLICK"] = on_long_click_action
 						log.info("Adding " .. full_key .. " = " .. on_long_click_action .. " for ON_LONG_CLICK")
-						is_current_button_a_switch = true				
+						is_current_button_a_switch = true
+						is_select_context_aware = true
 					end
 				end
 			end
-			button_is_switch_map[modes[i]][default_selections[j]][default_button_labels[k]] = is_current_button_a_switch
+			if is_select_context_aware then
+				button_is_switch_map[modes[i]][default_selections[j]][default_button_labels[k]] = is_current_button_a_switch
+			elseif default_selections[j] == "ALT" then
+				log.info("************* Adding is switch to ALL ************ " .. tostring(is_current_button_a_switch))
+				button_is_switch_map[modes[i]]["ALL"][default_button_labels[k]] = is_current_button_a_switch			
+			end
         end
     end
 end
@@ -1138,10 +1147,13 @@ function build_bravo_gui(wnd, x, y)
         elseif led_state == false then
             button_label_color = button_off_label_color
         end
-
+		
+		-- log.info("button_is_switch_map[" .. current_mode .. "]['ALL'][" .. button_name.. "] = " .. tostring(button_is_switch_map[current_mode]["ALL"][button_name]))
         local is_switch = button_is_switch_map[current_mode] and
-                          button_is_switch_map[current_mode][current_selection] and
-                          button_is_switch_map[current_mode][current_selection][button_name] or
+                          ((button_is_switch_map[current_mode][current_selection] and
+                          button_is_switch_map[current_mode][current_selection][button_name]) or
+                          (button_is_switch_map[current_mode]["ALL"] and
+                          button_is_switch_map[current_mode]["ALL"][button_name])) or
                           false -- Default to false if the entry is somehow missing
 
         local current_button_x = h_offset_button + (i - 1) * (button_width + h_spacing_button)
@@ -2367,7 +2379,7 @@ end
 -- A time delay is required on the initial loading of the aircraft in order to set the leds correctly
 local leds_first_sync_done = false
 local leds_first_sync_timer = os.clock()
-local led_first_time_delay = 4 -- 4 second delay before setting the leds
+local led_first_time_delay = 4 -- 10 second delay before setting the leds
 
 function handle_led_changes()
     if leds_first_sync_done then
