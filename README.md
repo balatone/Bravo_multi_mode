@@ -3,12 +3,12 @@ Bravo++ multi-mode
 
 *DISCLAIMER*
 
-This is a beta release of a script I developed for personal use in the hopes that others would find it useful and fun. I am distributing it for free personal use and I appreciate feedback, but please don't expect me to provide full-time support on this. 
+This is a a script I developed for personal use in the hopes that others would find it useful and fun. I am distributing it for free personal use and I appreciate feedback, but please don't expect me to provide full-time support on this. 
 
 If the script doesn't work for you, you can submit the ```log.txt``` file, the configuration file you are using and a description of the problem by creating a [GitHub issue](https://github.com/balatone/Bravo_multi_mode/issues) or send me a PM and I will try to see if I can solve the problem, but it may take time. For platform users that are not on Windows, I can only provide limited help, since I only run X-Plane on Windows 11. That doesn't mean it won't work on other platforms and I encourage you to try, but if you get a platform specific problem I probably won't be able help you.
 
 # Description
-Bravo++ allows you to configure multi-mode functionality, so that you get more out of your Honeycomb Bravo than just the basic autopilot. The default mode (AUTO) will retain the standard autopilot functionality, but you can configure additional modes so that you can use the selector switch, buttons and rotating button to control other functionality in the aircraft. I have minimized the use of the Honeycomb Configurator and the only two controls that still need to be configured there are the right knob and the trim wheel (these can be configured outside the Honeycomb configurator, but the behavior won't be as good). There are some configuration files provided for the default aircraft such as the Cessna 172, the King Air C90B, and the Cirrus SF50 along with configurations for the Aerobask DA42 and DA62. Hopefully these will be enough so that you can configure you're own aircraft and perhaps submit it to the collection.
+Bravo++ allows you to configure multi-mode functionality, so that you get more out of your Honeycomb Bravo than just the basic autopilot. The default mode (AUTO) will retain the standard autopilot functionality (it can also be overridden), but you can configure additional modes so that you can use the selector switch, buttons and rotating button to control other functionality in the aircraft. I have minimized the use of the Honeycomb Configurator and the only two controls that still need to be configured there are the right knob and the trim wheel (these can be configured outside the Honeycomb configurator, but the behavior won't be as good). There are some configuration files provided for the default aircraft such as the Cessna 172, the King Air C90B, and the Cirrus SF50 along with configurations for the Aerobask DA42 and DA62. Hopefully these will be enough so that you can configure you're own aircraft and perhaps submit it to the collection.
 
 Prerequisites:
 - X-Plane 12
@@ -94,10 +94,10 @@ Here are the descriptions you should look for when configuring each switch with 
 ## Configuring the right twist knob and the trim wheel
 You can try to configure the twist knob and the trim wheel directly in X-Plane, but I personally get issues with latency that results in not all the clicks getting registered as I turn the knob or wheel. I may delve deeper into this issue to see if I can resolve it, but for now I use the Honeycomb Configurator from Aerosoft to solve the problem. I am aware that Mac users have issues with the software, but perhaps it will work with the minimal setup config file I have provided. 
 
-You will find the Honeycomb Configurator file under ```Resources\plugins\FlyWithLua\conf\Bravo++_honecomb_configurator.json``` and you import it using the following steps:
+You will find the Honeycomb Configurator file under ```Resources\plugins\FlyWithLua\Modules\Bravo++\conf\Bravo++_honecomb_configurator.json``` and you import it using the following steps:
 - Select "Actions > Open settings"  
 - Click on "Import profiles"
-- Select the file ```Resources\plugins\FlyWithLua\Scripts\Bravo++_honecomb_configurator.json```
+- Select the file ```Resources\plugins\FlyWithLua\Modules\Bravo++\conf\Bravo++_honecomb_configurator.json```
 - Select the profile ```Bravo++ Multi-mode```
 - Click "Ok"
 
@@ -112,11 +112,11 @@ For reference, the relevant command descriptions that are configured are as foll
 - Nose down (turn wheel down) = Handle trim on bravo for nose down (FlyWithLua/Bravo++/trim_nose_down_handler)
 
 ## Configuring the aircraft
-The easiest way to start is to use one of the predefined G1000 configurations (all aircraft, but the King Air C90B) like the for the Cessna 172. I won't go into the details on the content of the config file in this section and assume you want to get going as quickly as possible.
+The easiest way to start is to use one of the predefined G1000 configurations (all aircraft, but the King Air C90B) like the for the Cessna 172. You can find the full list of aircraft configurations [here](FlyWithLua/Modules/bravo%2B%2B/conf/README.md).
 
 So let's configure the Cessna 172 that uses the G1000.
 
-Start by copying the file called ```Resources\plugins\FlyWithLua\conf\bravo_multi-mode.Cessna_172SP_G1000.cfg``` to the ```Aircraft\Laminar Research\Cessna 172 SP``` directory. Note that the Cessna has 3 .acf files and the configuration contains the name that is in ```Cessna_172SP_G1000.acf```. This is how the script knows which configuration to use when it starts up. If you start any of the other two variants that aren't G1000 equipped, the script will just stop, since it can't find a corresponding config file.
+Start by copying the file under ```Resources\plugins\FlyWithLua\Modules\bravo++\conf\bravo_multi-mode.Cessna_172SP_G1000.cfg``` or download the file from [bravo_multi-mode.Cessna_172SP_G1000.cfg](https://raw.githubusercontent.com/balatone/Bravo_multi_mode/refs/heads/main/FlyWithLua/Modules/bravo%2B%2B/conf/bravo_multi-mode.Cessna_172SP_G1000.cfg) and copy to the ```Aircraft\Laminar Research\Cessna 172 SP``` directory. Note that the Cessna has 3 .acf files and the configuration contains the name that is in ```Cessna_172SP_G1000.acf```. This is how the script knows which configuration to use when it starts up. If you start any of the other two variants that aren't G1000 equipped, the script will just stop, since it can't find a corresponding config file.
 
 Once the file is copied, you can load the aircraft and hopefully you will now see the Bravo++ window that contains the current mode and status of the buttons. If you don't then either the script couldn't find the config file, the Honeycomb Bravo device is not plugged in or something went wrong with the script. In the latter case you will probably hear FlyWithLua complaining and telling you that it has moved the bad script to ```Script (Quarantine)``` folder. This shouldn't happen, but if it does check the ```log.txt``` file for any errors.
 

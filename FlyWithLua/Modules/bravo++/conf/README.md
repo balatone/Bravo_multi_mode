@@ -1,0 +1,14 @@
+# Aircraft configuration files
+
+| Aircraft name                        | File name                                                                          | Remarks                                                                                                                        |
+| -----------------------------------  | ---------------------------------------------------------------------------------- | -----------------------------------------------------------------------------------------------------------------              |
+| Beech Baron 58                       | [bravo_multi-mode.Baron_58.cfg](bravo_multi-mode.Baron_58.cfg)                     | Stock Laminar version                                                                                                          |
+| King Air C90B EVO GNS Blackhawk XP12 | [bravo_multi-mode.C90B.EVO.cfg](bravo_multi-mode.C90B.EVO.cfg)                     | Can be downloaded from [here](https://forums.x-plane.org/files/file/92114-king-air-c90b-evo-gns-blackhawk-xp12/). Rename file to bravo_multi-mode.C90B.cfg once it is copied under the aircraft folder. |
+| King Air C90B                        | [bravo_multi-mode.C90B.cfg](bravo_multi-mode.C90B.cfg)                             | Stock Laminar version                                                                                                          |
+| Cessna 172 Skyhawk                   | [bravo_multi-mode.Cessna_172SP_G1000.cfg](bravo_multi-mode.Cessna_172SP_G1000.cfg) | Stock Laminar version                                                                                                          |
+| Cirrus SR22                          | [bravo_multi-mode.Cirrus SR22.cfg](bravo_multi-mode.Cirrus%20SR22.cfg)               | Stock Laminar version                                                                                                          |
+| Cirrus SF50 Visionjet                | [bravo_multi-mode.CirrusSF50.cfg](bravo_multi-mode.CirrusSF50.cfg)                 | Stock Laminar version                                                                                                          | 
+| Aerobask Diamond DA42 NG             | [bravo_multi-mode.DA42.cfg](bravo_multi-mode.DA42.cfg)                             | Can be purchased at [X-Plane store](https://store.x-plane.org/Aerobask_c_151.html)                                             |
+| Aerobask Diamond DA62                | [bravo_multi-mode.DA62.cfg](bravo_multi-mode.DA62.cfg)                             | Can be purchased at [X-Plane store](https://store.x-plane.org/Aerobask_c_151.html)                                             |
+
+To test one of these configurations you just copy the file and place it under the corresponding aircraft directory.  
