@@ -9,6 +9,9 @@ local log = require("bravo++.log")
 local custom_directory = MODULES_DIRECTORY .. "bravo++" .. DIRECTORY_SEPARATOR .. "custom" .. DIRECTORY_SEPARATOR
 dofile( custom_directory .. "C90B.lua")
 dofile(custom_directory .. "DA42.lua")
+dofile(custom_directory .. "B58.lua")
+dofile(custom_directory .. "Transponder.lua")
+
 
 -- Change the logging level to log.LOG_DEBUG if troubleshooting
 log.LOG_LEVEL = log.LOG_INFO
