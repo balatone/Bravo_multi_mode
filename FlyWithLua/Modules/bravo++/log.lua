@@ -1,4 +1,5 @@
 local log = {}
+local logMsg = logMsg
 
 log.LOG_DEBUG = 4
 log.LOG_INFO = 3
@@ -7,6 +8,10 @@ log.LOG_ERROR = 1
 log.NO_LOG = 0
 
 log.LOG_LEVEL = log.LOG_DEBUG
+
+local function get_formatted_message(level, message)
+    return string.format("%.3f [BRAVO++ %s]: %s", os.clock(), level, message)
+end
 
 function log.debug(message)
     if log.LOG_LEVEL >= log.LOG_DEBUG then
@@ -30,10 +35,6 @@ function log.error(message)
     if log.LOG_LEVEL >= log.LOG_ERROR then
         logMsg(get_formatted_message("ERROR", message))
     end    
-end
-
-function get_formatted_message(level, message)
-    return string.format("%.3f [BRAVO++ %s]: %s", os.clock(), level, message)
 end
 
 return log

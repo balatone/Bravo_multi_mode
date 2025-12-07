@@ -14,6 +14,8 @@ local aircraft_name = string.sub(AIRCRAFT_FILENAME, 1, string.len(AIRCRAFT_FILEN
 if aircraft_name ~= "C90B" then
     log.info("The current aircraft is not the C90B. The lua script will not be loaded.")
     return
+else
+    log.info("Loading custom C90B file...")
 end
 --------------------------------------
 ---- Cabin pressure

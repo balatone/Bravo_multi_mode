@@ -9,6 +9,9 @@ local log = require("bravo++.log")
 local custom_directory = MODULES_DIRECTORY .. "bravo++" .. DIRECTORY_SEPARATOR .. "custom" .. DIRECTORY_SEPARATOR
 dofile( custom_directory .. "C90B.lua")
 dofile(custom_directory .. "DA42.lua")
+dofile(custom_directory .. "B58.lua")
+dofile(custom_directory .. "Transponder.lua")
+
 
 -- Change the logging level to log.LOG_DEBUG if troubleshooting
 log.LOG_LEVEL = log.LOG_INFO
@@ -34,11 +37,14 @@ if not SUPPORTS_FLOATING_WINDOWS then
     return
 end
 
------------------------------------------------------
---- HELPER FUNCTIONS THAT NEED TO BE GLOBAL
------------------------------------------------------
+-- NOTE:
+-- FlyWithLua executes callback *strings* in the global environment.
+-- We therefore keep only a minimal set of global entrypoints and keep
+-- the error wrapper local.
+
 -- Helper function to find index in table (used for cycling modes)
-function table.find(t, value)
+-- NOTE: avoid polluting the global `table` namespace.
+local function table_find(t, value)
     for i, v in ipairs(t) do
         if v == value then return i end
     end
@@ -46,12 +52,47 @@ function table.find(t, value)
 end
 
 -- Function that logs any function that fails
-function tryCatch(tryBlock, source)
-  local success, errorMessage = pcall(tryBlock)
-  if not success then
-    log.error("Caught error from " .. source .. " : " .. errorMessage)
-  end
+local function try_catch(tryBlock, source)
+    local success, errorMessage = pcall(tryBlock)
+    if not success then
+        log.error("Caught error from " .. tostring(source) .. " : " .. tostring(errorMessage))
+    end
 end
+
+-- FlyWithLua runs callback strings in the global environment, so we keep a
+-- single global dispatcher and register local implementations in a table.
+local dispatch = {}
+
+-- LuaJIT (Lua 5.1) has global `unpack`, while Lua 5.2+ uses `table.unpack`.
+local unpack_fn = table.unpack or unpack
+
+function bravo_dispatch(name, ...)
+    local fn = dispatch[name]
+    if not fn then
+        log.warning("No dispatch target for: " .. tostring(name))
+        return
+    end
+
+    -- NOTE: varargs (`...`) are not lexically scoped in Lua, so we must not
+    -- reference `...` inside the closure passed to try_catch.
+    local args = { ... }
+    return try_catch(function() fn(unpack_fn(args)) end, "bravo_dispatch:" .. tostring(name))
+end
+
+-- Forward declarations for locals that are referenced before their definitions.
+-- (We keep only FlyWithLua string-callback entrypoints global.)
+local get_button_led_state
+local get_led_state_for_switch
+local prime_button_led_states_for_mode_change
+local handle_led_changes
+
+
+local command_begin = command_begin
+local command_once = command_once
+local command_end = command_end
+
+-- Shared LED "dirty" flag; must be in scope for mode/selector handlers too.
+local led_state_modified = false
 
 -----------------------------------------------------
 --- READING THE CONFIG FILE
@@ -732,9 +773,6 @@ end
 log.info("Initializing rocker switch led states...")
 local rocker_switch_led_states = {}
 
------------------------------------------------------
---- CREATE THE GUI PANEL
------------------------------------------------------
 local current_buttons = default_button_labels
 local vertical_spacing = 30
 local height = 150
@@ -745,7 +783,7 @@ else
 	height = 40*3 + 20
 end
 
-my_floating_wnd = float_wnd_create(550, height, 1, true)
+local my_floating_wnd = float_wnd_create(550, height, 1, true)
 float_wnd_set_title(my_floating_wnd, "Bravo++ multi-mode")
 float_wnd_set_imgui_builder(my_floating_wnd, "build_bravo_gui")
 -- float_wnd_set_positioning_mode(my_floating_wnd, 4, -1)
@@ -1065,16 +1103,15 @@ local H_OFFSET = 10
 local H_SPACING = 5
 local Y_OFFSET = 10
 local WIDGET_WIDTH = 60
+local imgui = imgui
 
-function build_bravo_gui(wnd, x, y)
+local function build_bravo_gui_impl(wnd, x, y)
     -- Set the ImGui window background style color using AABBGGRR hex format.
     -- imgui.PushStyleColor(imgui.constant.Col.Border, 0xFF262626)
     imgui.PushStyleColor(imgui.constant.Col.WindowBg, 0xCC333333) -- Light Grey
 
-    local conceptual_mode_active = {} -- Stores boolean: true if current_mode falls under this conceptual name
-
+    -- Avoid allocating a temporary table every frame; we only need to highlight the active conceptual mode.
     local current_mode_conceptual_name = util.get_name_before_index(current_mode) -- Get conceptual name for current mode
-    conceptual_mode_active[current_mode_conceptual_name] = true -- Set only the current mode's conceptual name active
 
     -- Parameters for mode label display
     local h_offset_mode = H_OFFSET -- Initial horizontal offset for the first mode label
@@ -1092,7 +1129,7 @@ function build_bravo_gui(wnd, x, y)
         imgui.SetCursorPosY(y_offset_mode)
 
         local text_color_for_label = 0xFF111111 -- Default color: Dark Grey
-        if conceptual_mode_active[conceptual_name_to_draw] then
+        if conceptual_name_to_draw == current_mode_conceptual_name then
             text_color_for_label = 0xFF00FF00 -- Highlight color: Green
         end
         draw_label(conceptual_name_to_draw, mode_width, 20, text_color_for_label)
@@ -1105,11 +1142,11 @@ function build_bravo_gui(wnd, x, y)
     local select_width = WIDGET_WIDTH
 
     -- Current Selection Label
-    for i = 1, #selection_map_labels[current_mode] do
-        local selection_label = selection_map_labels[current_mode][i]
+    local selection_labels = selection_map_labels[current_mode] or {}
+    for i, selection_label in ipairs(selection_labels) do
         -- log.info("Selection label: " .. selection_label)
-        local h_offset_select = h_offset_select + (i - 1) * (select_width + h_spacing_select)
-        imgui.SetCursorPosX(h_offset_select)
+        local x = h_offset_select + (i - 1) * (select_width + h_spacing_select)
+        imgui.SetCursorPosX(x)
         imgui.SetCursorPosY(y_offset_select)
 
         local text_color = 0xFF000000
@@ -1137,6 +1174,11 @@ function build_bravo_gui(wnd, x, y)
     imgui.SetCursorPosX(h_offset_button) 
     imgui.SetCursorPosY(y_offset_button)
 
+    -- Cache switch maps to avoid repeated table lookups inside the hot loop.
+    local mode_switch_map = button_is_switch_map[current_mode] or {}
+    local selection_switch_map = mode_switch_map[current_selection] or {}
+    local all_switch_map = mode_switch_map["ALL"] or {}
+
     for i = 1, #current_buttons do
         local button_label = current_buttons[i]
         local button_name = default_button_labels[i]
@@ -1148,13 +1190,8 @@ function build_bravo_gui(wnd, x, y)
             button_label_color = button_off_label_color
         end
 		
-		-- log.info("button_is_switch_map[" .. current_mode .. "]['ALL'][" .. button_name.. "] = " .. tostring(button_is_switch_map[current_mode]["ALL"][button_name]))
-        local is_switch = button_is_switch_map[current_mode] and
-                          ((button_is_switch_map[current_mode][current_selection] and
-                          button_is_switch_map[current_mode][current_selection][button_name]) or
-                          (button_is_switch_map[current_mode]["ALL"] and
-                          button_is_switch_map[current_mode]["ALL"][button_name])) or
-                          false -- Default to false if the entry is somehow missing
+		-- log.info("button_is_switch_map[" .. current_mode .. "][\"ALL\"][" .. button_name.. "] = " .. tostring(button_is_switch_map[current_mode]["ALL"][button_name]))
+        local is_switch = (selection_switch_map[button_name] == true) or (all_switch_map[button_name] == true)
 
         local current_button_x = h_offset_button + (i - 1) * (button_width + h_spacing_button)
 		
@@ -1210,20 +1247,38 @@ function build_bravo_gui(wnd, x, y)
     )
 end
 
-function on_close_floating_window(my_floating_wnd)
+-- Register the GUI builder implementation and expose a tiny global wrapper.
+-- FlyWithLua's float window callbacks resolve by global function name.
+dispatch.build_bravo_gui = build_bravo_gui_impl
+function build_bravo_gui(wnd, x, y)
+    return bravo_dispatch('build_bravo_gui', wnd, x, y)
+end
+
+local function on_close_floating_window_impl(my_floating_wnd)
     if bravo then
         hid_close(bravo)
     end
 end
 
+dispatch.on_close_floating_window = on_close_floating_window_impl
+
+-- Global wrapper for FlyWithLua float window callback
+function on_close_floating_window(my_floating_wnd)
+    return bravo_dispatch('on_close_floating_window', my_floating_wnd)
+end
+
 --------------------------------------------------------------
 --- CREATE THE FUNCTIONS FOR REFRESHING THE MODE AND SELECTOR
 --------------------------------------------------------------
+-- Track the selector index locally.
+-- (Previously this leaked as a global because it was assigned before being declared local.)
+local selector_index = 1
+
 local function set_current_selector(idx)
-    index = idx
-    if current_selection_label ~= selection_map_labels[current_mode][index] then
-        current_selection_label = selection_map_labels[current_mode][index]
-        current_selection = default_selections[index]
+    selector_index = idx
+    if current_selection_label ~= selection_map_labels[current_mode][selector_index] then
+        current_selection_label = selection_map_labels[current_mode][selector_index]
+        current_selection = default_selections[selector_index]
 		prime_button_led_states_for_mode_change()
         led_state_modified = true
         handle_led_changes()
@@ -1244,10 +1299,10 @@ local function find_position(n)
     return pos
 end
 
-function refresh_selector_hid()
+local function refresh_selector_hid()
     local num, data1, data2, data3, data4, data5, data6, data7, data8, data9, data10, data11, data12, data13, data14, data15, data16, data17, data18 =
         hid_read(bravo, 64)
-    selector = data15
+    local selector = data15
     if selector and selector > 0 then
 		log.debug("Selector: " .. selector)
         local idx = 6 - find_position(selector)
@@ -1266,7 +1321,7 @@ if alt_selector_button and alt_selector_button > 0 then
     end
 end
 
-function refresh_selector()
+local function refresh_selector()
     for idx, button_num in ipairs(selector_buttons) do
         if button(button_num) then
             -- logMsg("Selector is at position: " .. idx)
@@ -1276,58 +1331,74 @@ function refresh_selector()
     end
 end
 
-local index = 1
-function cycle_selector()
-    if index < 5 then
-        index = index + 1
-    else
-        index = 1
-    end
+local function cycle_selector()
+    return try_catch(function()
+        if selector_index < 5 then
+            selector_index = selector_index + 1
+        else
+            selector_index = 1
+        end
+    end, 'cycle_selector')
 end
+
+dispatch.cycle_selector = cycle_selector
 
 -- Create a custom command for bravo knob increase
 create_command(
     "FlyWithLua/Bravo++/cycle_selector",
     "Cycle the selection (use only when Bravo hardware is not available) ",
-    "cycle_selector()", -- Call Lua function when pressed
+    "bravo_dispatch('cycle_selector')", -- Call Lua function when pressed
     "",
     ""
 )
 
 -- Choose the available method for updating the selector
-if alt_selector_button > 0 then
-    do_every_frame("tryCatch(refresh_selector,'refresh_selector')")
-else
-    do_every_frame("tryCatch(refresh_selector_hid,'refresh_selector_hid')")
+local function refresh_selector_task()
+    if alt_selector_button > 0 then
+        return refresh_selector()
+    end
+    return refresh_selector_hid()
 end
+
+dispatch.refresh_selector_task = refresh_selector_task
+
+do_every_frame("bravo_dispatch('refresh_selector_task')")
 
 
 -- Function to cycle the mode down one
-function cycle_mode_down()
-    local index = table.find(modes, current_mode)
-    index = ((index - 2) % #modes) + 1
-    current_mode = modes[index]
-    prime_button_led_states_for_mode_change()
-    led_state_modified = true
-    handle_led_changes()
+local function cycle_mode_down()
+    return try_catch(function()
+        local index = table_find(modes, current_mode)
+        index = ((index - 2) % #modes) + 1
+        current_mode = modes[index]
+        prime_button_led_states_for_mode_change()
+        led_state_modified = true
+        handle_led_changes()
+    end, 'cycle_mode_down')
 end
+
+dispatch.cycle_mode_down = cycle_mode_down
 
 
 -- Function to cycle the mode down one
-function cycle_mode_up()
-    local index = table.find(modes, current_mode)
-    index = (index % #modes) + 1
-    current_mode = modes[index]
-	prime_button_led_states_for_mode_change()
-    led_state_modified = true
-    handle_led_changes()
+local function cycle_mode_up()
+    return try_catch(function()
+        local index = table_find(modes, current_mode)
+        index = (index % #modes) + 1
+        current_mode = modes[index]
+		prime_button_led_states_for_mode_change()
+        led_state_modified = true
+        handle_led_changes()
+    end, 'cycle_mode_up')
 end
+
+dispatch.cycle_mode_up = cycle_mode_up
 
 -- Create a custom command for changing mode
 create_command(
     "FlyWithLua/Bravo++/mode_button",
     "Bravo++ toggles MODE",
-    "tryCatch(cycle_mode_down,'cycle_mode_down')", -- Call Lua function when pressed
+    "bravo_dispatch('cycle_mode_down')", -- Call Lua function when pressed
     "",
     ""
 )
@@ -1336,7 +1407,7 @@ create_command(
 create_command(
     "FlyWithLua/Bravo++/cycle_mode_up",
     "Bravo++ cycle mode up",
-    "tryCatch(cycle_mode_up,'cycle_mode_up')", -- Call Lua function when pressed
+    "bravo_dispatch('cycle_mode_up')", -- Call Lua function when pressed
     "",
     ""
 )
@@ -1345,7 +1416,7 @@ create_command(
 create_command(
     "FlyWithLua/Bravo++/cycle_mode_down",
     "Bravo++ cycle mode down",
-    "tryCatch(cycle_mode_down,'cycle_mode_down')", -- Call Lua function when pressed
+    "bravo_dispatch('cycle_mode_down')", -- Call Lua function when pressed
     "",
     ""
 )
@@ -1356,63 +1427,85 @@ mode_select_command["DOWN"] = "FlyWithLua/Bravo++/cycle_mode_down"
 
 local mode_select = false
 
-function toggle_mode_select_true()
-    mode_select = true
+local function toggle_mode_select_true()
+    return try_catch(function()
+        mode_select = true
+    end, 'toggle_mode_select_true')
 end
 
-function toggle_mode_select_false()
-    mode_select = false
+dispatch.toggle_mode_select_true = toggle_mode_select_true
+
+local function toggle_mode_select_false()
+    return try_catch(function()
+        mode_select = false
+    end, 'toggle_mode_select_false')
 end
+
+dispatch.toggle_mode_select_false = toggle_mode_select_false
 
 create_command(
     "FlyWithLua/Bravo++/toggle_mode_select",
     "Activates the mode select when button in pressed in. Deactivates it when button is released.",
     "",
-    "tryCatch(toggle_mode_select_true,'toggle_mode_select_true')",
-    "tryCatch(toggle_mode_select_false,'toggle_mode_select_false')"
+    "bravo_dispatch('toggle_mode_select_true')",
+    "bravo_dispatch('toggle_mode_select_false')"
 )
 
 
 -- Function to cycle through outer/inner modes
-function cycle_cf_mode()
-    local index = table.find(outer_inner_modes, current_cf_mode)
-    index = (index % #outer_inner_modes) + 1
-    current_cf_mode = outer_inner_modes[index]
+local function cycle_cf_mode()
+    return try_catch(function()
+        local index = table_find(outer_inner_modes, current_cf_mode)
+        index = (index % #outer_inner_modes) + 1
+        current_cf_mode = outer_inner_modes[index]
+    end, 'cycle_cf_mode')
 end
+
+dispatch.cycle_cf_mode = cycle_cf_mode
 
 -- Create a custom command for changing cf mode
 create_command(
     "FlyWithLua/Bravo++/cf_mode_button",
     "Bravo++ toggles INNER/OUTER mode",
-    "tryCatch(cycle_cf_mode,'cycle_cf_mode')", -- Call Lua function when pressed
+    "bravo_dispatch('cycle_cf_mode')", -- Call Lua function when pressed
     "",
     ""
 )
 
 -- Function to cycle through up/down switch modes
-function cycle_switch_mode()
-    local index = table.find(up_down_modes, current_switch_mode)
-    index = (index % #up_down_modes) + 1
-    current_switch_mode = up_down_modes[index]
+local function cycle_switch_mode()
+    return try_catch(function()
+        local index = table_find(up_down_modes, current_switch_mode)
+        index = (index % #up_down_modes) + 1
+        current_switch_mode = up_down_modes[index]
+    end, 'cycle_switch_mode')
 end
+
+dispatch.cycle_switch_mode = cycle_switch_mode
 
 -- Create a custom command for changing ud mode
 create_command(
     "FlyWithLua/Bravo++/switch_mode_button",
     "Bravo++ toggles UP/DOWN switch mode",
-    "tryCatch(cycle_switch_mode,'cycle_switch_mode')", -- Call Lua function when pressed
+    "bravo_dispatch('cycle_switch_mode')", -- Call Lua function when pressed
     "",
     ""
 )
 
-function set_current_buttons()
+local function set_current_buttons()
     if button_map_labels[current_mode][current_selection] ~= nil then
         current_buttons = button_map_labels[current_mode][current_selection]
     end
 end
 
+local function set_current_buttons_task()
+    return set_current_buttons()
+end
+
+dispatch.set_current_buttons_task = set_current_buttons_task
+
 -- Update the currently available buttons
-do_every_frame("tryCatch(set_current_buttons,'set_current_buttons')")
+do_every_frame("bravo_dispatch('set_current_buttons_task')")
 
 --------------------------------------
 ---- ROCKER SWITCHES
@@ -1430,60 +1523,10 @@ local function handle_rocker_switch(rocker_number, dir)
     end
 end
 
-function rocker_switch1_up()
-    handle_rocker_switch(1,"UP")
-end
-
-function rocker_switch2_up()
-    handle_rocker_switch(2,"UP")
-end
-
-function rocker_switch3_up()
-    handle_rocker_switch(3,"UP")
-end
-
-function rocker_switch4_up()
-    handle_rocker_switch(4,"UP")
-end
-
-function rocker_switch5_up()
-    handle_rocker_switch(5,"UP")
-end
-
-function rocker_switch6_up()
-    handle_rocker_switch(6,"UP")
-end
-
-function rocker_switch7_up()
-    handle_rocker_switch(7,"UP")
-end
-
-function rocker_switch1_down()
-    handle_rocker_switch(1,"DOWN")
-end
-
-function rocker_switch2_down()
-    handle_rocker_switch(2,"DOWN")
-end
-
-function rocker_switch3_down()
-    handle_rocker_switch(3,"DOWN")
-end
-
-function rocker_switch4_down()
-    handle_rocker_switch(4,"DOWN")
-end
-
-function rocker_switch5_down()
-    handle_rocker_switch(5,"DOWN")
-end
-
-function rocker_switch6_down()
-    handle_rocker_switch(6,"DOWN")
-end
-
-function rocker_switch7_down()
-    handle_rocker_switch(7,"DOWN")
+-- FlyWithLua executes callback strings in the global environment.
+-- Route rocker switch commands through the global bravo_dispatch entrypoint.
+dispatch.rocker_switch = function(rocker_number, dir)
+    handle_rocker_switch(rocker_number, dir)
 end
 
 -- Initialize the rocker switch commands
@@ -1493,7 +1536,7 @@ for i = 1, 7 do
 
     local dataref = "FlyWithLua/Bravo++/" .. func_up_name
     local description = "Bravo++ command for rocker switch" .. i .. " when it is positioned up"
-    local command = "tryCatch(".. func_up_name .. ",\'" .. func_up_name.. "\')"
+    local command = string.format("bravo_dispatch('rocker_switch', %d, 'UP')", i)
     log.debug("dataref: " .. dataref)
     log.debug("description: " .. description)
     log.debug("command: " .. command)
@@ -1510,7 +1553,7 @@ for i = 1, 7 do
 
     local dataref = "FlyWithLua/Bravo++/" .. func_down_name
     local description = "Bravo++ command for rocker switch" .. i .. " when it is positioned down"
-    local command = "tryCatch(".. func_down_name .. ",\'" .. func_down_name.. "\')"
+    local command = string.format("bravo_dispatch('rocker_switch', %d, 'DOWN')", i)
     log.debug("dataref: " .. dataref)
     log.debug("description: " .. description)
     log.debug("command: " .. command)
@@ -1534,7 +1577,7 @@ local trim_dataref = dataref_table("sim/flightmodel2/controls/elevator_trim")
 local increment = nav_bindings.TRIM_INCREMENT and nav_bindings.TRIM_INCREMENT + 0 or 0.01 
 local boost_factor = nav_bindings.TRIM_BOOST and nav_bindings.TRIM_BOOST + 0 or 3
 
-function handle_bravo_trim_nose_up()
+local function handle_bravo_trim_nose_up()
     local current_time = os.clock()
     local diff = current_time - trim_last_click_time
 
@@ -1557,15 +1600,17 @@ function handle_bravo_trim_nose_up()
     trim_last_click_time = current_time
 end
 
+dispatch.trim_nose_up = handle_bravo_trim_nose_up
+
 create_command(
     "FlyWithLua/Bravo++/trim_nose_up_handler",
     "Handle trim on bravo for nose up",
-    "tryCatch(handle_bravo_trim_nose_up,'handle_bravo_trim_nose_up')", -- Call Lua function when pressed
+    "bravo_dispatch('trim_nose_up')", -- Call Lua function when pressed
     "",
     ""
 )
 
-function handle_bravo_trim_nose_down()
+local function handle_bravo_trim_nose_down()
     local current_time = os.clock()
     local diff = current_time - trim_last_click_time
 
@@ -1588,10 +1633,12 @@ function handle_bravo_trim_nose_down()
     trim_last_click_time = current_time
 end
 
+dispatch.trim_nose_down = handle_bravo_trim_nose_down
+
 create_command(
     "FlyWithLua/Bravo++/trim_nose_down_handler",
     "Handle trim on bravo for nose down",
-    "tryCatch(handle_bravo_trim_nose_down,'handle_bravo_trim_nose_down')", -- Call Lua function when pressed
+    "bravo_dispatch('trim_nose_down')", -- Call Lua function when pressed
     "",
     ""
 )
@@ -1603,7 +1650,7 @@ create_command(
 local last_click_time = 0
 local debounce_delay = 0.02 -- 20ms
 
-function handle_bravo_knob_increase()
+local function handle_bravo_knob_increase()
     local current_time = os.clock()
     local current_twist_knob_action = nil
     if mode_select then
@@ -1627,15 +1674,17 @@ function handle_bravo_knob_increase()
     end
 end
 
+dispatch.knob_increase = handle_bravo_knob_increase
+
 create_command(
     "FlyWithLua/Bravo++/knob_increase_handler",
     "Handle button on bravo that increments values",
-    "tryCatch(handle_bravo_knob_increase,'handle_bravo_knob_increase')", -- Call Lua function when pressed
+    "bravo_dispatch('knob_increase')", -- Call Lua function when pressed
     "",
     ""
 )
 
-function handle_bravo_knob_decrease()
+local function handle_bravo_knob_decrease()
     local current_time = os.clock()
 
     local current_twist_knob_action = nil
@@ -1660,10 +1709,12 @@ function handle_bravo_knob_decrease()
 	end
 end
 
+dispatch.knob_decrease = handle_bravo_knob_decrease
+
 create_command(
     "FlyWithLua/Bravo++/knob_decrease_handler",
     "Handle button on bravo that decrements values",
-    "tryCatch(handle_bravo_knob_decrease,'handle_bravo_knob_decrease')", -- Call Lua function when pressed
+    "bravo_dispatch('knob_decrease')", -- Call Lua function when pressed
     "",
     ""
 )
@@ -1708,7 +1759,7 @@ local function trigger_command_for(button_name)
     local commands = get_commands_for_button(button_name)
     local button_is_continuous_mode = command_state[button_name]["is_continous_mode"]
     local command_phase = command_state[button_name]["phase"]
-    tryCatch(function()
+    try_catch(function()
         if button_is_continuous_mode then 
             if command_phase == "begin" then
                 log.debug("Trigger command begin: " .. commands["ON_HOLD"])
@@ -1768,173 +1819,41 @@ local function handle_single_click_mode(button_name)
 	arrow_color = 0xFF00FF00
 end
 
--- Autopilot button
-function start_timer_for_PLT_button()
-    start_timer("PLT")
+-- Autopilot panel buttons
+-- FlyWithLua executes callback strings in the global environment.
+-- Route autopilot panel commands via the global bravo_dispatch entrypoint.
+dispatch.ap_begin = function(button_name)
+    start_timer(button_name)
 end
 
-function handle_continuous_mode_for_PLT_button()
-    handle_continuous_mode("PLT")
+dispatch.ap_continue = function(button_name)
+    handle_continuous_mode(button_name)
 end
 
-function handle_single_click_mode_for_PLT_button()
-    handle_single_click_mode("PLT")
+dispatch.ap_end = function(button_name)
+    handle_single_click_mode(button_name)
 end
 
-create_command(
-    "FlyWithLua/Bravo++/autopilot_button",
-    "Bravo++ toggles AUTOPILOT button",
-    "tryCatch(start_timer_for_PLT_button,'start_timer_for_PLT_button')", -- Call Lua function when pressed
-    "tryCatch(handle_continuous_mode_for_PLT_button,'handle_continuous_mode_for_PLT_button')",
-    "tryCatch(handle_single_click_mode_for_PLT_button,'handle_single_click_mode_for_PLT_button')"
-)
+local ap_buttons = {
+    { key = 'PLT', command = 'autopilot_button', description = 'AUTOPILOT' },
+    { key = 'IAS', command = 'ias_button',        description = 'IAS' },
+    { key = 'VS',  command = 'vs_button',         description = 'VS' },
+    { key = 'ALT', command = 'alt_button',        description = 'ALT' },
+    { key = 'REV', command = 'rev_button',        description = 'REV' },
+    { key = 'APR', command = 'apr_button',        description = 'APR' },
+    { key = 'NAV', command = 'nav_button',        description = 'NAV' },
+    { key = 'HDG', command = 'hdg_button',        description = 'HDG' },
+}
 
--- IAS button
-function start_timer_for_IAS_button()
-    start_timer("IAS")
+for _, b in ipairs(ap_buttons) do
+    create_command(
+        'FlyWithLua/Bravo++/' .. b.command,
+        'Bravo++ toggles ' .. b.description .. ' button',
+        string.format("bravo_dispatch('ap_begin', '%s')", b.key),
+        string.format("bravo_dispatch('ap_continue', '%s')", b.key),
+        string.format("bravo_dispatch('ap_end', '%s')", b.key)
+    )
 end
-
-function handle_continuous_mode_for_IAS_button()
-    handle_continuous_mode("IAS")
-end
-
-function handle_single_click_mode_for_IAS_button()
-    handle_single_click_mode("IAS")
-end
-
-create_command(
-    "FlyWithLua/Bravo++/ias_button",
-    "Bravo++ toggles IAS button",
-    "tryCatch(start_timer_for_IAS_button,'start_timer_for_IAS_button')", -- Call Lua function when pressed
-    "tryCatch(handle_continuous_mode_for_IAS_button,'handle_continuous_mode_for_IAS_button')",
-    "tryCatch(handle_single_click_mode_for_IAS_button,'handle_single_click_mode_for_IAS_button')"
-)
-
--- VS button
-function start_timer_for_VS_button()
-    start_timer("VS")
-end
-
-function handle_continuous_mode_for_VS_button()
-    handle_continuous_mode("VS")
-end
-
-function handle_single_click_mode_for_VS_button()
-    handle_single_click_mode("VS")
-end
-
-create_command(
-    "FlyWithLua/Bravo++/vs_button",
-    "Bravo++ toggles VS button",
-    "tryCatch(start_timer_for_VS_button,'start_timer_for_VS_button')", -- Call Lua function when pressed
-    "tryCatch(handle_continuous_mode_for_VS_button,'handle_continuous_mode_for_VS_button')",
-    "tryCatch(handle_single_click_mode_for_VS_button,'handle_single_click_mode_for_VS_button')"
-)
-
--- ALT button
-function start_timer_for_ALT_button()
-    start_timer("ALT")
-end
-
-function handle_continuous_mode_for_ALT_button()
-    handle_continuous_mode("ALT")
-end
-
-function handle_single_click_mode_for_ALT_button()
-    handle_single_click_mode("ALT")
-end
-
-create_command(
-    "FlyWithLua/Bravo++/alt_button",
-    "Bravo++ toggles ALT button",
-    "tryCatch(start_timer_for_ALT_button,'start_timer_for_ALT_button')", -- Call Lua function when pressed
-    "tryCatch(handle_continuous_mode_for_ALT_button,'handle_continuous_mode_for_ALT_button')",
-    "tryCatch(handle_single_click_mode_for_ALT_button,'handle_single_click_mode_for_ALT_button')"
-)
-
--- REV button
-function start_timer_for_REV_button()
-    start_timer("REV")
-end
-
-function handle_continuous_mode_for_REV_button()
-    handle_continuous_mode("REV")
-end
-
-function handle_single_click_mode_for_REV_button()
-    handle_single_click_mode("REV")
-end
-
-create_command(
-    "FlyWithLua/Bravo++/rev_button",
-    "Bravo++ toggles REV button",
-    "tryCatch(start_timer_for_REV_button,'start_timer_for_REV_button')", -- Call Lua function when pressed
-    "tryCatch(handle_continuous_mode_for_REV_button,'handle_continuous_mode_for_REV_button')",
-    "tryCatch(handle_single_click_mode_for_REV_button,'handle_single_click_mode_for_REV_button')"
-)
-
--- APR button
-function start_timer_for_APR_button()
-    start_timer("APR")
-end
-
-function handle_continuous_mode_for_APR_button()
-    handle_continuous_mode("APR")
-end
-
-function handle_single_click_mode_for_APR_button()
-    handle_single_click_mode("APR")
-end
-
-create_command(
-    "FlyWithLua/Bravo++/apr_button",
-    "Bravo++ toggles APR button",
-    "tryCatch(start_timer_for_APR_button,'start_timer_for_APR_button')", -- Call Lua function when pressed
-    "tryCatch(handle_continuous_mode_for_APR_button,'handle_continuous_mode_for_APR_button')",
-    "tryCatch(handle_single_click_mode_for_APR_button,'handle_single_click_mode_for_APR_button')"
-)
-
--- NAV button
-function start_timer_for_NAV_button()
-    start_timer("NAV")
-end
-
-function handle_continuous_mode_for_NAV_button()
-    handle_continuous_mode("NAV")
-end
-
-function handle_single_click_mode_for_NAV_button()
-    handle_single_click_mode("NAV")
-end
-
-create_command(
-    "FlyWithLua/Bravo++/nav_button",
-    "Bravo++ toggles NAV button",
-    "tryCatch(start_timer_for_NAV_button,'start_timer_for_NAV_button')", -- Call Lua function when pressed
-    "tryCatch(handle_continuous_mode_for_NAV_button,'handle_continuous_mode_for_NAV_button')",
-    "tryCatch(handle_single_click_mode_for_NAV_button,'handle_single_click_mode_for_NAV_button')"
-)
-
--- HDG button
-function start_timer_for_HDG_button()
-    start_timer("HDG")
-end
-
-function handle_continuous_mode_for_HDG_button()
-    handle_continuous_mode("HDG")
-end
-
-function handle_single_click_mode_for_HDG_button()
-    handle_single_click_mode("HDG")
-end
-
-create_command(
-    "FlyWithLua/Bravo++/hdg_button",
-    "Bravo++ toggles HDG button",
-    "tryCatch(start_timer_for_HDG_button,'start_timer_for_HDG_button')", -- Call Lua function when pressed
-    "tryCatch(handle_continuous_mode_for_HDG_button,'handle_continuous_mode_for_HDG_button')",
-    "tryCatch(handle_single_click_mode_for_HDG_button,'handle_single_click_mode_for_HDG_button')"
-)
 
 --------------------------------------
 ---- LED HANDLING
@@ -1960,10 +1879,10 @@ local LED_ANC_PRK_BRK =		{4, 2}
 local LED_ANC_VOLTS =		{4, 3}
 local LED_ANC_DOOR =		{4, 4}
 
-local led_state_modified = false
+-- led_state_modified is declared once near the top of the script (shared across mode/selector + LED code)
 
 -- BUTTON LED handling
-function get_button_led_state(button_name)
+get_button_led_state = function(button_name)
     if util.is_table(button_map_leds_state[current_mode]["ALL"]) and util.is_boolean(button_map_leds_state[current_mode]["ALL"][button_name]) then
         if log_led_state then
             log.debug("get_led_state for mode ALL and button name " .. button_name)
@@ -2045,7 +1964,7 @@ end
 -- New helper function to "prime" button LED states for change detection.
 -- This temporarily forces the internal state for relevant buttons to 'true'
 -- so that handle_led_changes can detect a change to 'false' if needed.
-function prime_button_led_states_for_mode_change()
+prime_button_led_states_for_mode_change = function()
     -- Iterate through all possible physical button labels as defined in default_button_labels [1]
 	local led_detected = false -- Used to check whether there are any leds in this selection
     for i = 1, #default_button_labels do
@@ -2166,7 +2085,7 @@ for i = 1, 7 do
     end
 end
 
-function get_led_state_for_switch(switch_label)
+get_led_state_for_switch = function(switch_label)
 	return rocker_switch_led_states[switch_label] or false
 end
 
@@ -2381,31 +2300,31 @@ local leds_first_sync_done = false
 local leds_first_sync_timer = os.clock()
 local led_first_time_delay = 4 -- 10 second delay before setting the leds
 
-function handle_led_changes()
+handle_led_changes = function()
     if leds_first_sync_done then
         if bus_voltage[0] > 0 then
             master_state = true
 
-            tryCatch(handle_button_led_changes, "handle_button_led_changes")
+            try_catch(handle_button_led_changes, "handle_button_led_changes")
             
             -- Handle the remaining leds
-            tryCatch(handle_gear_led_changes, "handle_gear_led_changes")
-            tryCatch(handle_annunciator_row1_led_changes, "handle_annunciator_row1_led_changes")
-            tryCatch(handle_annunciator_row2_led_changes, "handle_annunciator_row2_led_changes")
+            try_catch(handle_gear_led_changes, "handle_gear_led_changes")
+            try_catch(handle_annunciator_row1_led_changes, "handle_annunciator_row1_led_changes")
+            try_catch(handle_annunciator_row2_led_changes, "handle_annunciator_row2_led_changes")
 
             -- Handle the rocker switches
-            tryCatch(handle_rocker_switch_led_changes, "handle_rocker_switch_led_changes")
+            try_catch(handle_rocker_switch_led_changes, "handle_rocker_switch_led_changes")
             
         elseif master_state == true then
             log.debug("No voltage detected. Turning all leds off.")
             -- No bus voltage, disable all LEDs
             master_state = false
-            tryCatch(all_leds_off, 'all_leds_off')
+            try_catch(all_leds_off, 'all_leds_off')
         end
 
         -- If we have any LED changes, send them to the device
         if led_state_modified == true then
-            tryCatch(send_hid_data,'send_hid_data')
+            try_catch(send_hid_data,'send_hid_data')
         end
     elseif os.clock() - leds_first_sync_timer > led_first_time_delay then
         leds_first_sync_done = true
@@ -2422,16 +2341,18 @@ local function do_more_often(func_to_execute, description, interval_seconds)
     -- Check if enough time has passed since the last successful call
     -- The condition (current_time - last_call) >= interval_seconds correctly calculates elapsed time [Conversation History]
     if (current_time - last_call) >= interval_seconds then
-        -- Execute the passed function, with its given source name for tryCatch logging
-        -- The tryCatch function is designed to log errors with a source string [1]
-        tryCatch(func_to_execute, description)
+        -- Execute the passed function, with its given source name for error logging
+        try_catch(func_to_execute, description)
         last_call = current_time -- Update the last call time only if the function was executed
     end
 end
 
-function handle_led_changes_task()
+local function handle_led_changes_task()
     do_more_often(handle_led_changes, 'handle_led_changes', 0.25)
 end
 
+dispatch.handle_led_changes_task = handle_led_changes_task
+
 -- Register the corrected function to be called every frame
-do_every_frame('handle_led_changes_task()')
+do_every_frame("bravo_dispatch('handle_led_changes_task')")
+

@@ -14,6 +14,8 @@ local aircraft_name = string.sub(AIRCRAFT_FILENAME, 1, string.len(AIRCRAFT_FILEN
 if aircraft_name ~= "DA42" and aircraft_name ~= "DA62" then
     log.info("The current aircraft is not the DA42 or DA62. The lua script will not be loaded.")
     return
+else
+    log.info("Loading custom DA42/62 file...")
 end
 --------------------------------------
 ---- Rudder trim
