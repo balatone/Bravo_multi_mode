@@ -17,12 +17,30 @@ dofile(custom_directory .. "Transponder.lua")
 log.LOG_LEVEL = log.LOG_INFO
 local log_led_state = false
 
+-- New modular HID/decoder modules
+local bravo_hid = require("bravo++.hid")
+local bravo_decoder = require("bravo++.decoder")
+local bravo_state = require("bravo++.state")
+local bravo_debug = require("bravo++.debug")
+
+local HID_INPUT_DEBUG = false
+bravo_debug.enable(HID_INPUT_DEBUG)
+
 -- Set this to either 0 or the button number assigned for the alt selector in x-plane.
 -- Setting to 0 will result in using HID to determine the selector state, but will introduce lag in Windows. 
 -- Use the ButtonLogUtil.lua to determine the button number asigned by x-plane
 local alt_selector_button = 0
 
 local bravo = hid_open(0x294B, 0x1901) -- Honeycomb Bravo VID/PID
+
+-- Initialize the modular hid module if available and start draining reports
+if bravo and bravo_hid and bravo_hid.init then
+    bravo_hid.init({ device_handle = bravo, packet_size = 64 })
+    bravo_hid.start()
+else
+    -- If no device found, initialize hid module in simulate mode so tests can run
+    if bravo_hid and bravo_hid.init then bravo_hid.init({ simulate = true }) end
+end
 
 if bravo then
     hid_set_nonblocking(bravo, 1)
@@ -1710,6 +1728,32 @@ local function handle_bravo_knob_decrease()
 end
 
 dispatch.knob_decrease = handle_bravo_knob_decrease
+
+-- Wire the new modular decoder to the existing handlers
+bravo_decoder.set_handlers({
+    on_selector_changed = function(new)
+        -- new is a raw byte for now; attempt to map to selector index if possible
+        if type(new) == 'number' then
+            if new >= 1 and new <= 5 then
+                set_current_selector(new)
+            else
+                -- leave as debug info until mapping is confirmed
+                log.info('Decoder: selector change raw=' .. tostring(new))
+            end
+        else
+            log.info('Decoder: selector change (non-numeric) ' .. tostring(new))
+        end
+    end,
+    on_rotary_cw = handle_bravo_knob_increase,
+    on_rotary_ccw = handle_bravo_knob_decrease,
+    on_trim_changed = function(v)
+        -- placeholder: just log until mapping is known
+        log.info('Decoder: trim change raw=' .. tostring(v))
+    end
+})
+
+-- Subscribe decoder to hid reports
+bravo_hid.subscribe(bravo_decoder.on_report)
 
 create_command(
     "FlyWithLua/Bravo++/knob_decrease_handler",
