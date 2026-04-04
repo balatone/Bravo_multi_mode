@@ -14,7 +14,7 @@ dofile(custom_directory .. "Transponder.lua")
 
 
 -- Change the logging level to log.LOG_DEBUG if troubleshooting
-log.LOG_LEVEL = log.LOG_INFO
+log.LOG_LEVEL = log.LOG_DEBUG
 local log_led_state = false
 
 -- New modular HID/decoder modules
@@ -23,7 +23,7 @@ local bravo_decoder = require("bravo++.decoder")
 local bravo_state = require("bravo++.state")
 local bravo_debug = require("bravo++.debug")
 
-local HID_INPUT_DEBUG = false
+local HID_INPUT_DEBUG = true
 bravo_debug.enable(HID_INPUT_DEBUG)
 
 -- Set this to either 0 or the button number assigned for the alt selector in x-plane.
@@ -37,17 +37,19 @@ local bravo = hid_open(0x294B, 0x1901) -- Honeycomb Bravo VID/PID
 if bravo and bravo_hid and bravo_hid.init then
     bravo_hid.init({ device_handle = bravo, packet_size = 64 })
     bravo_hid.start()
+    log.info("HID polling has started")
 else
     -- If no device found, initialize hid module in simulate mode so tests can run
     if bravo_hid and bravo_hid.init then bravo_hid.init({ simulate = true }) end
+    log.warning("Bravo device was not found. HID polling cannot start.")
 end
 
-if bravo then
-    hid_set_nonblocking(bravo, 1)
-else
-    log.error("No Honeycomb Bravo device detected! Make sure that it's plugged in properly to the PC.")
-    return
-end
+--if bravo then
+--    hid_set_nonblocking(bravo, 1)
+--else
+--    log.error("No Honeycomb Bravo device detected! Make sure that it's plugged in properly to the PC.")
+--    return
+--end
 
 if not SUPPORTS_FLOATING_WINDOWS then
     -- to make sure the script doesn't stop old FlyWithLua versions
@@ -1318,15 +1320,19 @@ local function find_position(n)
 end
 
 local function refresh_selector_hid()
-    local num, data1, data2, data3, data4, data5, data6, data7, data8, data9, data10, data11, data12, data13, data14, data15, data16, data17, data18 =
-        hid_read(bravo, 64)
-    local selector = data15
-    if selector and selector > 0 then
-		log.debug("Selector: " .. selector)
-        local idx = 6 - find_position(selector)
-        set_current_selector(idx)
+    -- Use decoded selector state from the modular decoder/state instead of calling hid_read()
+    local sel = bravo_state.get_selector()
+    if sel and type(sel) == 'number' and sel > 0 then
+        -- Map decoded raw selector to index if known
+        if sel >= 1 and sel <= 5 then
+            set_current_selector(sel)
+        else
+            -- Unknown raw, log for later mapping
+            log.debug('refresh_selector_hid: decoded selector raw=' .. tostring(sel))
+        end
     end
 end
+
 
 -- Define button numbers for each selector position
 -- local alt_selector_button = nav_bindings.ALT_SELECTOR and nav_bindings.ALT_SELECTOR + 0 or 0
@@ -1754,6 +1760,20 @@ bravo_decoder.set_handlers({
 
 -- Subscribe decoder to hid reports
 bravo_hid.subscribe(bravo_decoder.on_report)
+
+-- Ensure bravo_hid.poll is called every frame via the centralized dispatcher
+dispatch.bravo_hid_poll_task = function() bravo_hid.poll() end
+-- Use bravo_dispatch so FlyWithLua stores a short string
+do_every_frame("bravo_dispatch('bravo_hid_poll_task')")
+
+-- Small tap to log each report received by the hid poller for debugging
+local function __bravo_debug_tap(report)
+    log.info('BRAVO TAP: decoder callback invoked; len=' .. tostring(#report or 0))
+    local hex = {}
+    for i=1, #report do hex[#hex+1] = string.format('%02X', report[i]) end
+    log.debug('BRAVO TAP REPORT: ' .. table.concat(hex, ' '))
+end
+local __bravo_tap_id = bravo_hid.subscribe(__bravo_debug_tap)
 
 create_command(
     "FlyWithLua/Bravo++/knob_decrease_handler",

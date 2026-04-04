@@ -71,21 +71,35 @@ local function drain_once()
 end
 
 local function poll_task()
-  if not running then return end
-  drain_once()
+  if not running then return 0 end
+  return drain_once()
+end
+
+-- Expose a poll function so the host script can register it with bravo_dispatch.
+function M.poll()
+  local ok, drained = pcall(poll_task)
+  if not ok then
+    log.error('bravo_hid.poll: error calling poll_task: ' .. tostring(drained))
+    return
+  end
+  diagnostics.poll_calls = (diagnostics.poll_calls or 0) + 1
+  diagnostics.last_drained = drained or 0
+  if diagnostics.last_drained and diagnostics.last_drained > 0 then
+    log.debug('bravo_hid.poll: drained ' .. tostring(diagnostics.last_drained) .. ' report(s)')
+  end
+  return diagnostics.last_drained
 end
 
 function M.start()
   if running then return end
   running = true
-  _G.bravo_hid_poll_task = function() pcall(poll_task) end
-  -- register string callback for FlyWithLua
-  do_every_frame("bravo_hid_poll_task")
+  -- Don't register a do_every_frame callback here. The main script will register
+  -- the poll function via bravo_dispatch to ensure it uses the same dispatch table and
+  -- avoids FlyWithLua storage issues.
 end
 
 function M.stop()
   running = false
-  _G.bravo_hid_poll_task = nil
 end
 
 function M.diagnostics()
