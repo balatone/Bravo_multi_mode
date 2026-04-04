@@ -8,6 +8,14 @@ local handlers = {}
 local last_report = nil
 local counters = { selector_changes = 0, rotary_events = 0, trim_events = 0 }
 
+local function copy_report(src)
+  if not src then return nil end
+  local n = #src
+  local dst = {}
+  for i = 1, n do dst[i] = src[i] end
+  return dst
+end
+
 -- Mapping constants (1-based byte indices)
 local ROTARY_PULSE_BYTE = 15
 local ROTARY_PULSE_CW_MASK = 0x10
@@ -112,10 +120,10 @@ function M.on_report(report)
       last_rotary_time = t
       counters.rotary_events = counters.rotary_events + 1
       if rot == "cw" then
-        log.info("Decoder: detected rotary CW event")
+        log.debug("Decoder: detected rotary CW event")
         if handlers.on_rotary_cw then pcall(handlers.on_rotary_cw) end
       else
-        log.info("Decoder: detected rotary CCW event")
+        log.debug("Decoder: detected rotary CCW event")
         if handlers.on_rotary_ccw then pcall(handlers.on_rotary_ccw) end
       end
     else
@@ -130,7 +138,7 @@ function M.on_report(report)
     if t - last_selector_time >= SELECTOR_MIN_INTERVAL then
       last_selector_time = t
       counters.selector_changes = counters.selector_changes + 1
-      log.info("Decoder: selector changed => " .. tostring(sel))
+      log.debug("Decoder: selector changed => " .. tostring(sel))
       state.set_selector(sel)
       if handlers.on_selector_changed then pcall(handlers.on_selector_changed, sel) end
     else
@@ -145,7 +153,8 @@ function M.on_report(report)
     if handlers.on_trim_changed then pcall(handlers.on_trim_changed, tr) end
   end
 
-  last_report = report
+  -- Make a shallow copy of report so we don't retain the shared buffer
+  last_report = copy_report(report)
 end
 
 function M.diagnostics()

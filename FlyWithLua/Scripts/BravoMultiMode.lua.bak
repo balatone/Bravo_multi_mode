@@ -1,4 +1,4 @@
-﻿require("bit")
+require("bit")
 require("graphics")
 
 -- Modules needed for logging and general functionality
@@ -14,7 +14,7 @@ dofile(custom_directory .. "Transponder.lua")
 
 
 -- Change the logging level to log.LOG_DEBUG if troubleshooting
-log.LOG_LEVEL = log.LOG_INFO
+log.LOG_LEVEL = log.LOG_DEBUG
 local log_led_state = false
 
 -- New modular HID/decoder modules
@@ -23,21 +23,15 @@ local bravo_decoder = require("bravo++.decoder")
 local bravo_state = require("bravo++.state")
 local bravo_debug = require("bravo++.debug")
 
-local HID_INPUT_DEBUG = false
+local HID_INPUT_DEBUG = true
 bravo_debug.enable(HID_INPUT_DEBUG)
 
 -- Set this to either 0 or the button number assigned for the alt selector in x-plane.
 -- Setting to 0 will result in using HID to determine the selector state, but will introduce lag in Windows. 
 -- Use the ButtonLogUtil.lua to determine the button number asigned by x-plane
-local alt_selector_button = 0
+local alt_selector_button = 20
 
 local bravo = hid_open(0x294B, 0x1901) -- Honeycomb Bravo VID/PID
-
--- Exit immediately if the Bravo device cannot be opened. Simulated mode removed.
-if not bravo then
-    log.error("Bravo device was not found (VID=0x294B PID=0x1901). Stopping script.")
-    return
-end
 
 -- Initialize the modular hid module if available and start draining reports
 if bravo and bravo_hid and bravo_hid.init then
@@ -45,9 +39,17 @@ if bravo and bravo_hid and bravo_hid.init then
     bravo_hid.start()
     log.info("HID polling has started")
 else
-    log.error("Bravo device was not found (VID=0x294B PID=0x1901). Stopping script.")
-    return
+    -- If no device found, initialize hid module in simulate mode so tests can run
+    if bravo_hid and bravo_hid.init then bravo_hid.init({ simulate = true }) end
+    log.warning("Bravo device was not found. HID polling cannot start.")
 end
+
+--if bravo then
+--    hid_set_nonblocking(bravo, 1)
+--else
+--    log.error("No Honeycomb Bravo device detected! Make sure that it's plugged in properly to the PC.")
+--    return
+--end
 
 if not SUPPORTS_FLOATING_WINDOWS then
     -- to make sure the script doesn't stop old FlyWithLua versions
@@ -1303,6 +1305,20 @@ local function set_current_selector(idx)
     end
 end
 
+local function find_position(n)
+    if n == 0 or (bit.band(n, (n - 1)) ~= 0) then
+        return -1
+    end
+
+    local pos = 1;
+    local val = 1;
+    while bit.band(val, n) == 0 do
+        val = bit.lshift(val, 1)
+        pos = pos + 1
+    end
+    return pos
+end
+
 local function refresh_selector_hid()
     -- Use decoded selector state from the modular decoder/state instead of calling hid_read()
     local sel = bravo_state.get_selector()
@@ -1736,14 +1752,9 @@ bravo_decoder.set_handlers({
     end,
     on_rotary_cw = handle_bravo_knob_increase,
     on_rotary_ccw = handle_bravo_knob_decrease,
-on_trim_changed = function(v)
-        if v == "down" then
-            pcall(handle_bravo_trim_nose_down, true)
-        elseif v == "up" then
-            pcall(handle_bravo_trim_nose_up, true)
-        else
-            log.info('Decoder: trim change raw=' .. tostring(v))
-        end
+    on_trim_changed = function(v)
+        -- placeholder: just log until mapping is known
+        log.info('Decoder: trim change raw=' .. tostring(v))
     end
 })
 
@@ -1775,15 +1786,14 @@ end
 local function __bravo_debug_tap(report)
     if report_is_empty(report) then return end
     -- log a short info line and a hex dump at debug level
-    -- log.debug('BRAVO TAP: decoder callback invoked; len=' .. tostring(#report or 0))
+    -- log.info('BRAVO TAP: decoder callback invoked; len=' .. tostring(#report or 0))
     local hex = {}
     for i=1, #report do hex[#hex+1] = string.format('%02X', report[i]) end
     local line = string.format('%0.3f [BRAVO++ RAW] %s', os.clock(), table.concat(hex, ' '))
     -- log.debug('BRAVO TAP REPORT: ' .. table.concat(hex, ' '))
     append_raw_log(line)
 end
-local __bravo_tap_id = nil
-if HID_INPUT_DEBUG then __bravo_tap_id = bravo_hid.subscribe(__bravo_debug_tap) end
+local __bravo_tap_id = bravo_hid.subscribe(__bravo_debug_tap)
 
 create_command(
     "FlyWithLua/Bravo++/knob_decrease_handler",
@@ -2429,5 +2439,4 @@ dispatch.handle_led_changes_task = handle_led_changes_task
 
 -- Register the corrected function to be called every frame
 do_every_frame("bravo_dispatch('handle_led_changes_task')")
-
 
