@@ -8,6 +8,10 @@ local running = false
 local diagnostics = { total_reports = 0, last_second = 0, reports_this_second = 0, max_drained_per_frame = 0, last_report = nil }
 M.packet_size = 64
 
+-- Poll limits to avoid blocking X-Plane
+M.max_reports_per_poll = 64          -- maximum reports to drain in one poll()
+M.max_poll_time_secs = 0.02          -- maximum seconds to spend in one poll
+
 -- Simulation hook (set by simulate mode)
 local simulate_queue = nil
 
@@ -57,7 +61,16 @@ end
 
 local function drain_once()
   local drained = 0
+  local start_time = os.clock()
   while true do
+    -- enforce limits to avoid blocking X-Plane
+    if M.max_reports_per_poll and drained >= M.max_reports_per_poll then
+      break
+    end
+    if M.max_poll_time_secs and (os.clock() - start_time) >= M.max_poll_time_secs then
+      break
+    end
+
     local report = read_one()
     if not report then break end
     drained = drained + 1
@@ -80,7 +93,7 @@ function M.poll()
   local ok, drained = pcall(poll_task)
   if not ok then
     log.error('bravo_hid.poll: error calling poll_task: ' .. tostring(drained))
-    return
+    return 0
   end
   diagnostics.poll_calls = (diagnostics.poll_calls or 0) + 1
   diagnostics.last_drained = drained or 0

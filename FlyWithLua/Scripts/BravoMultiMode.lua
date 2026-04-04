@@ -1752,9 +1752,14 @@ bravo_decoder.set_handlers({
     end,
     on_rotary_cw = handle_bravo_knob_increase,
     on_rotary_ccw = handle_bravo_knob_decrease,
-    on_trim_changed = function(v)
-        -- placeholder: just log until mapping is known
-        log.info('Decoder: trim change raw=' .. tostring(v))
+on_trim_changed = function(v)
+        if v == "down" then
+            pcall(handle_bravo_trim_nose_down, true)
+        elseif v == "up" then
+            pcall(handle_bravo_trim_nose_up, true)
+        else
+            log.info('Decoder: trim change raw=' .. tostring(v))
+        end
     end
 })
 
@@ -1767,11 +1772,31 @@ dispatch.bravo_hid_poll_task = function() bravo_hid.poll() end
 do_every_frame("bravo_dispatch('bravo_hid_poll_task')")
 
 -- Small tap to log each report received by the hid poller for debugging
+-- Only log and persist non-empty reports to avoid flooding the log during normal frames.
+local raw_log_path = "raw_hid_log.txt"
+local function append_raw_log(line)
+    local f = io.open(raw_log_path, "a")
+    if f then
+        f:write(line .. "\n")
+        f:close()
+    end
+end
+
+local function report_is_empty(report)
+    if not report then return true end
+    for i=1, #report do if (report[i] or 0) ~= 0 then return false end end
+    return true
+end
+
 local function __bravo_debug_tap(report)
-    log.info('BRAVO TAP: decoder callback invoked; len=' .. tostring(#report or 0))
+    if report_is_empty(report) then return end
+    -- log a short info line and a hex dump at debug level
+    -- log.info('BRAVO TAP: decoder callback invoked; len=' .. tostring(#report or 0))
     local hex = {}
     for i=1, #report do hex[#hex+1] = string.format('%02X', report[i]) end
-    log.debug('BRAVO TAP REPORT: ' .. table.concat(hex, ' '))
+    local line = string.format('%0.3f [BRAVO++ RAW] %s', os.clock(), table.concat(hex, ' '))
+    -- log.debug('BRAVO TAP REPORT: ' .. table.concat(hex, ' '))
+    append_raw_log(line)
 end
 local __bravo_tap_id = bravo_hid.subscribe(__bravo_debug_tap)
 
