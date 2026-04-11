@@ -470,21 +470,22 @@ local function validate_config_values()
                     end
                 end
             end
-        elseif key == "TRIM_INCREMENT" or key == "TRIM_BOOST" then
-            local trim_value = tonumber(value_string)
-            if trim_value == nil then
+        elseif key == "TRIM_INCREMENT" or key == "TRIM_BOOST" or key == "LONG_CLICK_THRESHOLD" or key == "CONTINUOUS_PRESS_THRESHOLD" then
+            local num_value = tonumber(value_string)
+            if num_value == nil then
                 table.insert(invalid_value_entries, {
                     key = key,
                     value = value_string,
-                    reason = "Trim value '" .. tostring(value_string) .. "' is not a valid number."
+                    reason = "Value '" .. tostring(value_string) .. "' is not a valid number."
                 })
-            elseif trim_value < 0 then
+            elseif num_value <= 0 then
                 table.insert(invalid_value_entries, {
                     key = key,
                     value = value_string,
-                    reason = "Trim value '" .. tostring(value_string) .. "' must be greater than 0."
+                    reason = "Value '" .. tostring(value_string) .. "' must be greater than 0."
                 })
             end
+
         else -- For other keys, assume the value is a command string
             local command_name = util.create_table(value_string)
             -- Check if it's a known internal command that will be created by this script
