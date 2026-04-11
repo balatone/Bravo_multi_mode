@@ -1,4 +1,4 @@
-﻿require("bit")
+require("bit")
 require("graphics")
 
 -- Modules needed for logging and general functionality
@@ -2114,35 +2114,65 @@ local function send_hid_data()
     end
 end
 
+-- Replacement get_led_state_for_dataref written by assistant
 local function get_led_state_for_dataref(dr_table, cond, index)
     if dr_table == nil then
         return false
     end
+
+    local cond_num = tonumber(cond)
+
     if util.is_dataref_array(dr_table) then
-		--if util.is_string(index) then
-		--	log.debug("index: " .. index)
-		--end
-		if index == nil then
-			for i = 0, 19 do
-				if dr_table[i] ~= tonumber(cond) then
-					return true
-				end
-			end
-		else
-			-- log.debug("index: " .. index)
-			return dr_table[tonumber(index) - 1] ~= tonumber(cond)
-		end
-		return false
+        -- If an explicit index was provided, use it (cfg uses 1-based indexing; dataref table is 0-based)
+        if index ~= nil then
+            local idx = tonumber(index)
+            if idx == nil then
+                return false
+            end
+            local val = dr_table[idx - 1]
+            if val == nil then
+                -- Index not present in array -> treat as 'no' (do not light)
+                return false
+            end
+            local vnum = tonumber(val)
+            if vnum ~= nil then
+                return vnum ~= cond_num
+            else
+                return tostring(val) ~= tostring(cond)
+            end
+        end
+
+        -- No explicit index: iterate only the numeric indices that actually exist in the dataref table.
+        for k, v in pairs(dr_table) do
+            if type(k) == 'number' then
+                local vnum = tonumber(v)
+                if vnum ~= nil then
+                    if vnum ~= cond_num then
+                        return true
+                    end
+                else
+                    if tostring(v) ~= tostring(cond) then
+                        return true
+                    end
+                end
+            end
+        end
+
+        return false
     else
-        if dr_table[0] ~= tonumber(cond) then
-            return true
+        -- Non-array dataref: compare the single value at index 0
+        local val = dr_table[0]
+        if val == nil then
+            return false
+        end
+        local vnum = tonumber(val)
+        if vnum ~= nil then
+            return vnum ~= cond_num
         else
-			return false
-		end
+            return tostring(val) ~= tostring(cond)
+        end
     end
 end
-
-
 local switch_map_leds = {}
 local switch_map_leds_cond = {}
 local switch_map_leds_index = {}
@@ -2429,5 +2459,6 @@ dispatch.handle_led_changes_task = handle_led_changes_task
 
 -- Register the corrected function to be called every frame
 do_every_frame("bravo_dispatch('handle_led_changes_task')")
+
 
 
