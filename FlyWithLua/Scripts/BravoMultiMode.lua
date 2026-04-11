@@ -282,6 +282,8 @@ local function validate_config_keys()
     -- Manual Trim Configuration
     add_key("TRIM_INCREMENT")
     add_key("TRIM_BOOST")
+    add_key("LONG_CLICK_THRESHOLD")
+    add_key("CONTINUOUS_PRESS_THRESHOLD")
 
     -- **Step 3: Check for invalid (unrecognized) keys**
     -- This part identifies keys in the config file that are not defined as valid.
@@ -1797,8 +1799,8 @@ create_command(
 ---- BUTTON HANDLING
 --------------------------------------
 -- Define a threshold for what constitutes a "long press" in seconds
-local LONG_CLICK_THRESHOLD = 0.25 -- Adjust this value as needed (e.g., 0.25 seconds)
-local CONTINUOUS_PRESS_THRESHOLD = 0.75 -- Adjust this value as needed (e.g., 0.25 seconds)
+local LONG_CLICK_THRESHOLD = nav_bindings.LONG_CLICK_THRESHOLD and tonumber(nav_bindings.LONG_CLICK_THRESHOLD) or 0.005 -- default (Windows)
+local CONTINUOUS_PRESS_THRESHOLD = nav_bindings.CONTINUOUS_PRESS_THRESHOLD and tonumber(nav_bindings.CONTINUOUS_PRESS_THRESHOLD) or 6 -- default (Windows)
 
 -- Declare global variables to track button state across command phases
 -- These are necessary because the different parts of create_command run in independent Lua blocks.
@@ -2459,6 +2461,9 @@ dispatch.handle_led_changes_task = handle_led_changes_task
 
 -- Register the corrected function to be called every frame
 do_every_frame("bravo_dispatch('handle_led_changes_task')")
+
+
+
 
 
 
