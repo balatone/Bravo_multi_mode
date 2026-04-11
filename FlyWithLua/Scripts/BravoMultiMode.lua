@@ -1,4 +1,4 @@
-require("bit")
+﻿require("bit")
 require("graphics")
 
 -- Modules needed for logging and general functionality
@@ -485,7 +485,6 @@ local function validate_config_values()
                     reason = "Value '" .. tostring(value_string) .. "' must be greater than 0."
                 })
             end
-
         else -- For other keys, assume the value is a command string
             local command_name = util.create_table(value_string)
             -- Check if it's a known internal command that will be created by this script
@@ -2463,6 +2462,32 @@ dispatch.handle_led_changes_task = handle_led_changes_task
 -- Register the corrected function to be called every frame
 do_every_frame("bravo_dispatch('handle_led_changes_task')")
 
+-- Ensure device LEDs are reset when FlyWithLua / X-Plane exits
+local function do_on_exit_task()
+    try_catch(function()
+        log.info("Calling do_on_exit")
+        if bravo == nil then return end
+
+        -- Turn off all internal LED state
+        try_catch(all_leds_off, 'all_leds_off_do_on_exit')
+
+        -- Send cleared HID report
+        try_catch(send_hid_data, 'send_hid_data_do_on_exit')
+
+        -- Optionally close the hid device if available
+        if bravo then
+            try_catch(function() hid_close(bravo) end, 'hid_close_do_on_exit')
+            bravo = nil
+        end
+
+        -- Small delay to allow OS/driver to flush the report if necessary
+        -- local t0 = os.clock(); while os.clock() - t0 < 0.08 do end
+    end, 'do_on_exit')
+end
+
+dispatch.do_on_exit_task = do_on_exit_task
+
+do_on_exit("bravo_dispatch('do_on_exit_task')")
 
 
 
