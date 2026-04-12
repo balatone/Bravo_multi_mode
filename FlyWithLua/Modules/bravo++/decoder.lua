@@ -28,12 +28,16 @@ local TRIM_DOWN_MASK = 0x20
 local TRIM_UP_MASK = 0x40 -- (may not be used on this device; placeholder)
 
 -- Debounce / rate limiting
-local ROTARY_MIN_INTERVAL = 0.05 -- seconds between reported events for same knob
-local SELECTOR_MIN_INTERVAL = 0.05
-local TRIM_MIN_INTERVAL = 0.05
+-- Detect Windows vs POSIX (package.config first char == directory separator)
+local is_windows = (package.config and package.config:sub(1,1) == '\\')
+-- Windows tends to produce faster/denser HID report timing; prefer 0.05 there, 0.10 on others.
+local DEFAULT_ROTARY_MIN_INTERVAL = is_windows and 0.05 or 0.10
+local ROTARY_MIN_INTERVAL = DEFAULT_ROTARY_MIN_INTERVAL -- seconds between reported events for same knob
+local SELECTOR_MIN_INTERVAL = DEFAULT_ROTARY_MIN_INTERVAL
+-- local TRIM_MIN_INTERVAL = DEFAULT_ROTARY_MIN_INTERVAL
 local last_rotary_time = 0
 local last_selector_time = 0
-local last_trim_time = 0
+-- local last_trim_time = 0
 
 function M.set_handlers(tbl)
   handlers = tbl or {}
@@ -108,6 +112,8 @@ local function detect_trim_event(report)
   return nil
 end
 
+local currently_selected = 0
+
 function M.on_report(report)
   -- Only log diffs when debug is enabled
   debug.log_report_diff(report, last_report)
@@ -133,16 +139,20 @@ function M.on_report(report)
 
   -- Selector handling
   local sel = detect_selector_change(report)
+  
   if sel then
     local t = now()
-    if t - last_selector_time >= SELECTOR_MIN_INTERVAL then
-      last_selector_time = t
-      counters.selector_changes = counters.selector_changes + 1
-      log.debug("Decoder: selector changed => " .. tostring(sel))
-      state.set_selector(sel)
-      if handlers.on_selector_changed then pcall(handlers.on_selector_changed, sel) end
-    else
-      log.debug("Decoder: selector event suppressed by debounce")
+    if currently_selected ~= sel then
+	  if t - last_selector_time >= SELECTOR_MIN_INTERVAL then
+	    currently_selected = sel
+        last_selector_time = t
+        counters.selector_changes = counters.selector_changes + 1
+        log.debug("Decoder: selector changed => " .. tostring(sel))
+        state.set_selector(sel)
+        if handlers.on_selector_changed then pcall(handlers.on_selector_changed, sel) end
+      else
+        log.debug("Decoder: selector event suppressed by debounce")
+	  end
     end
   end
 

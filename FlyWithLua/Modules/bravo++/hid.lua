@@ -111,9 +111,9 @@ function M.poll()
   end
   diagnostics.poll_calls = (diagnostics.poll_calls or 0) + 1
   diagnostics.last_drained = drained or 0
-  if diagnostics.last_drained and diagnostics.last_drained > 0 then
-    log.debug('bravo_hid.poll: drained ' .. tostring(diagnostics.last_drained) .. ' report(s)')
-  end
+  -- if diagnostics.last_drained and diagnostics.last_drained > 0 then
+    -- log.debug('bravo_hid.poll: drained ' .. tostring(diagnostics.last_drained) .. ' report(s)')
+  -- end
   return diagnostics.last_drained
 end
 

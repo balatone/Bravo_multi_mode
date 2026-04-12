@@ -26,6 +26,9 @@ local bravo_debug = require("bravo++.debug")
 local HID_INPUT_DEBUG = false
 bravo_debug.enable(HID_INPUT_DEBUG)
 
+-- Detect Windows vs POSIX (package.config first char == directory separator)
+local is_windows = (package.config and package.config:sub(1,1) == '\\')
+
 -- Set this to either 0 or the button number assigned for the alt selector in x-plane.
 -- Setting to 0 will result in using HID to determine the selector state, but will introduce lag in Windows. 
 -- Use the ButtonLogUtil.lua to determine the button number asigned by x-plane
@@ -1582,10 +1585,13 @@ end
 --------------------------------------
 
 local trim_last_click_time = 0
-local trim_debounce_delay = 0.2 -- 200ms
+local trim_debounce_delay = 0.5 -- 200ms
 local trim_dataref = dataref_table("sim/flightmodel2/controls/elevator_trim")
-local increment = nav_bindings.TRIM_INCREMENT and nav_bindings.TRIM_INCREMENT + 0 or 0.01 
-local boost_factor = nav_bindings.TRIM_BOOST and nav_bindings.TRIM_BOOST + 0 or 3
+local increment = tonumber(nav_bindings.TRIM_INCREMENT) and tonumber(nav_bindings.TRIM_INCREMENT) + 0 or 0.01 
+local boost_factor = tonumber(nav_bindings.TRIM_BOOST) and tonumber(nav_bindings.TRIM_BOOST) + 0 or 3
+
+log.debug("TRIM_INCREMENT = " .. nav_bindings.TRIM_INCREMENT)
+log.debug("TRIM_BOOST = " .. nav_bindings.TRIM_BOOST)
 
 local function handle_bravo_trim_nose_up()
     local current_time = os.clock()
@@ -1738,7 +1744,7 @@ bravo_decoder.set_handlers({
     end,
     on_rotary_cw = handle_bravo_knob_increase,
     on_rotary_ccw = handle_bravo_knob_decrease,
-on_trim_changed = function(v)
+    on_trim_changed = function(v)
         if v == "down" then
             pcall(handle_bravo_trim_nose_down, true)
         elseif v == "up" then
@@ -1799,8 +1805,11 @@ create_command(
 ---- BUTTON HANDLING
 --------------------------------------
 -- Define a threshold for what constitutes a "long press" in seconds
-local LONG_CLICK_THRESHOLD = nav_bindings.LONG_CLICK_THRESHOLD and tonumber(nav_bindings.LONG_CLICK_THRESHOLD) or 0.005 -- default (Windows)
-local CONTINUOUS_PRESS_THRESHOLD = nav_bindings.CONTINUOUS_PRESS_THRESHOLD and tonumber(nav_bindings.CONTINUOUS_PRESS_THRESHOLD) or 6 -- default (Windows)
+local DEFAULT_LONG_CLICK_THRESHOLD = is_windows and 0.35 or 0.50
+local DEFAULT_CONTINUOUS_PRESS_THRESHOLD = is_windows and 0.75 or 1.0
+
+local LONG_CLICK_THRESHOLD = nav_bindings.LONG_CLICK_THRESHOLD and tonumber(nav_bindings.LONG_CLICK_THRESHOLD) or DEFAULT_LONG_CLICK_THRESHOLD
+local CONTINUOUS_PRESS_THRESHOLD = nav_bindings.CONTINUOUS_PRESS_THRESHOLD and tonumber(nav_bindings.CONTINUOUS_PRESS_THRESHOLD) or DEFAULT_CONTINUOUS_PRESS_THRESHOLD
 
 -- Declare global variables to track button state across command phases
 -- These are necessary because the different parts of create_command run in independent Lua blocks.
