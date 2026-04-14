@@ -14,7 +14,7 @@ dofile(custom_directory .. "Transponder.lua")
 
 
 -- Change the logging level to log.LOG_DEBUG if troubleshooting
-log.LOG_LEVEL = log.LOG_DEBUG
+log.LOG_LEVEL = log.LOG_INFO
 local log_led_state = false
 
 -- New modular HID/decoder modules
@@ -23,7 +23,7 @@ local bravo_decoder = require("bravo++.decoder")
 local bravo_state = require("bravo++.state")
 local bravo_debug = require("bravo++.debug")
 
-local HID_INPUT_DEBUG = true
+local HID_INPUT_DEBUG = false
 bravo_debug.enable(HID_INPUT_DEBUG)
 
 -- Detect Windows vs POSIX (package.config first char == directory separator)
@@ -1662,7 +1662,8 @@ create_command(
 -----------------------------------------------------
 --- HANDLE TWIST-KNOB THAT INCREASES/DECREASES VALUES
 -----------------------------------------------------
-
+
+
 local function handle_bravo_knob_increase()
     local current_time = os.clock()
     local current_twist_knob_action = nil
