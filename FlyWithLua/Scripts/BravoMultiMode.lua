@@ -1662,10 +1662,7 @@ create_command(
 -----------------------------------------------------
 --- HANDLE TWIST-KNOB THAT INCREASES/DECREASES VALUES
 -----------------------------------------------------
-
-local last_click_time = 0
-local debounce_delay = 0.02 -- 20ms
-
+
 local function handle_bravo_knob_increase()
     local current_time = os.clock()
     local current_twist_knob_action = nil
@@ -1674,17 +1671,11 @@ local function handle_bravo_knob_increase()
     else
         current_twist_knob_action = twist_knob_map_actions[current_mode][current_selection]       
     end    
-    if current_twist_knob_action ~= nil and (current_time - last_click_time) > debounce_delay then
+    if current_twist_knob_action ~= nil then
         if current_twist_knob_action["UP"] then
-            command_once(current_twist_knob_action["UP"])
-            last_click_time = current_time
-        elseif current_cf_mode == "outer" and current_twist_knob_action["OUTER"] then
-            command_once(current_twist_knob_action["OUTER"]["UP"])
-            last_click_time = current_time
-        elseif current_cf_mode == "inner" and current_twist_knob_action["INNER"] then
-            command_once(current_twist_knob_action["INNER"]["UP"])
-            last_click_time = current_time
-        else
+            command_once(current_twist_knob_action["UP"])        elseif current_cf_mode == "outer" and current_twist_knob_action["OUTER"] then
+            command_once(current_twist_knob_action["OUTER"]["UP"])        elseif current_cf_mode == "inner" and current_twist_knob_action["INNER"] then
+            command_once(current_twist_knob_action["INNER"]["UP"])        else
             log.debug("Nothing to do.")
         end
     end
@@ -1709,17 +1700,11 @@ local function handle_bravo_knob_decrease()
     else
         current_twist_knob_action = twist_knob_map_actions[current_mode][current_selection]
     end
-    if current_twist_knob_action ~= nil and (current_time - last_click_time) > debounce_delay then
+    if current_twist_knob_action ~= nil then
 		if current_twist_knob_action["DOWN"] then
-			command_once(current_twist_knob_action["DOWN"])
-            last_click_time = current_time
-		elseif current_cf_mode == "outer" and current_twist_knob_action["OUTER"] then
-			command_once(current_twist_knob_action["OUTER"]["DOWN"])
-            last_click_time = current_time
-		elseif current_cf_mode == "inner" and current_twist_knob_action["INNER"] then
-			command_once(current_twist_knob_action["INNER"]["DOWN"])
-            last_click_time = current_time
-		else
+			command_once(current_twist_knob_action["DOWN"])		elseif current_cf_mode == "outer" and current_twist_knob_action["OUTER"] then
+			command_once(current_twist_knob_action["OUTER"]["DOWN"])		elseif current_cf_mode == "inner" and current_twist_knob_action["INNER"] then
+			command_once(current_twist_knob_action["INNER"]["DOWN"])		else
 			log.debug("Nothing to do.")
 		end
 	end
@@ -1769,7 +1754,7 @@ local raw_log_path = "raw_hid_log.txt"
 local function append_raw_log(line)
     local f = io.open(raw_log_path, "a")
     if f then
-        f:write(line .. "\n")
+        f:write(line .. "")
         f:close()
     end
 end
@@ -2497,6 +2482,9 @@ end
 dispatch.do_on_exit_task = do_on_exit_task
 
 do_on_exit("bravo_dispatch('do_on_exit_task')")
+
+
+
 
 
 
