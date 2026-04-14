@@ -26,7 +26,8 @@ function M.log_report_diff(r, last)
       diffs[#diffs+1] = string.format("%d:%s->%s", i, hex(last[i]), hex(r[i]))
     end
   end
-  if #diffs>0 then log.debug("HID DIFF: " .. table.concat(diffs, ", ")) end
+  -- if #diffs>0 then log.debug("HID DIFF: " .. table.concat(diffs, ", ")) end
+  if #diffs == 1 then log.debug("HID DIFF: " .. table.concat(diffs, ", ")) end
   last_report = r
 end
 

@@ -34,10 +34,10 @@ local is_windows = (package.config and package.config:sub(1,1) == '\\')
 local DEFAULT_ROTARY_MIN_INTERVAL = is_windows and 0.05 or 0.10
 local ROTARY_MIN_INTERVAL = DEFAULT_ROTARY_MIN_INTERVAL -- seconds between reported events for same knob
 local SELECTOR_MIN_INTERVAL = DEFAULT_ROTARY_MIN_INTERVAL
--- local TRIM_MIN_INTERVAL = DEFAULT_ROTARY_MIN_INTERVAL
+local TRIM_MIN_INTERVAL = DEFAULT_ROTARY_MIN_INTERVAL
 local last_rotary_time = 0
 local last_selector_time = 0
--- local last_trim_time = 0
+local last_trim_time = 0
 
 function M.set_handlers(tbl)
   handlers = tbl or {}
@@ -156,11 +156,19 @@ function M.on_report(report)
     end
   end
 
-  -- Trim placeholder
+  -- Trim handling (edge detection + debounce)
   local tr = detect_trim_event(report)
   if tr then
-    state.set_trim(tr)
-    if handlers.on_trim_changed then pcall(handlers.on_trim_changed, tr) end
+    local t = now()
+    if t - last_trim_time >= TRIM_MIN_INTERVAL then
+      last_trim_time = t
+      counters.trim_events = counters.trim_events + 1
+      log.debug("Decoder: detected trim event => " .. tostring(tr))
+      state.set_trim(tr)
+      if handlers.on_trim_changed then pcall(handlers.on_trim_changed, tr) end
+    else
+      log.debug("Decoder: trim event suppressed by debounce")
+    end
   end
 
   -- Make a shallow copy of report so we don't retain the shared buffer
@@ -168,7 +176,7 @@ function M.on_report(report)
 end
 
 function M.diagnostics()
-  return { counters = counters, last_report = last_report, last_rotary_time = last_rotary_time, last_selector_time = last_selector_time }
+  return { counters = counters, last_report = last_report, last_rotary_time = last_rotary_time, last_selector_time = last_selector_time, last_trim_time = last_trim_time }
 end
 
 return M
