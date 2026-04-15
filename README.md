@@ -1,4 +1,4 @@
-Bravo++ multi-mode
+﻿Bravo++ multi-mode
 --
 
 *DISCLAIMER*
@@ -92,24 +92,54 @@ Here are the descriptions you should look for when configuring each switch with 
 - switch7 (position down) = Bravo++ command for rocker switch7 when it is positioned down (FlyWithLua/Bravo++/rocker_switch7_down)
 
 ## Configuring the right twist knob and the trim wheel
-You can try to configure the twist knob and the trim wheel directly in X-Plane, but I personally get issues with latency that results in not all the clicks getting registered as I turn the knob or wheel. I may delve deeper into this issue to see if I can resolve it, but for now I use the Honeycomb Configurator from Aerosoft to solve the problem. I am aware that Mac users have issues with the software, but perhaps it will work with the minimal setup config file I have provided. 
 
-You will find the Honeycomb Configurator file under ```Resources\plugins\FlyWithLua\Modules\Bravo++\conf\Bravo++_honecomb_configurator.json``` and you import it using the following steps:
-- Select "Actions > Open settings"  
+Right twist knob and the trim wheel â€” compatibility requirements
+
+The script includes improved HID/decoder handling for the right rotary knob and trim wheel. To ensure reliable behaviour you must prevent the Honeycomb Configurator from also capturing those inputs â€” otherwise the two input sources will conflict and produce incorrect behaviour.
+
+Two acceptable setups:
+
+1) Disable the Honeycomb Configurator completely (recommended if you do not need it for other devices).
+
+2) Keep the Honeycomb Configurator enabled but configure the active Bravo++ profile so that the following controls are set to "Do nothing":
+   - Selector knob
+   - Rotary encoded knob (right knob)
+   - Trim wheel
+
+A sample Honeycomb profile is included at `Resources\plugins\FlyWithLua\Modules\Bravo++\conf\Bravo++_honecomb_configurator.json`.
+
+To import it:
+- Select "Actions > Open settings"
 - Click on "Import profiles"
-- Select the file ```Resources\plugins\FlyWithLua\Modules\Bravo++\conf\Bravo++_honecomb_configurator.json```
-- Select the profile ```Bravo++ Multi-mode```
+- Select the file `Resources\plugins\FlyWithLua\Modules\Bravo++\conf\Bravo++_honecomb_configurator.json`
+- Select the profile `Bravo++ Multi-mode`
 - Click "Ok"
 
-Once imported you need to activate the profile either before starting up X-Plane or if you do it while X-Plane is running, you need to ensure the current aircraft is using the profile by selecting in the X-Plane menu ```Plugins > HoneyComb > BFC_Throttle > Reload bindings```.
+If you import while Xâ€‘Plane is running, ensure the current aircraft uses the profile by selecting: `Plugins > HoneyComb > BFC_Throttle > Reload bindings`.
 
-Make sure that the right twist knob and trim wheel are not configured in X-Plane; i.e. they should be set to "Do nothing". On the other hand, if you want to try the functionality without using the Honeycomb Configurator, then you need to set the appropriate datarefs in X-Plane. 
+Using the built-in decoder (recommended)
+
+- Make sure the Bravo device is plugged in before starting Xâ€‘Plane (the script will exit if it cannot find the Bravo HID).
+- Do not bind the selector knob, right knob or trim wheel in Xâ€‘Plane if you want the builtâ€‘in decoder to handle them.
+- You can tune behaviour in `bravo_multi-mode.cfg` via these keys (defaults come from the script):
+  - `LONG_CLICK_THRESHOLD` (seconds) â€” default: 0.35 on Windows, 0.50 on other platforms
+  - `CONTINUOUS_PRESS_THRESHOLD` (seconds/counts) â€” default: 0.75 on Windows, 1.0 on other platforms
+
+Example lines to add to your config file (if you want explicit values):
+```
+LONG_CLICK_THRESHOLD=0.35
+CONTINUOUS_PRESS_THRESHOLD=0.75
+```
+
+If you must use the Honeycomb Configurator for other reasons
+
+Import the provided profile at `Resources\plugins\FlyWithLua\Modules\Bravo++\conf\Bravo++_honecomb_configurator.json`, then edit the profile so the selector knob, rotary knob and trim wheel are all set to "Do nothing". Do not leave them bound â€” doing so will conflict with the scriptâ€™s HID/decoder handling.
 
 For reference, the relevant command descriptions that are configured are as follows:
-- Increase value (turn knob to the right) = Handle button on bravo that increments values (FlyWithLua/Bravo++/knob_increase_handler)
-- Decrease value (turn knob to the left) = Handle button on bravo that decrements values (FlyWithLua/Bravo++/knob_decrease_handler)
-- Nose up (turn wheel up) = Handle trim on bravo for nose up (FlyWithLua/Bravo++/trim_nose_up_handler)
-- Nose down (turn wheel down) = Handle trim on bravo for nose down (FlyWithLua/Bravo++/trim_nose_down_handler)
+- Increase value (turn knob to the right) = Handle button on bravo that increments values (`FlyWithLua/Bravo++/knob_increase_handler`)
+- Decrease value (turn knob to the left) = Handle button on bravo that decrements values (`FlyWithLua/Bravo++/knob_decrease_handler`)
+- Nose up (turn wheel up) = Handle trim on bravo for nose up (`FlyWithLua/Bravo++/trim_nose_up_handler`)
+- Nose down (turn wheel down) = Handle trim on bravo for nose down (`FlyWithLua/Bravo++/trim_nose_down_handler`)
 
 ## Configuring the aircraft
 The easiest way to start is to use one of the predefined G1000 configurations (all aircraft, but the King Air C90B) like the for the Cessna 172. You can find the full list of aircraft configurations [here](FlyWithLua/Modules/bravo%2B%2B/conf/README.md).
@@ -358,3 +388,4 @@ The most common issues are:
 # Known bugs
 I am aware of some minor annoying bugs:
 - The button for switching the com frequency doesn't work all the time. You just have to be persistent and press it multiple times. This doesn't happen with the nav frequency, so I am not sure why it's an issue with the com frequency.
+
