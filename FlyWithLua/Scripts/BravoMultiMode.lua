@@ -29,11 +29,6 @@ bravo_debug.enable(HID_INPUT_DEBUG)
 -- Detect Windows vs POSIX (package.config first char == directory separator)
 local is_windows = (package.config and package.config:sub(1,1) == '\\')
 
--- Set this to either 0 or the button number assigned for the alt selector in x-plane.
--- Setting to 0 will result in using HID to determine the selector state, but will introduce lag in Windows. 
--- Use the ButtonLogUtil.lua to determine the button number asigned by x-plane
-local alt_selector_button = 0
-
 local bravo = hid_open(0x294B, 0x1901) -- Honeycomb Bravo VID/PID
 
 -- Exit immediately if the Bravo device cannot be opened. Simulated mode removed.
@@ -1322,54 +1317,8 @@ local function refresh_selector_hid()
     end
 end
 
-
--- Define button numbers for each selector position
--- local alt_selector_button = nav_bindings.ALT_SELECTOR and nav_bindings.ALT_SELECTOR + 0 or 0
-local selector_buttons = {}
-if alt_selector_button and alt_selector_button > 0 then
-    log.debug("ALT_SELECTOR was set to " .. alt_selector_button)
-    for i = 1, 5, 1 do
-        selector_buttons[i] = alt_selector_button - i + 1
-        log.debug("Selector " .. default_selections[i] .. " set to button " .. selector_buttons[i])
-    end
-end
-
-local function refresh_selector()
-    for idx, button_num in ipairs(selector_buttons) do
-        if button(button_num) then
-            -- logMsg("Selector is at position: " .. idx)
-            set_current_selector(idx) -- Update your logic here
-            break
-        end
-    end
-end
-
-local function cycle_selector()
-    return try_catch(function()
-        if selector_index < 5 then
-            selector_index = selector_index + 1
-        else
-            selector_index = 1
-        end
-    end, 'cycle_selector')
-end
-
-dispatch.cycle_selector = cycle_selector
-
--- Create a custom command for bravo knob increase
-create_command(
-    "FlyWithLua/Bravo++/cycle_selector",
-    "Cycle the selection (use only when Bravo hardware is not available) ",
-    "bravo_dispatch('cycle_selector')", -- Call Lua function when pressed
-    "",
-    ""
-)
-
 -- Choose the available method for updating the selector
 local function refresh_selector_task()
-    if alt_selector_button > 0 then
-        return refresh_selector()
-    end
     return refresh_selector_hid()
 end
 

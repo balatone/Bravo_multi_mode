@@ -5,14 +5,13 @@
 
 This is a a script I developed for personal use in the hopes that others would find it useful and fun. I am distributing it for free personal use and I appreciate feedback, but please don't expect me to provide full-time support on this. 
 
-If the script doesn't work for you, you can submit the ```log.txt``` file, the configuration file you are using and a description of the problem by creating a [GitHub issue](https://github.com/balatone/Bravo_multi_mode/issues) or send me a PM and I will try to see if I can solve the problem, but it may take time. For platform users that are not on Windows, I can only provide limited help, since I only run X-Plane on Windows 11. That doesn't mean it won't work on other platforms and I encourage you to try, but if you get a platform specific problem I probably won't be able help you.
+If the script doesn't work for you, you can submit the ```log.txt``` file, the configuration file you are using and a description of the problem by creating a [GitHub issue](https://github.com/balatone/Bravo_multi_mode/issues) or send me a PM and I will try to see if I can solve the problem, but it may take time. I am running X-Plane on both Windows 11 and Linux Mint Cinnamon, and will try to test both platforms as extensively as possible before each release. For Mac OS users, I hope to find willing volunteers to test the script and provide me feedback if something doesn't work, but since I do not have Mac OS myself, I will be limited on how much support I can provide for the platform. 
 
 # Description
-Bravo++ allows you to configure multi-mode functionality, so that you get more out of your Honeycomb Bravo than just the basic autopilot. The default mode (AUTO) will retain the standard autopilot functionality (it can also be overridden), but you can configure additional modes so that you can use the selector switch, buttons and rotating button to control other functionality in the aircraft. I have minimized the use of the Honeycomb Configurator and the only two controls that still need to be configured there are the right knob and the trim wheel (these can be configured outside the Honeycomb configurator, but the behavior won't be as good). There are some configuration files provided for the default aircraft such as the Cessna 172, the King Air C90B, and the Cirrus SF50 along with configurations for the Aerobask DA42 and DA62. Hopefully these will be enough so that you can configure you're own aircraft and perhaps submit it to the collection.
+Bravo++ allows you to configure multi-mode functionality, so that you get more out of your Honeycomb Bravo than just the basic autopilot. The default mode (AUTO) will retain the standard autopilot functionality (it can also be overridden), but you can configure additional modes so that you can use the selector switch, buttons and rotating knobs to control other functionality in the aircraft. There are some configuration files provided for the default aircraft such as the Cessna 172, the King Air C90B, and the Cirrus SF50 along with configurations for the Aerobask DA42 and DA62. Hopefully these will be enough so that you can configure you're own aircraft and perhaps submit it to the collection.
 
 Prerequisites:
 - X-Plane 12
-- Honeycomb configurator (optional, but I found it necessary for my installation runnning Windows 11)
 - FlyWithLua NG
 - [DataRefTool](https://datareftool.com/) or [DataRefEditor](https://developer.x-plane.com/tools/datarefeditor/) plugin (if you want to customize or write your own configuration)
 
@@ -30,20 +29,7 @@ You should begin by installing the [FlyWithLua](https://forums.x-plane.org/files
 
 Next you can either download the Bravo++ zip archive from the X-Plane forum or get the latest [release](https://github.com/balatone/Bravo_multi_mode/releases) from the GitHub repository. All relevant files are found under the FlyWithLua directory and the entire FlyWithLua directory should be copied under the ```plugins``` folder.
 
-Finally, you can optionally install the Honeycomb configurator developed by Aerosoft. For Windows 11, I notice that through HID, the knob is polled roughly every second leading to "clicks" being missed which in turn make the knob and trim unusable. This is the reason I need to have it installed on my machine, but it is a minimal profile that just assigns the right knob and the trim wheel to the configurator. This may not be a problem on Mac and Linux, but I have not tested on those platforms. Anyhow, the links to Honeycomb Configurator download are:  
-- For [Windows](https://freeware.aerosoft.com/forum/downloads/AS_HONEYCOMB_XP11_WIN_V2.zip)
-- For [Mac](https://freeware.aerosoft.com/forum/downloads/AS_HONEYCOMB_XP11_MAC_V2.zip)
-
 # Configuration
-
-## Determining the button number for the left selector knob
-In order to determine which number X-Plane has assigned to the selector knob you need to enable the ```ButtonLogUtil.lua``` that should be located under the ```Resources\plugins\FlyWithLua\Scripts``` directory. You do this by opening the file and setting the ```local write_log = false``` to ```local write_log = true```. This will allow the script to write output to the ```log.txt``` file located directly under the X-Plane 12 directory.
-
-Now you simply load up an aircraft and once it is loaded you should see a little text bubble next to the mouse cursor indicating the number of the button that wa last clicked. Now you can twist the left selector knob through the full range of selection and finally select the "Alt" setting. Note down the number which you will use in the next step.
-
-Open the ```BravoMultiMode.lua``` file under the ```Resources\plugins\FlyWithLua\Scripts``` directory and look for the ```local alt_selector_button = 0``` and replace the "0" with the number you noted.
-
-Go back to the ```ButtonLogUtil.lua``` and disable the logging by setting the ```local write_log``` back to false.
 
 ## Configuring the buttons in X-Plane
 Next you need to configure the Honeycomb Bravo buttons to use Bravo++. You may want to create a base profile (called Bravo++) that X-Plane uses, since this can be reused between aircraft configurations. Otherwise chose an existing profile and start configuring the buttons.
@@ -62,10 +48,14 @@ For finding the corresponding command in X-Plane just search for "Bravo++" and y
 
 There are also datarefs that are used for toggling/scrolling through the modes. I would suggest having it on a button accessible to the hand that is not used for the Honeycomb Bravo (left hand for most people) on the joystick or yoke. 
 - For toggling through the modes in one direction you should map it to the command with description ```Bravo++ toggles MODE```. So all you do is click on the button and it will move over one mode.
-- If you prefer scrolling through the modes with the right twist knob located on the Honeycomb Bravo, then you need to map the following command with description ```Bravo++ activates the mode select when button is held in```. The way this works is that you need to keep the button pressed down while you scroll with the right knob. When you are done you release the button.
+- If you prefer scrolling through the modes with the right rotary encoded knob located on the Honeycomb Bravo, then you need to map the following command with description ```Bravo++ activates the mode select when button is held in```. The way this works is that you need to keep the button pressed down while you scroll with the right knob. When you are done you release the button.
 - If you don't like these options, you can also map the commands that move the selection up or down to any key or button you like using the provided commands with description ```Bravo++ cycle mode up``` and ```Bravo++ cycle mode down```
 
-A small note on button behavior. A click (below 250 msec) will actuate the button or switch and the arrows will stay green during this time. A long click (between 250 - 750 msec) is use for switches and will change the direction in which the switches will be actuated on the following click. In order to help with the timing, the arrow will turn yellow indicating that you can release it to do a long click. Holding a button down for over 750 msec will assume you want to sustain a switch and is useful for spring-loaded switches that cannot be activated with a simple click. The arrows will turn a magenta color and will remain so until you release the button. 
+A small note on button behavior and assuming: 
+  - `LONG_CLICK_THRESHOLD` = 0.350
+  - `CONTINUOUS_PRESS_THRESHOLD` = 0.750
+ 
+A click (below 350 msec) will actuate the button or switch and the arrows will stay green during this time. A long click (between 350 - 750 msec) is use for switches and will change the direction in which the switches will be actuated on the following click. In order to help with the timing, the arrow will turn yellow indicating that you can release it to do a long click. Holding a button down for over 750 msec will assume you want to sustain a switch and is useful for spring-loaded switches that cannot be activated with a simple click. The arrows will turn a magenta color and will remain so until you release the button. 
 
 Finally, there are two internal commands that are often assigned to one of the Honeycomb Bravo buttons. 
 - The ```I/O``` button (see one of the example configs) is used for switching between the inner or outer scroll knob. The active state is shown in the knob depiction in the Bravo++ window. The dataref is described as ```Bravo++ toggles INNER/OUTER mode```.
@@ -91,55 +81,31 @@ Here are the descriptions you should look for when configuring each switch with 
 - switch7 (position up) = Bravo++ command for rocker switch7 when it is positioned up (FlyWithLua/Bravo++/rocker_switch7_up)
 - switch7 (position down) = Bravo++ command for rocker switch7 when it is positioned down (FlyWithLua/Bravo++/rocker_switch7_down)
 
-## Configuring the right twist knob and the trim wheel
+## Configuring the right rotary encoded knob and the trim wheel
 
-Right twist knob and the trim wheel â€” compatibility requirements
+Right rotary encoded knob and the trim wheel - compatibility requirements
 
-The script includes improved HID/decoder handling for the right rotary knob and trim wheel. To ensure reliable behaviour you must prevent the Honeycomb Configurator from also capturing those inputs â€” otherwise the two input sources will conflict and produce incorrect behaviour.
+The script includes improved HID/decoder handling for the right rotary encoded knob and trim wheel. To ensure reliable behaviour on Windows, you must disable the Honeycomb Configurator (if installed) to keep it from capturing those inputs, otherwise the two input sources will conflict and produce incorrect behaviour.
 
 Two acceptable setups:
 
-1) Disable the Honeycomb Configurator completely (recommended if you do not need it for other devices).
+1. For cases where you want to keep the Honeycomb Configurator for other aircraft that don't use Bravo++, simply disable the Honeycomb Configurator via the plugin manager.
 
-2) Keep the Honeycomb Configurator enabled but configure the active Bravo++ profile so that the following controls are set to "Do nothing":
-   - Selector knob
-   - Rotary encoded knob (right knob)
-   - Trim wheel
+2. For cases where you use Bravo++ for all aircraft, uninstall Honeycomb Configurator.
 
-A sample Honeycomb profile is included at `Resources\plugins\FlyWithLua\Modules\Bravo++\conf\Bravo++_honecomb_configurator.json`.
+Using the built-in decoder
 
-To import it:
-- Select "Actions > Open settings"
-- Click on "Import profiles"
-- Select the file `Resources\plugins\FlyWithLua\Modules\Bravo++\conf\Bravo++_honecomb_configurator.json`
-- Select the profile `Bravo++ Multi-mode`
-- Click "Ok"
-
-If you import while Xâ€‘Plane is running, ensure the current aircraft uses the profile by selecting: `Plugins > HoneyComb > BFC_Throttle > Reload bindings`.
-
-Using the built-in decoder (recommended)
-
-- Make sure the Bravo device is plugged in before starting Xâ€‘Plane (the script will exit if it cannot find the Bravo HID).
-- Do not bind the selector knob, right knob or trim wheel in Xâ€‘Plane if you want the builtâ€‘in decoder to handle them.
-- You can tune behaviour in `bravo_multi-mode.cfg` via these keys (defaults come from the script):
-  - `LONG_CLICK_THRESHOLD` (seconds) â€” default: 0.35 on Windows, 0.50 on other platforms
-  - `CONTINUOUS_PRESS_THRESHOLD` (seconds/counts) â€” default: 0.75 on Windows, 1.0 on other platforms
+- Make sure the Bravo device is plugged in before starting X-Plane (the script will exit if it cannot find the Bravo HID).
+- Do not bind the selector knob, right knob or trim wheel in X-Plane if you want the built-in decoder to handle them.
+- You can fine-tune behaviour of the button clicks in `bravo_multi-mode.cfg` via these properties (defaults come from the script):
+  - `LONG_CLICK_THRESHOLD` (seconds) - default: 0.350 on Windows, 0.500 on other platforms
+  - `CONTINUOUS_PRESS_THRESHOLD` (seconds) -  default: 0.750 on Windows, 1.0 on other platforms
 
 Example lines to add to your config file (if you want explicit values):
 ```
-LONG_CLICK_THRESHOLD=0.35
-CONTINUOUS_PRESS_THRESHOLD=0.75
+LONG_CLICK_THRESHOLD=0.350
+CONTINUOUS_PRESS_THRESHOLD=0.750
 ```
-
-If you must use the Honeycomb Configurator for other reasons
-
-Import the provided profile at `Resources\plugins\FlyWithLua\Modules\Bravo++\conf\Bravo++_honecomb_configurator.json`, then edit the profile so the selector knob, rotary knob and trim wheel are all set to "Do nothing". Do not leave them bound â€” doing so will conflict with the scriptâ€™s HID/decoder handling.
-
-For reference, the relevant command descriptions that are configured are as follows:
-- Increase value (turn knob to the right) = Handle button on bravo that increments values (`FlyWithLua/Bravo++/knob_increase_handler`)
-- Decrease value (turn knob to the left) = Handle button on bravo that decrements values (`FlyWithLua/Bravo++/knob_decrease_handler`)
-- Nose up (turn wheel up) = Handle trim on bravo for nose up (`FlyWithLua/Bravo++/trim_nose_up_handler`)
-- Nose down (turn wheel down) = Handle trim on bravo for nose down (`FlyWithLua/Bravo++/trim_nose_down_handler`)
 
 ## Configuring the aircraft
 The easiest way to start is to use one of the predefined G1000 configurations (all aircraft, but the King Air C90B) like the for the Cessna 172. You can find the full list of aircraft configurations [here](FlyWithLua/Modules/bravo%2B%2B/conf/README.md).
@@ -148,15 +114,15 @@ So let's configure the Cessna 172 that uses the G1000.
 
 Start by copying the file under ```Resources\plugins\FlyWithLua\Modules\bravo++\conf\bravo_multi-mode.Cessna_172SP_G1000.cfg``` or download the file from [bravo_multi-mode.Cessna_172SP_G1000.cfg](https://raw.githubusercontent.com/balatone/Bravo_multi_mode/refs/heads/main/FlyWithLua/Modules/bravo%2B%2B/conf/bravo_multi-mode.Cessna_172SP_G1000.cfg) and copy to the ```Aircraft\Laminar Research\Cessna 172 SP``` directory. Note that the Cessna has 3 .acf files and the configuration contains the name that is in ```Cessna_172SP_G1000.acf```. This is how the script knows which configuration to use when it starts up. If you start any of the other two variants that aren't G1000 equipped, the script will just stop, since it can't find a corresponding config file.
 
-Once the file is copied, you can load the aircraft and hopefully you will now see the Bravo++ window that contains the current mode and status of the buttons. If you don't then either the script couldn't find the config file, the Honeycomb Bravo device is not plugged in or something went wrong with the script. In the latter case you will probably hear FlyWithLua complaining and telling you that it has moved the bad script to ```Script (Quarantine)``` folder. This shouldn't happen, but if it does check the ```log.txt``` file for any errors.
+Once the file is copied, you can load the aircraft and hopefully you will now see the Bravo++ window that contains the current mode and status of the buttons. If you don't, then either the script couldn't find the config file, the Honeycomb Bravo device is not plugged in or something went wrong with the script. In the latter case you will probably hear FlyWithLua complaining and telling you that it has moved the bad script to ```Script (Quarantine)``` folder. This shouldn't happen, but if it does check the ```log.txt``` file for any errors.
 
 The Bravo++ can be popped out as a separate window, which is useful if you have multiple monitors. I personally have 4 monitors, where I have the G1000 PFD, MFD and the Bravo++ window on the smallest monitor.
 
-So initially you will see the default mode on the left (AUTO in green) and the currently selected value for the left selector knob. On the bottom you will see all the corresponding buttons in grey and if they are active they will be in white. If they are white the corresponding led on the Bravo device will also be lit. Finally on the right you have the "outer" and "inner" selection which are used when using the other modes. This controls whether the inner or outer knob is to be turned when using the right twist knob. So once you start up the aircraft you can test out the functionality by pressing the "HDG" button and if all is well you should see that the "HDG" button on the device will light up and the Bravo++ window will now show the text in white. By pressing the "HDG" again it should make the button inactive again.
+So initially you will see the default mode on the left (AUTO in green) and the currently selected value for the left selector knob. On the bottom you will see all the corresponding buttons in grey and if they are active they will be in white. If they are white the corresponding led on the Bravo device will also be lit. Finally on the right you have the "outer" and "inner" selection which are used when using the other modes. This controls whether the inner or outer knob is to be turned when using the right rotary encoded knob. So once you start up the aircraft you can test out the functionality by pressing the "HDG" button and if all is well you should see that the "HDG" button on the device will light up and the Bravo++ window will now show the text in white. By pressing the "HDG" again it should make the button inactive again.
 
 To change the mode, you need to click the button you assigned to it. Clicking the button allows you to cycle through the different modes. For the Cessna 172, there are 3 modes (AUTO, PFD and MFD) and it is possible to add additional modes if desired, but that is for another day. If you are curious about additional modes you can look at the DA42 or DA62 configuration which contains an additonal mode called "SYS" that allows settings the lights, operating the anti-ice system, ignition and auxiliary pumps. You can basically configure whatever you want, but there are some known limitations which I won't take up here now. 
 
-If you select the "MFD" mode you will notice that the text changes for most of the content. If you turn the left selector knob to "ALT" you will notice that in the Bravo++ window it now indicates "COM". On the bottom, you will also notice that the labels for the buttons are now different. Some of the buttons do nothing, while others will performa action. So from this selection your are able to tune the com radio frequencies using the right twist knob and the buttons. The "IAS" button on Bravo device now toggles whether the twist knob controls the inner or outer ring of the knob. So when it is set to outer it will control the MHz values of the frequency (118 - 136 MHz), while inner will control the KHz frequencies. The "VS" button will control which frequency is active by swapping the frequencies. The "ALT" button allows you to swicth between COM1 and COM2. Notice that the text for these buttons on the Bravo++ window are blue-green. This indicates that they toggle something without the causing the led light to go on. The "REV" button, on the other hand, is dark grey and this indicates that the led light will be activated if pressed. In this case it will unmute the COM2 speaker and cause the led light to go on. So try dialing in an ATIS/AWOS frequency at the airport you are at on COM2 and then unmute it by pressing the "REV" button. You should hear the ATIS/AWOS track.
+If you select the "MFD" mode you will notice that the text changes for most of the content. If you turn the left selector knob to "ALT" you will notice that in the Bravo++ window it now indicates "COM". On the bottom, you will also notice that the labels for the buttons are now different. Some of the buttons do nothing, while others will performa action. So from this selection your are able to tune the com radio frequencies using the right rotary encoded knob and the buttons. The "IAS" button on Bravo device now toggles whether the rotary encoded knob controls the inner or outer ring of the knob. So when it is set to outer it will control the MHz values of the frequency (118 - 136 MHz), while inner will control the KHz frequencies. The "VS" button will control which frequency is active by swapping the frequencies. The "ALT" button allows you to swicth between COM1 and COM2. Notice that the text for these buttons on the Bravo++ window are blue-green. This indicates that they toggle something without the causing the led light to go on. The "REV" button, on the other hand, is dark grey and this indicates that the led light will be activated if pressed. In this case it will unmute the COM2 speaker and cause the led light to go on. So try dialing in an ATIS/AWOS frequency at the airport you are at on COM2 and then unmute it by pressing the "REV" button. You should hear the ATIS/AWOS track.
 
 I suggest you explore the rest of the functionality, especially the "FMS" selection, which allows you to access the flighplan menu and procedure menu without using the mouse. 
 
@@ -180,7 +146,7 @@ MFD_SELECTOR_LABELS = "COM,NAV,CRS/BARO,HDG/RNG,FMS"
 SYS_SELECTOR_LABELS = "FUEL,,,,"
 ```
 
-There are 3 modes (AUTO,PFD and MFD) and the selector labels (the ones corresponding to the left twist knob on the Honeycomb Bravo) for each mode is specified by using the mode name and then adding ```_SELECTOR_LABELS```. The selector labels should have 5 values. Note that the ```AUTO``` will use the default selector names (ALT, VS, HDG, CRS and IAS), but can be overridden if explicitly specified in the config file.
+There are 3 modes (AUTO,PFD and MFD) and the selector labels (the ones corresponding to the left rotary encoded knob on the Honeycomb Bravo) for each mode is specified by using the mode name and then adding ```_SELECTOR_LABELS```. The selector labels should have 5 values. Note that the ```AUTO``` will use the default selector names (ALT, VS, HDG, CRS and IAS), but can be overridden if explicitly specified in the config file.
 
 Another useful feature for more complicated aircrafts is using the same mode name appended with "_" and a number. This will allow you to assign more than eight buttons to the same mode. You can see an example of this in the King Air C90B configuration file.
 
@@ -214,8 +180,8 @@ For ```AUTO```, it will use default button labels, but like the selector labels 
 
 Note that even if you do not want to have all the buttons assigned to something you need to assign a blank label as seen in the example above. 
   
-### Actions for right twist knob
-The twist knob on the right of the Honeycomb Configurator is used for incrementing or decrementing values for various components of the cockpit. For the GNS530/GNS430 and the G1000 the twist knobs have an inner and outer wheel, and this is implemented in the Bravo++. 
+### Actions for right rotary encoded knob
+The rotary encoded knob on the right of the Honeycomb Bravo is used for incrementing or decrementing values for various components of the cockpit. For the GNS530/GNS430 and the G1000 the rotary encoded knobs have an inner and outer wheel, and this is implemented in the Bravo++. 
 
 In the case where you just want to configure a simple knob you just specify the name of the ```mode name``` + ```selector name``` (separated by ```_```) and then add ```_UP``` or ```_DOWN```.
 
@@ -247,7 +213,7 @@ The Honeycomb Bravo has 8 buttons that can be configured to trigger a command de
 
 The buttons support short click and long press (i.e. holding down the button). This is enabled on all the buttons and holding down the button simulates spring-loaded switches which are often used for tests or actions that should not be activated continually. If you want the same command to be used for short click and long press, then you only need to specify that one command dataref. If you want to invoke a different command on a long press, then you need to specify the second command after the first one, separated by a comma. 
 
-To specify a command to a button you use a similar pattern to what has been used for the previous sections: ```mode name``` + ```selector name``` (optional) + ```button name``` + ```switch direction``` (optional) separated with ````_``` and ending with ```_BUTTON```. Note that the ```selector name``` and ```switch direction``` are optional and the reason is that it is possible that you want an a button to trigger the same action regardless of what the selector is set to. This is how you want the autopilot to behave for example. The ```switch direction``` is only used when the same command cannot be used to toggle the state of a switch and requires 2 separate commands. So just like with the twist knob in the previous section, after the name you specify the name of the dataref to use after the = sign.   
+To specify a command to a button you use a similar pattern to what has been used for the previous sections: ```mode name``` + ```selector name``` (optional) + ```button name``` + ```switch direction``` (optional) separated with ````_``` and ending with ```_BUTTON```. Note that the ```selector name``` and ```switch direction``` are optional and the reason is that it is possible that you want an a button to trigger the same action regardless of what the selector is set to. This is how you want the autopilot to behave for example. The ```switch direction``` is only used when the same command cannot be used to toggle the state of a switch and requires 2 separate commands. So just like with the rotary encoded knob in the previous section, after the name you specify the name of the dataref to use after the = sign.   
 
 To specify the dataref and value to use for deciding when a led light on the button should light up or not you first specify the name:  ```mode name``` + ```selector name``` (optional) + ```button name``` and ending with ```_BUTTON_LED```. Again the ```selector name``` is optional because there are cases where you want the same led to light (or not) irregardless of the selection on the selector knob. Next you need to specify the dataref that contains the value of the state of whatever the corresponding command triggered and you need to provide a value to check against. In this case the value is what it should be in order to turn off the led.  
 
@@ -366,7 +332,7 @@ The trim wheel overrides the default values used in X-Plane to better simulate a
 
 The trim boost is a value that is applied to the trim increment if the wheel is turned quickly. So if there are many "clicks" in short succession, the trim increment will be multiplied by the trim boost value. The default, if not specified, is 3.
 
-To specify your own values you can just add the follwoing to the config file:
+To specify your own values you can just add the following to the config file:
 
 ```
 TRIM_INCREMENT=0.005
