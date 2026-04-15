@@ -31,13 +31,13 @@ local TRIM_UP_MASK = 0x40 -- (may not be used on this device; placeholder)
 -- Detect Windows vs POSIX (package.config first char == directory separator)
 local is_windows = (package.config and package.config:sub(1,1) == '\\')
 -- Windows tends to produce faster/denser HID report timing; prefer 0.05 there, 0.10 on others.
-local DEFAULT_ROTARY_MIN_INTERVAL = is_windows and 0.020 or 0.030
+local DEFAULT_ROTARY_MIN_INTERVAL = is_windows and 0.015 or 0.030
 local ROTARY_MIN_INTERVAL = DEFAULT_ROTARY_MIN_INTERVAL -- seconds between reported events for same knob
 local SELECTOR_MIN_INTERVAL = DEFAULT_ROTARY_MIN_INTERVAL
 -- Use a smaller trim interval by default so short trim pulses aren't suppressed
 local DEFAULT_TRIM_MIN_INTERVAL = is_windows and 0.050 or 0.100
 local TRIM_MIN_INTERVAL = DEFAULT_TRIM_MIN_INTERVAL
-local DEFAULT_ROTARY_DEDUPE_WINDOW = is_windows and 0.040 or 0.080 -- seconds to dedupe same-direction duplicates
+local DEFAULT_ROTARY_DEDUPE_WINDOW = is_windows and 0.030 or 0.080 -- seconds to dedupe same-direction duplicates
 local ROTARY_DEDUPE_WINDOW = DEFAULT_ROTARY_DEDUPE_WINDOW -- seconds to dedupe same-direction duplicates
 local last_rotary_time = 0
 local last_selector_time = 0
