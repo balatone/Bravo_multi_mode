@@ -1,4 +1,4 @@
-require("bit")
+﻿require("bit")
 require("graphics")
 
 -- Modules needed for logging and general functionality
@@ -17,17 +17,33 @@ dofile(custom_directory .. "Transponder.lua")
 log.LOG_LEVEL = log.LOG_INFO
 local log_led_state = false
 
--- Set this to either 0 or the button number assigned for the alt selector in x-plane.
--- Setting to 0 will result in using HID to determine the selector state, but will introduce lag in Windows. 
--- Use the ButtonLogUtil.lua to determine the button number asigned by x-plane
-local alt_selector_button = 0
+-- New modular HID/decoder modules
+local bravo_hid = require("bravo++.hid")
+local bravo_decoder = require("bravo++.decoder")
+local bravo_state = require("bravo++.state")
+local bravo_debug = require("bravo++.debug")
+
+local HID_INPUT_DEBUG = false
+bravo_debug.enable(HID_INPUT_DEBUG)
+
+-- Detect Windows vs POSIX (package.config first char == directory separator)
+local is_windows = (package.config and package.config:sub(1,1) == '\\')
 
 local bravo = hid_open(0x294B, 0x1901) -- Honeycomb Bravo VID/PID
 
-if bravo then
-    hid_set_nonblocking(bravo, 1)
+-- Exit immediately if the Bravo device cannot be opened. Simulated mode removed.
+if not bravo then
+    log.error("Bravo device was not found (VID=0x294B PID=0x1901). Stopping script.")
+    return
+end
+
+-- Initialize the modular hid module if available and start draining reports
+if bravo and bravo_hid and bravo_hid.init then
+    bravo_hid.init({ device_handle = bravo, packet_size = 64 })
+    bravo_hid.start()
+    log.info("HID polling has started")
 else
-    log.error("No Honeycomb Bravo device detected! Make sure that it's plugged in properly to the PC.")
+    log.error("Bravo device was not found (VID=0x294B PID=0x1901). Stopping script.")
     return
 end
 
@@ -264,6 +280,8 @@ local function validate_config_keys()
     -- Manual Trim Configuration
     add_key("TRIM_INCREMENT")
     add_key("TRIM_BOOST")
+    add_key("LONG_CLICK_THRESHOLD")
+    add_key("CONTINUOUS_PRESS_THRESHOLD")
 
     -- **Step 3: Check for invalid (unrecognized) keys**
     -- This part identifies keys in the config file that are not defined as valid.
@@ -450,19 +468,19 @@ local function validate_config_values()
                     end
                 end
             end
-        elseif key == "TRIM_INCREMENT" or key == "TRIM_BOOST" then
-            local trim_value = tonumber(value_string)
-            if trim_value == nil then
+        elseif key == "TRIM_INCREMENT" or key == "TRIM_BOOST" or key == "LONG_CLICK_THRESHOLD" or key == "CONTINUOUS_PRESS_THRESHOLD" then
+            local num_value = tonumber(value_string)
+            if num_value == nil then
                 table.insert(invalid_value_entries, {
                     key = key,
                     value = value_string,
-                    reason = "Trim value '" .. tostring(value_string) .. "' is not a valid number."
+                    reason = "Value '" .. tostring(value_string) .. "' is not a valid number."
                 })
-            elseif trim_value < 0 then
+            elseif num_value <= 0 then
                 table.insert(invalid_value_entries, {
                     key = key,
                     value = value_string,
-                    reason = "Trim value '" .. tostring(value_string) .. "' must be greater than 0."
+                    reason = "Value '" .. tostring(value_string) .. "' must be greater than 0."
                 })
             end
         else -- For other keys, assume the value is a command string
@@ -1285,78 +1303,22 @@ local function set_current_selector(idx)
     end
 end
 
-local function find_position(n)
-    if n == 0 or (bit.band(n, (n - 1)) ~= 0) then
-        return -1
-    end
-
-    local pos = 1;
-    local val = 1;
-    while bit.band(val, n) == 0 do
-        val = bit.lshift(val, 1)
-        pos = pos + 1
-    end
-    return pos
-end
-
 local function refresh_selector_hid()
-    local num, data1, data2, data3, data4, data5, data6, data7, data8, data9, data10, data11, data12, data13, data14, data15, data16, data17, data18 =
-        hid_read(bravo, 64)
-    local selector = data15
-    if selector and selector > 0 then
-		log.debug("Selector: " .. selector)
-        local idx = 6 - find_position(selector)
-        set_current_selector(idx)
-    end
-end
-
--- Define button numbers for each selector position
--- local alt_selector_button = nav_bindings.ALT_SELECTOR and nav_bindings.ALT_SELECTOR + 0 or 0
-local selector_buttons = {}
-if alt_selector_button and alt_selector_button > 0 then
-    log.debug("ALT_SELECTOR was set to " .. alt_selector_button)
-    for i = 1, 5, 1 do
-        selector_buttons[i] = alt_selector_button - i + 1
-        log.debug("Selector " .. default_selections[i] .. " set to button " .. selector_buttons[i])
-    end
-end
-
-local function refresh_selector()
-    for idx, button_num in ipairs(selector_buttons) do
-        if button(button_num) then
-            -- logMsg("Selector is at position: " .. idx)
-            set_current_selector(idx) -- Update your logic here
-            break
-        end
-    end
-end
-
-local function cycle_selector()
-    return try_catch(function()
-        if selector_index < 5 then
-            selector_index = selector_index + 1
+    -- Use decoded selector state from the modular decoder/state instead of calling hid_read()
+    local sel = bravo_state.get_selector()
+    if sel and type(sel) == 'number' and sel > 0 then
+        -- Map decoded raw selector to index if known
+        if sel >= 1 and sel <= 5 then
+            set_current_selector(sel)
         else
-            selector_index = 1
+            -- Unknown raw, log for later mapping
+            log.debug('refresh_selector_hid: decoded selector raw=' .. tostring(sel))
         end
-    end, 'cycle_selector')
+    end
 end
-
-dispatch.cycle_selector = cycle_selector
-
--- Create a custom command for bravo knob increase
-create_command(
-    "FlyWithLua/Bravo++/cycle_selector",
-    "Cycle the selection (use only when Bravo hardware is not available) ",
-    "bravo_dispatch('cycle_selector')", -- Call Lua function when pressed
-    "",
-    ""
-)
 
 -- Choose the available method for updating the selector
 local function refresh_selector_task()
-    if alt_selector_button > 0 then
-        return refresh_selector()
-    end
     return refresh_selector_hid()
 end
 
@@ -1572,10 +1534,13 @@ end
 --------------------------------------
 
 local trim_last_click_time = 0
-local trim_debounce_delay = 0.2 -- 200ms
+local trim_boost_window = 0.2 -- 200ms
 local trim_dataref = dataref_table("sim/flightmodel2/controls/elevator_trim")
-local increment = nav_bindings.TRIM_INCREMENT and nav_bindings.TRIM_INCREMENT + 0 or 0.01 
-local boost_factor = nav_bindings.TRIM_BOOST and nav_bindings.TRIM_BOOST + 0 or 3
+local increment = tonumber(nav_bindings.TRIM_INCREMENT) and tonumber(nav_bindings.TRIM_INCREMENT) + 0 or 0.01 
+local boost_factor = tonumber(nav_bindings.TRIM_BOOST) and tonumber(nav_bindings.TRIM_BOOST) + 0 or 3
+
+log.debug("TRIM_INCREMENT = " .. nav_bindings.TRIM_INCREMENT)
+log.debug("TRIM_BOOST = " .. nav_bindings.TRIM_BOOST)
 
 local function handle_bravo_trim_nose_up()
     local current_time = os.clock()
@@ -1585,7 +1550,7 @@ local function handle_bravo_trim_nose_up()
     local current_value = tonumber(trim_dataref[0])
     local new_value = current_value
     log.debug("Time since last call: " .. diff)
-    if diff < trim_debounce_delay then
+    if diff < trim_boost_window then
         new_value = current_value + increment*boost_factor
         log.debug("Boosting nose up")
     else
@@ -1618,7 +1583,7 @@ local function handle_bravo_trim_nose_down()
     local current_value = tonumber(trim_dataref[0])
     local new_value = current_value
     log.debug("Time since last call: " .. diff)
-    if diff < trim_debounce_delay then
+    if diff < trim_boost_window then
         new_value = current_value - increment*boost_factor
         log.debug("Boosting nose down")
     else
@@ -1647,8 +1612,6 @@ create_command(
 --- HANDLE TWIST-KNOB THAT INCREASES/DECREASES VALUES
 -----------------------------------------------------
 
-local last_click_time = 0
-local debounce_delay = 0.02 -- 20ms
 
 local function handle_bravo_knob_increase()
     local current_time = os.clock()
@@ -1658,17 +1621,11 @@ local function handle_bravo_knob_increase()
     else
         current_twist_knob_action = twist_knob_map_actions[current_mode][current_selection]       
     end    
-    if current_twist_knob_action ~= nil and (current_time - last_click_time) > debounce_delay then
+    if current_twist_knob_action ~= nil then
         if current_twist_knob_action["UP"] then
-            command_once(current_twist_knob_action["UP"])
-            last_click_time = current_time
-        elseif current_cf_mode == "outer" and current_twist_knob_action["OUTER"] then
-            command_once(current_twist_knob_action["OUTER"]["UP"])
-            last_click_time = current_time
-        elseif current_cf_mode == "inner" and current_twist_knob_action["INNER"] then
-            command_once(current_twist_knob_action["INNER"]["UP"])
-            last_click_time = current_time
-        else
+            command_once(current_twist_knob_action["UP"])        elseif current_cf_mode == "outer" and current_twist_knob_action["OUTER"] then
+            command_once(current_twist_knob_action["OUTER"]["UP"])        elseif current_cf_mode == "inner" and current_twist_knob_action["INNER"] then
+            command_once(current_twist_knob_action["INNER"]["UP"])        else
             log.debug("Nothing to do.")
         end
     end
@@ -1693,23 +1650,83 @@ local function handle_bravo_knob_decrease()
     else
         current_twist_knob_action = twist_knob_map_actions[current_mode][current_selection]
     end
-    if current_twist_knob_action ~= nil and (current_time - last_click_time) > debounce_delay then
+    if current_twist_knob_action ~= nil then
 		if current_twist_knob_action["DOWN"] then
-			command_once(current_twist_knob_action["DOWN"])
-            last_click_time = current_time
-		elseif current_cf_mode == "outer" and current_twist_knob_action["OUTER"] then
-			command_once(current_twist_knob_action["OUTER"]["DOWN"])
-            last_click_time = current_time
-		elseif current_cf_mode == "inner" and current_twist_knob_action["INNER"] then
-			command_once(current_twist_knob_action["INNER"]["DOWN"])
-            last_click_time = current_time
-		else
+			command_once(current_twist_knob_action["DOWN"])		elseif current_cf_mode == "outer" and current_twist_knob_action["OUTER"] then
+			command_once(current_twist_knob_action["OUTER"]["DOWN"])		elseif current_cf_mode == "inner" and current_twist_knob_action["INNER"] then
+			command_once(current_twist_knob_action["INNER"]["DOWN"])		else
 			log.debug("Nothing to do.")
 		end
 	end
 end
 
 dispatch.knob_decrease = handle_bravo_knob_decrease
+
+-- Wire the new modular decoder to the existing handlers
+bravo_decoder.set_handlers({
+    on_selector_changed = function(new)
+        -- new is a raw byte for now; attempt to map to selector index if possible
+        if type(new) == 'number' then
+            if new >= 1 and new <= 5 then
+                set_current_selector(new)
+            else
+                -- leave as debug info until mapping is confirmed
+                log.info('Decoder: selector change raw=' .. tostring(new))
+            end
+        else
+            log.info('Decoder: selector change (non-numeric) ' .. tostring(new))
+        end
+    end,
+    on_rotary_cw = handle_bravo_knob_increase,
+    on_rotary_ccw = handle_bravo_knob_decrease,
+    on_trim_changed = function(v)
+        if v == "down" then
+            pcall(handle_bravo_trim_nose_down)
+        elseif v == "up" then
+            pcall(handle_bravo_trim_nose_up)
+        else
+            log.info('Decoder: trim change raw=' .. tostring(v))
+        end
+    end
+})
+
+-- Subscribe decoder to hid reports
+bravo_hid.subscribe(bravo_decoder.on_report)
+
+-- Ensure bravo_hid.poll is called every frame via the centralized dispatcher
+dispatch.bravo_hid_poll_task = function() bravo_hid.poll() end
+-- Use bravo_dispatch so FlyWithLua stores a short string
+do_every_frame("bravo_dispatch('bravo_hid_poll_task')")
+
+-- Small tap to log each report received by the hid poller for debugging
+-- Only log and persist non-empty reports to avoid flooding the log during normal frames.
+local raw_log_path = "raw_hid_log.txt"
+local function append_raw_log(line)
+    local f = io.open(raw_log_path, "a")
+    if f then
+        f:write(line .. "")
+        f:close()
+    end
+end
+
+local function report_is_empty(report)
+    if not report then return true end
+    for i=1, #report do if (report[i] or 0) ~= 0 then return false end end
+    return true
+end
+
+local function __bravo_debug_tap(report)
+    if report_is_empty(report) then return end
+    -- log a short info line and a hex dump at debug level
+    -- log.debug('BRAVO TAP: decoder callback invoked; len=' .. tostring(#report or 0))
+    local hex = {}
+    for i=1, #report do hex[#hex+1] = string.format('%02X', report[i]) end
+    local line = string.format('%0.3f [BRAVO++ RAW] %s', os.clock(), table.concat(hex, ' '))
+    -- log.debug('BRAVO TAP REPORT: ' .. table.concat(hex, ' '))
+    append_raw_log(line)
+end
+local __bravo_tap_id = nil
+if HID_INPUT_DEBUG then __bravo_tap_id = bravo_hid.subscribe(__bravo_debug_tap) end
 
 create_command(
     "FlyWithLua/Bravo++/knob_decrease_handler",
@@ -1723,8 +1740,11 @@ create_command(
 ---- BUTTON HANDLING
 --------------------------------------
 -- Define a threshold for what constitutes a "long press" in seconds
-local LONG_CLICK_THRESHOLD = 0.25 -- Adjust this value as needed (e.g., 0.25 seconds)
-local CONTINUOUS_PRESS_THRESHOLD = 0.75 -- Adjust this value as needed (e.g., 0.25 seconds)
+local DEFAULT_LONG_CLICK_THRESHOLD = is_windows and 0.250 or 0.500
+local DEFAULT_CONTINUOUS_PRESS_THRESHOLD = is_windows and 0.750 or 1.0
+
+local LONG_CLICK_THRESHOLD = nav_bindings.LONG_CLICK_THRESHOLD and tonumber(nav_bindings.LONG_CLICK_THRESHOLD) or DEFAULT_LONG_CLICK_THRESHOLD
+local CONTINUOUS_PRESS_THRESHOLD = nav_bindings.CONTINUOUS_PRESS_THRESHOLD and tonumber(nav_bindings.CONTINUOUS_PRESS_THRESHOLD) or DEFAULT_CONTINUOUS_PRESS_THRESHOLD
 
 -- Declare global variables to track button state across command phases
 -- These are necessary because the different parts of create_command run in independent Lua blocks.
@@ -2040,35 +2060,71 @@ local function send_hid_data()
     end
 end
 
+-- Replacement get_led_state_for_dataref written by assistant
 local function get_led_state_for_dataref(dr_table, cond, index)
     if dr_table == nil then
         return false
     end
+
+    local cond_num = tonumber(cond)
+
     if util.is_dataref_array(dr_table) then
-		--if util.is_string(index) then
-		--	log.debug("index: " .. index)
-		--end
-		if index == nil then
-			for i = 0, 19 do
-				if dr_table[i] ~= tonumber(cond) then
-					return true
-				end
-			end
-		else
-			-- log.debug("index: " .. index)
-			return dr_table[tonumber(index) - 1] ~= tonumber(cond)
-		end
-		return false
+        -- If an explicit index was provided, use it (cfg uses 1-based indexing; dataref table is 0-based)
+        if index ~= nil then
+            local idx = tonumber(index)
+            if idx == nil then
+                return false
+            end
+            local val = dr_table[idx - 1]
+            if val == nil then
+                -- Index not present in array -> treat as 'no' (do not light)
+                return false
+            end
+            local vnum = tonumber(val)
+            if vnum ~= nil then
+                return vnum ~= cond_num
+            else
+                return tostring(val) ~= tostring(cond)
+            end
+        end
+
+        -- No explicit index: iterate only the numeric indices that actually exist in the dataref table.
+        -- log.info("Is dataref array with no index")
+        -- Iterate with explicit index bounds instead of pairs()
+        local name = dr_table.refname 
+                  or dr_table.name 
+                  or dr_table._dataref 
+                  or dr_table._name 
+                  or "unknown dataref"
+
+        log.info("Dataref: " .. name)        
+        for i = 0, 19 do  -- adjust max based on your dataref
+            local v = dr_table[i]
+            if v == nil then
+                break  -- end of array
+            end
+            log.debug("i: " .. i .. ", v (userdata): " .. tostring(v))
+            local vnum = tonumber(v)  -- convert userdata to number
+            log.debug("vnum: " .. vnum)
+            if vnum ~= cond_num then
+                return true
+            end
+        end
+        return false
     else
-        if dr_table[0] ~= tonumber(cond) then
-            return true
+        -- Non-array dataref: compare the single value at index 0
+        local val = dr_table[0]
+        if val == nil then
+            return false
+        end
+        local vnum = tonumber(val)
+        if vnum ~= nil then
+            return vnum ~= cond_num
         else
-			return false
-		end
+            return tostring(val) ~= tostring(cond)
+        end
     end
 end
-
-
 local switch_map_leds = {}
 local switch_map_leds_cond = {}
 local switch_map_leds_index = {}
@@ -2355,4 +2411,38 @@ dispatch.handle_led_changes_task = handle_led_changes_task
 
 -- Register the corrected function to be called every frame
 do_every_frame("bravo_dispatch('handle_led_changes_task')")
+
+-- Ensure device LEDs are reset when FlyWithLua / X-Plane exits
+local function do_on_exit_task()
+    try_catch(function()
+        log.info("Calling do_on_exit")
+        if bravo == nil then return end
+
+        -- Turn off all internal LED state
+        try_catch(all_leds_off, 'all_leds_off_do_on_exit')
+
+        -- Send cleared HID report
+        try_catch(send_hid_data, 'send_hid_data_do_on_exit')
+
+        -- Optionally close the hid device if available
+        if bravo then
+            try_catch(function() hid_close(bravo) end, 'hid_close_do_on_exit')
+            bravo = nil
+        end
+
+        -- Small delay to allow OS/driver to flush the report if necessary
+        -- local t0 = os.clock(); while os.clock() - t0 < 0.08 do end
+    end, 'do_on_exit')
+end
+
+dispatch.do_on_exit_task = do_on_exit_task
+
+do_on_exit("bravo_dispatch('do_on_exit_task')")
+
+
+
+
+
+
+
 
