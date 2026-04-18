@@ -1740,8 +1740,8 @@ create_command(
 ---- BUTTON HANDLING
 --------------------------------------
 -- Define a threshold for what constitutes a "long press" in seconds
-local DEFAULT_LONG_CLICK_THRESHOLD = is_windows and 0.35 or 0.50
-local DEFAULT_CONTINUOUS_PRESS_THRESHOLD = is_windows and 0.75 or 1.0
+local DEFAULT_LONG_CLICK_THRESHOLD = is_windows and 0.250 or 0.500
+local DEFAULT_CONTINUOUS_PRESS_THRESHOLD = is_windows and 0.750 or 1.0
 
 local LONG_CLICK_THRESHOLD = nav_bindings.LONG_CLICK_THRESHOLD and tonumber(nav_bindings.LONG_CLICK_THRESHOLD) or DEFAULT_LONG_CLICK_THRESHOLD
 local CONTINUOUS_PRESS_THRESHOLD = nav_bindings.CONTINUOUS_PRESS_THRESHOLD and tonumber(nav_bindings.CONTINUOUS_PRESS_THRESHOLD) or DEFAULT_CONTINUOUS_PRESS_THRESHOLD
@@ -2089,21 +2089,27 @@ local function get_led_state_for_dataref(dr_table, cond, index)
         end
 
         -- No explicit index: iterate only the numeric indices that actually exist in the dataref table.
-        for k, v in pairs(dr_table) do
-            if type(k) == 'number' then
-                local vnum = tonumber(v)
-                if vnum ~= nil then
-                    if vnum ~= cond_num then
-                        return true
-                    end
-                else
-                    if tostring(v) ~= tostring(cond) then
-                        return true
-                    end
-                end
+        -- log.info("Is dataref array with no index")
+        -- Iterate with explicit index bounds instead of pairs()
+        local name = dr_table.refname 
+                  or dr_table.name 
+                  or dr_table._dataref 
+                  or dr_table._name 
+                  or "unknown dataref"
+
+        log.info("Dataref: " .. name)        
+        for i = 0, 19 do  -- adjust max based on your dataref
+            local v = dr_table[i]
+            if v == nil then
+                break  -- end of array
+            end
+            log.debug("i: " .. i .. ", v (userdata): " .. tostring(v))
+            local vnum = tonumber(v)  -- convert userdata to number
+            log.debug("vnum: " .. vnum)
+            if vnum ~= cond_num then
+                return true
             end
         end
-
         return false
     else
         -- Non-array dataref: compare the single value at index 0

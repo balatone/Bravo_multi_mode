@@ -98,7 +98,7 @@ Using the built-in decoder
 - Make sure the Bravo device is plugged in before starting X-Plane (the script will exit if it cannot find the Bravo HID).
 - Do not bind the selector knob, right knob or trim wheel in X-Plane if you want the built-in decoder to handle them.
 - You can fine-tune behaviour of the button clicks in `bravo_multi-mode.cfg` via these properties (defaults come from the script):
-  - `LONG_CLICK_THRESHOLD` (seconds) - default: 0.350 on Windows, 0.500 on other platforms
+  - `LONG_CLICK_THRESHOLD` (seconds) - default: 0.250 on Windows, 0.500 on other platforms
   - `CONTINUOUS_PRESS_THRESHOLD` (seconds) -  default: 0.750 on Windows, 1.0 on other platforms
 
 Example lines to add to your config file (if you want explicit values):
