@@ -2088,24 +2088,31 @@ local function get_led_state_for_dataref(dr_table, cond, index)
             end
         end
 
-        -- No explicit index: iterate only the numeric indices that actually exist in the dataref table.
-        -- log.info("Is dataref array with no index")
-        -- Iterate with explicit index bounds instead of pairs()
-        local name = dr_table.refname 
-                  or dr_table.name 
-                  or dr_table._dataref 
-                  or dr_table._name 
-                  or "unknown dataref"
+        -- No explicit index: iterate only the actual elements of the array dataref.
+        local name = dr_table.refname
+                  or dr_table.name
+                  or dr_table._dataref
+                  or dr_table._name
+                  or 'unknown dataref'
 
-        log.info("Dataref: " .. name)        
-        for i = 0, 19 do  -- adjust max based on your dataref
+        -- Query the real array size from X-Plane via XPLMGetDataRefInfo
+        local arraySize = util.get_dataref_array_size(dr_table)
+
+        -- If we cannot determine the size, fall back to a safe bounded scan
+        if arraySize == nil or arraySize <= 0 then
+            log.warning('Could not determine array size for dataref: ' .. name)
+            arraySize = 3
+        end
+
+        log.debug('Dataref: ' .. name .. ' (array size: ' .. arraySize .. ')')
+
+        for i = 0, arraySize - 1 do
             local v = dr_table[i]
-            if v == nil then
-                break  -- end of array
+            local vnum = tonumber(v)
+            if vnum == nil then
+                break
             end
-            log.debug("i: " .. i .. ", v (userdata): " .. tostring(v))
-            local vnum = tonumber(v)  -- convert userdata to number
-            log.debug("vnum: " .. vnum)
+            log.debug('i: ' .. i .. ', vnum: ' .. vnum)
             if vnum ~= cond_num then
                 return true
             end

@@ -115,4 +115,17 @@ function util.safe_command_lookup(command_name_string)
     return true
 end
 
+--- Get the actual element count for an array dataref.
+-- The FlyWithLua magic table's 'reftype' property encodes the array element
+-- count in the low 12 bits (X-Plane SDK convention).  Returns the count
+-- (integer) or nil if the dataref is not an array or can't be queried.
+function util.get_dataref_array_size(dr_table)
+    local reftype = dr_table.reftype
+    if reftype == nil then
+        return nil
+    end
+    -- reftype is a number: low 12 bits = element count, high bits = data type
+    return reftype % 4096
+end
+
 return util
