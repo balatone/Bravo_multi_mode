@@ -2115,8 +2115,6 @@ local function get_led_state_for_dataref(dr_table, cond, index)
     if dr_table == nil then
         return false
     end
-
-    log.info("SANITY CHECK: 0 " .. cond .. " is " .. eval_condition(0,cond))
     if util.is_dataref_array(dr_table) then
         -- If an explicit index was provided, use it (cfg uses 1-based indexing; dataref table is 0-based)
         if index ~= nil then
