@@ -1,6 +1,4 @@
-﻿require("bit")
-require("graphics")
-
+﻿
 -- Modules needed for logging and general functionality
 local util = require("bravo++.util")
 local log = require("bravo++.log")
@@ -330,6 +328,53 @@ for _, label in ipairs(annunciator_labels) do
 end
 
 --- Validates the values assigned to configuration keys in the nav_bindings table.
+local function is_valid_condition(cond_str)
+    local s = tostring(cond_str):gsub('%s', '')
+    local ops = {'!=', '<=', '>=', '<', '>', '='}
+    for _, op in ipairs(ops) do
+        if s:sub(1, #op) == op then
+            local threshold = tonumber(s:sub(#op + 1))
+            if threshold then return true end
+        end
+    end
+    if tonumber(s) then return true end
+    return false
+end
+
+--- Returns true when the condition is satisfied (LED should be ON).
+local function eval_condition(val, cond)
+    local s = tostring(cond):gsub('%s', '')
+    local threshold
+
+    -- Ordered so multi-char operators are checked before their single-char prefixes
+    local ops = {
+        {'!=', function(v, t) return v ~= t end},
+        {'<=', function(v, t) return v <= t end},
+        {'>=', function(v, t) return v >= t end},
+        {'<',  function(v, t) return v <  t end},
+        {'>',  function(v, t) return v >  t end},
+        {'=',  function(v, t) return v == t end},
+    }
+
+    for _, op in ipairs(ops) do
+        if s:sub(1, #op[1]) == op[1] then
+            threshold = tonumber(s:sub(#op[1] + 1))
+            if threshold then
+                return op[2](val, threshold)
+            end
+        end
+    end
+
+    -- bare number ? equality check
+    threshold = tonumber(s)
+    if threshold then
+        return val == threshold
+    end
+
+    return false
+end
+
+--- Validates the values assigned to configuration keys in the nav_bindings table.
 local function validate_config_values()
     local invalid_value_entries = {}
     log.info("Starting configuration value validation...")
@@ -395,7 +440,7 @@ local function validate_config_values()
                 -- Common validation for all _LED keys (DataRef existence and condition parameter type)
                 local dr_string = binding_parameters[1]
                 local dr_table = util.safe_dataref_lookup(dr_string)
-                local cond_param = tonumber(binding_parameters[2])
+                local cond_param = binding_parameters[2]
 
                 if dr_table == nil then
                     table.insert(invalid_value_entries, {
@@ -406,11 +451,11 @@ local function validate_config_values()
                     current_entry_valid = false
                 end
 
-                if cond_param == nil then
+                if not is_valid_condition(cond_param) then
                     table.insert(invalid_value_entries, {
                         key = key,
                         value = value_string,
-                        reason = "Second parameter '" .. tostring(binding_parameters[2]) .. "' is not a valid number (expected LED condition)."
+                        reason = "Second parameter '" .. tostring(binding_parameters[2]) .. "' is not a valid LED condition (expected e.g. '>0', '!=1', '=0')."
                     })
                     current_entry_valid = false
                 end
@@ -2061,13 +2106,17 @@ local function send_hid_data()
 end
 
 -- Replacement get_led_state_for_dataref written by assistant
+--- Evaluate a numeric value against a conditional string.
+--- Supported cond syntax: "<9", ">=10", "<=5", ">3", "!=5", "=0", "0"
+--- Check whether a string is a valid LED condition.
+--- Accepts: "<9", ">=10", "<=5", ">3", "!=5", "=0", "0"
+--- Returns true if the format is valid, false otherwise.
 local function get_led_state_for_dataref(dr_table, cond, index)
     if dr_table == nil then
         return false
     end
 
-    local cond_num = tonumber(cond)
-
+    log.info("SANITY CHECK: 0 " .. cond .. " is " .. eval_condition(0,cond))
     if util.is_dataref_array(dr_table) then
         -- If an explicit index was provided, use it (cfg uses 1-based indexing; dataref table is 0-based)
         if index ~= nil then
@@ -2082,9 +2131,9 @@ local function get_led_state_for_dataref(dr_table, cond, index)
             end
             local vnum = tonumber(val)
             if vnum ~= nil then
-                return vnum ~= cond_num
+                return eval_condition(vnum, cond)
             else
-                return tostring(val) ~= tostring(cond)
+                return tostring(val) == tostring(cond)
             end
         end
 
@@ -2113,7 +2162,7 @@ local function get_led_state_for_dataref(dr_table, cond, index)
                 break
             end
             log.debug('i: ' .. i .. ', vnum: ' .. vnum)
-            if vnum ~= cond_num then
+            if eval_condition(vnum, cond) then
                 return true
             end
         end
@@ -2126,9 +2175,9 @@ local function get_led_state_for_dataref(dr_table, cond, index)
         end
         local vnum = tonumber(val)
         if vnum ~= nil then
-            return vnum ~= cond_num
+            return eval_condition(vnum, cond)
         else
-            return tostring(val) ~= tostring(cond)
+            return tostring(val) == tostring(cond)
         end
     end
 end
