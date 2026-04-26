@@ -1,4 +1,4 @@
-﻿
+
 -- Modules needed for logging and general functionality
 local util = require("bravo++.util")
 local log = require("bravo++.log")
@@ -327,11 +327,21 @@ for _, label in ipairs(annunciator_labels) do
 	end
 end
 
---- Validates the values assigned to configuration keys in the nav_bindings table.
+--- Operator registry: maps operator strings to comparison functions.
+--- Ordered so multi-char operators are checked before their single-char prefixes.
+local OPERATOR_MAP = {
+    ['!='] = function(v, t) return v ~= t end,
+    ['<='] = function(v, t) return v <= t end,
+    ['>='] = function(v, t) return v >= t end,
+    ['<']  = function(v, t) return v <  t end,
+    ['>']  = function(v, t) return v >  t end,
+    ['=']  = function(v, t) return v == t end,
+}
+
+--- Validates a condition string during config parsing.
 local function is_valid_condition(cond_str)
     local s = tostring(cond_str):gsub('%s', '')
-    local ops = {'!=', '<=', '>=', '<', '>', '='}
-    for _, op in ipairs(ops) do
+    for op in pairs(OPERATOR_MAP) do
         if s:sub(1, #op) == op then
             local threshold = tonumber(s:sub(#op + 1))
             if threshold then return true end
@@ -341,40 +351,38 @@ local function is_valid_condition(cond_str)
     return false
 end
 
---- Returns true when the condition is satisfied (LED should be ON).
-local function eval_condition(val, cond)
-    local s = tostring(cond):gsub('%s', '')
-    local threshold
+--- Compiles a condition string into a callable table during initialization.
+--- Returns { op = function, threshold = number } or a fail-safe that always returns false.
+local function compile_condition(cond_str)
+    local s = tostring(cond_str):gsub('%s', '')
 
-    -- Ordered so multi-char operators are checked before their single-char prefixes
-    local ops = {
-        {'!=', function(v, t) return v ~= t end},
-        {'<=', function(v, t) return v <= t end},
-        {'>=', function(v, t) return v >= t end},
-        {'<',  function(v, t) return v <  t end},
-        {'>',  function(v, t) return v >  t end},
-        {'=',  function(v, t) return v == t end},
-    }
-
-    for _, op in ipairs(ops) do
-        if s:sub(1, #op[1]) == op[1] then
-            threshold = tonumber(s:sub(#op[1] + 1))
+    -- Try operator+threshold forms first (multi-char before single-char)
+    for op in pairs(OPERATOR_MAP) do
+        if s:sub(1, #op) == op then
+            local threshold = tonumber(s:sub(#op + 1))
             if threshold then
-                return op[2](val, threshold)
+                return { op = OPERATOR_MAP[op], threshold = threshold }
             end
         end
     end
 
-    -- bare number ? equality check
-    threshold = tonumber(s)
-    if threshold then
-        return val == threshold
+    -- Bare number → equality check
+    local bare = tonumber(s)
+    if bare then
+        return { op = function(v, t) return v == t end, threshold = bare }
     end
 
-    return false
+    -- Invalid condition: fail-safe that always returns false
+    log.warning("Invalid LED condition '" .. tostring(cond_str) .. "', defaulting to always OFF.")
+    return { op = function() return false end, threshold = 0 }
 end
 
---- Validates the values assigned to configuration keys in the nav_bindings table.
+--- Returns true when the compiled condition is satisfied (LED should be ON).
+--- `compiled_cond` is a table with { op = function, threshold = number }.
+local function eval_condition(val, compiled_cond)
+    return compiled_cond.op(val, compiled_cond.threshold)
+end
+
 local function validate_config_values()
     local invalid_value_entries = {}
     log.info("Starting configuration value validation...")
@@ -760,7 +768,7 @@ for i = 1, #modes do
                 log.debug("cond: " .. binding[2])
                 select_map["ALL"][default_button_labels[k]] = dataref_table(binding[1])
                 button_map_leds[modes[i]] = select_map
-                select_map2["ALL"][default_button_labels[k]] = binding[2]
+                select_map2["ALL"][default_button_labels[k]] = compile_condition(binding[2])
                 button_map_leds_cond[modes[i]] = select_map2
                 select_map3["ALL"][default_button_labels[k]] = false
                 button_map_leds_state[modes[i]] = select_map3
@@ -781,7 +789,7 @@ for i = 1, #modes do
                     log.debug("cond: " .. binding[2])
                     select_map[default_selections[j]][default_button_labels[k]] = dataref_table(binding[1])
                     button_map_leds[modes[i]] = select_map
-                    select_map2[default_selections[j]][default_button_labels[k]] = binding[2]
+                    select_map2[default_selections[j]][default_button_labels[k]] = compile_condition(binding[2])
                     button_map_leds_cond[modes[i]] = select_map2
                     select_map3[default_selections[j]][default_button_labels[k]] = false
                     button_map_leds_state[modes[i]] = select_map3
@@ -2131,7 +2139,7 @@ local function get_led_state_for_dataref(dr_table, cond, index)
             if vnum ~= nil then
                 return eval_condition(vnum, cond)
             else
-                return tostring(val) == tostring(cond)
+                return false -- non-numeric value cannot satisfy numeric condition
             end
         end
 
@@ -2175,7 +2183,7 @@ local function get_led_state_for_dataref(dr_table, cond, index)
         if vnum ~= nil then
             return eval_condition(vnum, cond)
         else
-            return tostring(val) == tostring(cond)
+            return false -- non-numeric value cannot satisfy numeric condition
         end
     end
 end
@@ -2188,7 +2196,7 @@ for i = 1, 7 do
     if util.is_string(nav_bindings[key]) then
         local binding = util.create_table(nav_bindings[key])
         switch_map_leds[key] = dataref_table(binding[1])
-        switch_map_leds_cond[key] = binding[2]
+        switch_map_leds_cond[key] = compile_condition(binding[2])
         if #binding == 3 then
             switch_map_leds_index[key] = binding[3]
         end
@@ -2247,7 +2255,7 @@ for i = 1, #annunciator_labels do
     if util.is_string(nav_bindings[key]) then
         local binding = util.create_table(nav_bindings[key])
         annunciator_map_leds[annunciator_labels[i]] = dataref_table(binding[1])
-        annunciator_map_leds_cond[annunciator_labels[i]] = binding[2]
+        annunciator_map_leds_cond[annunciator_labels[i]] = compile_condition(binding[2])
     elseif util.is_string(nav_bindings[annunciator_labels[i] .. "_1_LED"]) then
         annunciator_map_leds[annunciator_labels[i]] = {}
         annunciator_map_leds_cond[annunciator_labels[i]] = {}
@@ -2257,7 +2265,7 @@ for i = 1, #annunciator_labels do
         while util.is_string(nav_bindings[key]) do
             local binding = util.create_table(nav_bindings[key])
             annunciator_map_leds[annunciator_labels[i]][idx] = dataref_table(binding[1])
-            annunciator_map_leds_cond[annunciator_labels[i]] = binding[2]
+            annunciator_map_leds_cond[annunciator_labels[i]] = compile_condition(binding[2])
             idx = idx + 1
             key = annunciator_labels[i] .. "_" .. tostring(idx) .. "_LED"
             -- logMsg("key: " .. key)
