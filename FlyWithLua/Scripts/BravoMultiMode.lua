@@ -327,8 +327,10 @@ for _, label in ipairs(annunciator_labels) do
 	end
 end
 
+--- Ordered operator list: multi-char operators first so they are checked before single-char prefixes.
+local OPERATOR_ORDER = {'!=', '<=', '>=', '<', '>', '='}
+
 --- Operator registry: maps operator strings to comparison functions.
---- Ordered so multi-char operators are checked before their single-char prefixes.
 local OPERATOR_MAP = {
     ['!='] = function(v, t) return v ~= t end,
     ['<='] = function(v, t) return v <= t end,
@@ -341,7 +343,7 @@ local OPERATOR_MAP = {
 --- Validates a condition string during config parsing.
 local function is_valid_condition(cond_str)
     local s = tostring(cond_str):gsub('%s', '')
-    for op in pairs(OPERATOR_MAP) do
+    for _, op in ipairs(OPERATOR_ORDER) do
         if s:sub(1, #op) == op then
             local threshold = tonumber(s:sub(#op + 1))
             if threshold then return true end
@@ -352,12 +354,13 @@ local function is_valid_condition(cond_str)
 end
 
 --- Compiles a condition string into a callable table during initialization.
+--- `context` is an optional string (e.g. config key name) included in error/warning logs.
 --- Returns { op = function, threshold = number } or a fail-safe that always returns false.
-local function compile_condition(cond_str)
+local function compile_condition(cond_str, context)
     local s = tostring(cond_str):gsub('%s', '')
 
-    -- Try operator+threshold forms first (multi-char before single-char)
-    for op in pairs(OPERATOR_MAP) do
+    -- Try operator+threshold forms using the ordered list (multi-char before single-char)
+    for _, op in ipairs(OPERATOR_ORDER) do
         if s:sub(1, #op) == op then
             local threshold = tonumber(s:sub(#op + 1))
             if threshold then
@@ -373,7 +376,10 @@ local function compile_condition(cond_str)
     end
 
     -- Invalid condition: fail-safe that always returns false
-    log.warning("Invalid LED condition '" .. tostring(cond_str) .. "', defaulting to always OFF.")
+    local msg = "Invalid LED condition '" .. tostring(cond_str) .. "'"
+    if context then msg = msg .. " (key: " .. context .. ")" end
+    msg = msg .. ", defaulting to always OFF."
+    log.warning(msg)
     return { op = function() return false end, threshold = 0 }
 end
 
@@ -768,7 +774,7 @@ for i = 1, #modes do
                 log.debug("cond: " .. binding[2])
                 select_map["ALL"][default_button_labels[k]] = dataref_table(binding[1])
                 button_map_leds[modes[i]] = select_map
-                select_map2["ALL"][default_button_labels[k]] = compile_condition(binding[2])
+                select_map2["ALL"][default_button_labels[k]] = compile_condition(binding[2], full_key)
                 button_map_leds_cond[modes[i]] = select_map2
                 select_map3["ALL"][default_button_labels[k]] = false
                 button_map_leds_state[modes[i]] = select_map3
@@ -789,7 +795,7 @@ for i = 1, #modes do
                     log.debug("cond: " .. binding[2])
                     select_map[default_selections[j]][default_button_labels[k]] = dataref_table(binding[1])
                     button_map_leds[modes[i]] = select_map
-                    select_map2[default_selections[j]][default_button_labels[k]] = compile_condition(binding[2])
+                    select_map2[default_selections[j]][default_button_labels[k]] = compile_condition(binding[2], full_key)
                     button_map_leds_cond[modes[i]] = select_map2
                     select_map3[default_selections[j]][default_button_labels[k]] = false
                     button_map_leds_state[modes[i]] = select_map3
@@ -2196,7 +2202,7 @@ for i = 1, 7 do
     if util.is_string(nav_bindings[key]) then
         local binding = util.create_table(nav_bindings[key])
         switch_map_leds[key] = dataref_table(binding[1])
-        switch_map_leds_cond[key] = compile_condition(binding[2])
+        switch_map_leds_cond[key] = compile_condition(binding[2], key)
         if #binding == 3 then
             switch_map_leds_index[key] = binding[3]
         end
@@ -2255,7 +2261,7 @@ for i = 1, #annunciator_labels do
     if util.is_string(nav_bindings[key]) then
         local binding = util.create_table(nav_bindings[key])
         annunciator_map_leds[annunciator_labels[i]] = dataref_table(binding[1])
-        annunciator_map_leds_cond[annunciator_labels[i]] = compile_condition(binding[2])
+        annunciator_map_leds_cond[annunciator_labels[i]] = compile_condition(binding[2], key)
     elseif util.is_string(nav_bindings[annunciator_labels[i] .. "_1_LED"]) then
         annunciator_map_leds[annunciator_labels[i]] = {}
         annunciator_map_leds_cond[annunciator_labels[i]] = {}
@@ -2265,7 +2271,7 @@ for i = 1, #annunciator_labels do
         while util.is_string(nav_bindings[key]) do
             local binding = util.create_table(nav_bindings[key])
             annunciator_map_leds[annunciator_labels[i]][idx] = dataref_table(binding[1])
-            annunciator_map_leds_cond[annunciator_labels[i]] = compile_condition(binding[2])
+            annunciator_map_leds_cond[annunciator_labels[i]] = compile_condition(binding[2], key)
             idx = idx + 1
             key = annunciator_labels[i] .. "_" .. tostring(idx) .. "_LED"
             -- logMsg("key: " .. key)
