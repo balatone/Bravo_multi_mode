@@ -2,6 +2,7 @@
 -- Modules needed for logging and general functionality
 local util = require("bravo++.util")
 local log = require("bravo++.log")
+local MapBuilder = require("bravo++.mapbuilder")
 
 -- Custom commands that will only be imported when corresponding aircraft is loaded
 local custom_directory = MODULES_DIRECTORY .. "bravo++" .. DIRECTORY_SEPARATOR .. "custom" .. DIRECTORY_SEPARATOR
@@ -58,13 +59,6 @@ end
 
 -- Helper function to find index in table (used for cycling modes)
 -- NOTE: avoid polluting the global `table` namespace.
-local function table_find(t, value)
-    for i, v in ipairs(t) do
-        if v == value then return i end
-    end
-    return nil -- Not found.
-end
-
 -- Function that logs any function that fails
 local function try_catch(tryBlock, source)
     local success, errorMessage = pcall(tryBlock)
@@ -1386,7 +1380,7 @@ do_every_frame("bravo_dispatch('refresh_selector_task')")
 -- Function to cycle the mode down one
 local function cycle_mode_down()
     return try_catch(function()
-        local index = table_find(modes, current_mode)
+        local index = util.find(modes, current_mode)
         index = ((index - 2) % #modes) + 1
         current_mode = modes[index]
         prime_button_led_states_for_mode_change()
@@ -1401,7 +1395,7 @@ dispatch.cycle_mode_down = cycle_mode_down
 -- Function to cycle the mode down one
 local function cycle_mode_up()
     return try_catch(function()
-        local index = table_find(modes, current_mode)
+        local index = util.find(modes, current_mode)
         index = (index % #modes) + 1
         current_mode = modes[index]
 		prime_button_led_states_for_mode_change()
@@ -1473,7 +1467,7 @@ create_command(
 -- Function to cycle through outer/inner modes
 local function cycle_cf_mode()
     return try_catch(function()
-        local index = table_find(outer_inner_modes, current_cf_mode)
+        local index = util.find(outer_inner_modes, current_cf_mode)
         index = (index % #outer_inner_modes) + 1
         current_cf_mode = outer_inner_modes[index]
     end, 'cycle_cf_mode')
@@ -1493,7 +1487,7 @@ create_command(
 -- Function to cycle through up/down switch modes
 local function cycle_switch_mode()
     return try_catch(function()
-        local index = table_find(up_down_modes, current_switch_mode)
+        local index = util.find(up_down_modes, current_switch_mode)
         index = (index % #up_down_modes) + 1
         current_switch_mode = up_down_modes[index]
     end, 'cycle_switch_mode')

@@ -9,6 +9,14 @@ local util = {}
 function util.trim(s)
     return (s:gsub("^%s*(.-)%s*$", "%1"))
 end
+--- Find the index of a value in a 1-based table.
+-- Returns the index (integer) or nil if not found.
+function util.find(t, value)
+    for i, v in ipairs(t) do
+        if v == value then return i end
+    end
+    return nil
+end
 
 function util.is_dataref_magic_table(candidate_table)
     -- First, check if it's a Lua table at all
