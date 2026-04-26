@@ -956,47 +956,44 @@ local function get_scaled_wrapped_text(text_string, button_width, button_height,
         return lines, height, scale
     end
 
-    local best_scale = 1.0
-    local best_lines = {}
-    local best_height = 0
-    local border_width_buffer = 6
-    local found_fitting_scale = false -- Flag to track if a suitable scale was found
+        local best_scale = min_font_scale
+        local best_lines = {}
+        local best_height = 0
+        local border_width_buffer = 6
 
-    local current_scale = 1.0
-    -- Loop downwards from 1.0 to find the largest scale that fits both horizontally and vertically
-    while current_scale >= min_font_scale - 0.001 do -- Loop down to just below min_font_scale for precision [Conversational Turn 1]
-        -- Call updated wrap_text_for_width to get lines, required height, and widest line width
-        local lines, required_height, widest_line_width = wrap_text_for_width(tostring(text_string), button_width, current_scale)
-        
-        -- Check if BOTH total height AND the widest line's width fit
-        if required_height <= button_height and widest_line_width + border_width_buffer <= button_width then
-            best_scale = current_scale
-            best_lines = lines
-            best_height = required_height
-            found_fitting_scale = true -- Mark that a fitting scale has been found
-            break -- Found the largest scale that fits all criteria, so exit the loop
+        -- Binary search for the largest scale that fits within button dimensions.
+        -- Replaces linear decrement (O(N) iterations) with binary search (O(log N)).
+        -- Each iteration calls wrap_text_for_width which invokes imgui.CalcTextSize,
+        -- so fewer iterations = fewer frame-time spikes during first render.
+        local low = min_font_scale
+        local high = 1.0
+        local precision = 0.001
+
+        while (high - low) > precision do
+            local mid = (low + high) / 2
+            local lines, required_height, widest_line_width = wrap_text_for_width(tostring(text_string), button_width, mid)
+
+            if required_height <= button_height and widest_line_width + border_width_buffer <= button_width then
+                -- This scale fits; try a larger one
+                best_scale = mid
+                low = mid
+            else
+                -- Too big; try smaller
+                high = mid
+            end
         end
-        
-        -- If it doesn't fit, try a smaller scale
-        current_scale = current_scale - 0.05 -- Decrement step; adjust as needed for performance/granularity [Conversational Turn 1]
-    end
 
-    -- Fallback: If no scale within the tested range (down to min_font_scale) fully fit both criteria,
-    -- use the results from the minimum font scale as a last resort. This means there might still be
-    -- visual overflow if the text is exceptionally large or the button is exceptionally small.
-    if not found_fitting_scale then
-        best_lines, best_height, _ = wrap_text_for_width(tostring(text_string), button_width, min_font_scale)
-        best_scale = min_font_scale
-    end
+        -- Final wrap call at the determined best scale to get lines and height for caching
+        best_lines, best_height, _ = wrap_text_for_width(tostring(text_string), button_width, best_scale)
 
-    -- Cache the results
-    cached_scaling_data[key] = {
-        wrapped_lines = best_lines,
-        total_height = best_height,
-        final_scale = best_scale
-    }
+        -- Cache the results
+        cached_scaling_data[key] = {
+            wrapped_lines = best_lines,
+            total_height = best_height,
+            final_scale = best_scale
+        }
 
-    return best_lines, best_height, best_scale
+        return best_lines, best_height, best_scale
 end
 
 local function draw_label(text, width, height, text_color_int)
