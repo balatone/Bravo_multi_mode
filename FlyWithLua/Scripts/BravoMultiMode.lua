@@ -2,6 +2,7 @@
 -- Modules needed for logging and general functionality
 local util = require("bravo++.util")
 local log = require("bravo++.log")
+local config = require("bravo++.config")
 local MapBuilder = require("bravo++.mapbuilder")
 
 -- Custom commands that will only be imported when corresponding aircraft is loaded
@@ -102,31 +103,6 @@ local command_end = command_end
 -- Shared LED "dirty" flag; must be in scope for mode/selector handlers too.
 local led_state_modified = false
 
------------------------------------------------------
---- READING THE CONFIG FILE
------------------------------------------------------
-local function read_config_file(nav_cfg_path, nav_bindings)
-    local cfg_file = io.open(nav_cfg_path, "r")
-    if cfg_file then
-        for line in cfg_file:lines() do
-            -- Skip comments/empty lines and parse key=value
-            if not line:match("^%s*#") and line:match("=") then
-                local key, value = line:match("^%s*([%w_]+)%s*=%s*(.-)%s*$")
-                if key and value then
-                    value = util.trim(value)
-                    -- Remove surrounding quotes only if both present
-                    value = value:match('^"(.-)"$') or value
-                    nav_bindings[key] = value
-                end
-            end
-        end
-        cfg_file:close()
-        return true
-    else
-        return false
-    end
-end
-
 -- Get aircraft directory from X-Plane's AIRCRAFT_PATH and AIRCRAFT_FILENAME if there are more than one .acf file
 local aircraft_dir = string.match(AIRCRAFT_PATH, "(.*[/\\])")
 local aircraft_name = string.sub(AIRCRAFT_FILENAME, 1, string.len(AIRCRAFT_FILENAME) - 4)
@@ -135,7 +111,7 @@ local aircraft_name = string.sub(AIRCRAFT_FILENAME, 1, string.len(AIRCRAFT_FILEN
 local nav_bindings = {}
 local nav_cfg_file_full_path = aircraft_dir .. "bravo_multi-mode.cfg" 
 -- Check if config file exists
-local file_ok =  read_config_file(nav_cfg_file_full_path, nav_bindings)
+local file_ok = config.read_file(nav_cfg_file_full_path, nav_bindings)
 
 if file_ok then 
     log.info("Successfully parsed config file")
@@ -143,7 +119,7 @@ else
     local nav_cfg_file_name = "bravo_multi-mode." .. aircraft_name .. ".cfg"
     local nav_cfg_file_full_path = aircraft_dir .. nav_cfg_file_name
     log.info("nav_cfg_file: " .. nav_cfg_file_full_path)
-    file_ok = read_config_file(nav_cfg_file_full_path, nav_bindings)
+    file_ok = config.read_file(nav_cfg_file_full_path, nav_bindings)
     if file_ok then
         log.info("Successfully parsed config file specific for " .. aircraft_name)        
     else
@@ -178,136 +154,6 @@ local current_selection_label = default_selections[1]
 local default_button_labels = { "HDG", "NAV", "APR", "REV", "ALT", "VS", "IAS", "PLT" }
 local no_button_labels = { "   ", "   ", "   ", "   ", "   ", "   ", "   ", "   " }
 
------------------------------------------------------
---- VALIDATION OF THE CONFIG FILE
------------------------------------------------------
-local function validate_config_keys()
-    local valid_keys_set = {}
-    local function add_key(key)
-        valid_keys_set[key] = true
-    end
-
-    local missing_required_keys = {}   -- New table to track explicitly required keys
-    local validation_failed = false    -- Flag to indicate if any validation step fails
-
-    -- **Step 1: Check for the presence and validity of the "MODES" key**
-    -- 'modes' is a global variable populated from nav_bindings.MODES.
-    -- If nav_bindings["MODES"] is nil or an empty string, 'modes' will be an empty table.
-    if not nav_bindings["MODES"] or #modes == 0 then
-        table.insert(missing_required_keys, "MODES")
-        validation_failed = true
-    end
-    add_key("MODES") -- Mark 'MODES' as a valid key to prevent it from being flagged as 'invalid' if it exists.
-
-    -- **Step 2: Check for _SELECTOR_LABELS for each declared mode**
-    -- This loop will only execute if 'modes' contains actual mode names (i.e., 'MODES' was properly defined).
-    if #modes > 0 then
-        for _, mode in ipairs(modes) do
-            local selector_label_key = mode .. "_SELECTOR_LABELS"
-            add_key(selector_label_key) -- Mark this specific selector label key as valid if it appears.
-            if mode ~= "AUTO" and not nav_bindings[selector_label_key] then
-                table.insert(missing_required_keys, selector_label_key)
-                validation_failed = true
-            end
-        end
-    end
-
-    -- Button Labels: MODE_SELECTION_BUTTON_LABELS
-    for _, mode in ipairs(modes) do
-        for _, selection in ipairs(default_selections) do
-            add_key(mode .. "_" .. selection .. "_BUTTON_LABELS")
-            add_key(mode .. "_" .. selection .. "_KNOB_LABELS")
-        end
-    end
-
-    -- Switch labels, actions and leds
-    add_key("SWITCH_LABELS")
-    for i = 1, 7 do
-        add_key("SWITCH" .. i .. "_LED")
-        add_key("SWITCH" .. i .. "_UP")
-        add_key("SWITCH" .. i .. "_DOWN")
-    end
-
-    -- Button Actions and LEDs (including general mode-level and specific mode-selection combinations)
-    for _, mode in ipairs(modes) do
-        for _, button_label in ipairs(default_button_labels) do
-            add_key(mode .. "_" .. button_label .. "_BUTTON")
-            add_key(mode .. "_" .. button_label .. "_BUTTON_LED")
-            for _, ud_mode in ipairs(up_down_modes) do
-                add_key(mode .. "_" .. button_label .. "_" .. string.upper(ud_mode) .. "_BUTTON")
-            end
-            for _, selection in ipairs(default_selections) do
-                add_key(mode .. "_" .. selection .. "_" .. button_label .. "_BUTTON")
-                add_key(mode .. "_" .. selection .. "_" .. button_label .. "_BUTTON_LED")
-                for _, ud_mode in ipairs(up_down_modes) do
-                    add_key(mode .. "_" .. selection .. "_" .. button_label .. "_" .. string.upper(ud_mode) .. "_BUTTON")
-                end
-            end
-        end
-    end
-
-    -- Twist Knob Actions
-    for _, mode in ipairs(modes) do
-        for _, selection in ipairs(default_selections) do
-            for _, ud_mode in ipairs(up_down_modes) do
-                add_key(mode .. "_" .. selection .. "_" .. string.upper(ud_mode))
-            end
-            for _, oi_mode in ipairs(outer_inner_modes) do
-                for _, ud_mode in ipairs(up_down_modes) do
-                    add_key(mode .. "_" .. selection .. "_" .. string.upper(oi_mode) .. "_" .. string.upper(ud_mode))
-                end
-            end
-        end
-    end
-
-    -- Global LED Bindings (Annunciator and Gear)
-    add_key("GEAR_DEPLOYMENT_LED")
-    for _, label in ipairs(annunciator_labels) do
-        add_key(label .. "_LED")
-        for i = 1, 16 do
-            add_key(label .. "_" .. tostring(i) .. "_LED")
-        end
-    end
-
-    -- Manual Trim Configuration
-    add_key("TRIM_INCREMENT")
-    add_key("TRIM_BOOST")
-    add_key("LONG_CLICK_THRESHOLD")
-    add_key("CONTINUOUS_PRESS_THRESHOLD")
-
-    -- **Step 3: Check for invalid (unrecognized) keys**
-    -- This part identifies keys in the config file that are not defined as valid.
-    local invalid_keys_found = {}
-    for key, _ in pairs(nav_bindings) do
-        if not valid_keys_set[key] then
-            table.insert(invalid_keys_found, key)
-            validation_failed = true
-        end
-    end
-
-    -- **Step 4: Report validation results**
-    if validation_failed then
-        log.error("--- Configuration Keys Validation Failed ---")
-        if #missing_required_keys > 0 then
-            log.error("Found " .. #missing_required_keys .. " MISSING REQUIRED configuration keys:")
-            for _, key in ipairs(missing_required_keys) do
-                log.error(" Missing key: \"" .. key .. "\"")
-            end
-        end
-        if #invalid_keys_found > 0 then
-            log.error("Found " .. #invalid_keys_found .. " INVALID (unrecognized) configuration keys in config file:")
-            for _, key in ipairs(invalid_keys_found) do
-                log.error(" Invalid key: \"" .. key .. "\"")
-            end
-        end
-        log.error("---------------------------------------------")
-        return false -- Indicates validation failed
-    else
-        log.info("All configuration keys in bravo_multi-mode.cfg are valid.")
-        return true -- Indicates validation passed
-    end
-end
-
 local two_param_led_keys = {}
 
 two_param_led_keys["GEAR_DEPLOYMENT_LED"] = true
@@ -321,256 +167,21 @@ for _, label in ipairs(annunciator_labels) do
 	end
 end
 
---- Ordered operator list: multi-char operators first so they are checked before single-char prefixes.
-local OPERATOR_ORDER = {'!=', '<=', '>=', '<', '>', '='}
+log.info("Validating the config file...")
 
---- Operator registry: maps operator strings to comparison functions.
-local OPERATOR_MAP = {
-    ['!='] = function(v, t) return v ~= t end,
-    ['<='] = function(v, t) return v <= t end,
-    ['>='] = function(v, t) return v >= t end,
-    ['<']  = function(v, t) return v <  t end,
-    ['>']  = function(v, t) return v >  t end,
-    ['=']  = function(v, t) return v == t end,
+-- Build context table for validation functions
+local validation_context = {
+    modes = modes,
+    default_selections = default_selections,
+    default_button_labels = default_button_labels,
+    up_down_modes = up_down_modes,
+    outer_inner_modes = outer_inner_modes,
+    annunciator_labels = annunciator_labels,
+    two_param_led_keys = two_param_led_keys
 }
 
---- Validates a condition string during config parsing.
-local function is_valid_condition(cond_str)
-    local s = tostring(cond_str):gsub('%s', '')
-    for _, op in ipairs(OPERATOR_ORDER) do
-        if s:sub(1, #op) == op then
-            local threshold = tonumber(s:sub(#op + 1))
-            if threshold then return true end
-        end
-    end
-    if tonumber(s) then return true end
-    return false
-end
-
---- Compiles a condition string into a callable table during initialization.
---- `context` is an optional string (e.g. config key name) included in error/warning logs.
---- Returns { op = function, threshold = number } or a fail-safe that always returns false.
-local function compile_condition(cond_str, context)
-    local s = tostring(cond_str):gsub('%s', '')
-
-    -- Try operator+threshold forms using the ordered list (multi-char before single-char)
-    for _, op in ipairs(OPERATOR_ORDER) do
-        if s:sub(1, #op) == op then
-            local threshold = tonumber(s:sub(#op + 1))
-            if threshold then
-                return { op = OPERATOR_MAP[op], threshold = threshold }
-            end
-        end
-    end
-
-    -- Bare number → equality check
-    local bare = tonumber(s)
-    if bare then
-        return { op = function(v, t) return v == t end, threshold = bare }
-    end
-
-    -- Invalid condition: fail-safe that always returns false
-    local msg = "Invalid LED condition '" .. tostring(cond_str) .. "'"
-    if context then msg = msg .. " (key: " .. context .. ")" end
-    msg = msg .. ", defaulting to always OFF."
-    log.warning(msg)
-    return { op = function() return false end, threshold = 0 }
-end
-
---- Returns true when the compiled condition is satisfied (LED should be ON).
---- `compiled_cond` is a table with { op = function, threshold = number }.
-local function eval_condition(val, compiled_cond)
-    return compiled_cond.op(val, compiled_cond.threshold)
-end
-
-local function validate_config_values()
-    local invalid_value_entries = {}
-    log.info("Starting configuration value validation...")
-
-    for key, value_string in pairs(nav_bindings) do
-        if util.ends_with(key, "_SELECTOR_LABELS") then
-            local values = util.create_table(value_string)
-            if #values ~= 5 then
-                table.insert(invalid_value_entries, {
-                    key = key,
-                    value = value_string,
-                    reason = "Invalid number of values for SELECTOR_LABELS. Expected 5, but found " .. #values .. "."
-                })
-            end
-        elseif util.ends_with(key, "_BUTTON_LABELS") then
-            local values = util.create_table(value_string)
-            if #values ~= 8 then
-                table.insert(invalid_value_entries, {
-                    key = key,
-                    value = value_string,
-                    reason = "Invalid number of values for BUTTON_LABELS. Expected 8, but found " .. #values .. "."
-                })
-            end
-        elseif util.ends_with(key, "_KNOB_LABELS") then
-            local values = util.create_table(value_string)
-            if #values < 1 and #values > 2  then
-                table.insert(invalid_value_entries, {
-                    key = key,
-                    value = value_string,
-                    reason = "Invalid number of values for BUTTON_LABELS. Expected 1 or 2, but found " .. #values .. "."
-                })
-            end
-        elseif key == "SWITCH_LABELS" then
-            local values = util.create_table(value_string)
-            if #values ~= 7 then
-                table.insert(invalid_value_entries, {
-                    key = key,
-                    value = value_string,
-                    reason = "Invalid number of values for BUTTON_LABELS. Expected 7, but found " .. #values .. "."
-                })
-            end
-        elseif key == "MODES" then
-            local values = util.create_table(value_string)
-            if values[1] ~= "AUTO" then
-                table.insert(invalid_value_entries, {
-                    key = key,
-                    value = value_string,
-                    reason = "The first value in MODES must always be AUTO."
-                })                
-            end
-        elseif util.ends_with(key, "_LED") then
-            local binding_parameters = util.create_table(value_string)
-            local current_entry_valid = true
-
-            if #binding_parameters < 2 or #binding_parameters > 3 then
-                table.insert(invalid_value_entries, {
-                    key = key,
-                    value = value_string,
-                    reason = "Invalid number of parameters for LED. Expected 2 or 3 (DataRef, Number[, Number]), but found " .. #binding_parameters .. "."
-                })
-                current_entry_valid = false
-            else
-                -- Common validation for all _LED keys (DataRef existence and condition parameter type)
-                local dr_string = binding_parameters[1]
-                local dr_table = util.safe_dataref_lookup(dr_string)
-                local cond_param = binding_parameters[2]
-
-                if dr_table == nil then
-                    table.insert(invalid_value_entries, {
-                        key = key,
-                        value = value_string,
-                        reason = "First parameter '" .. tostring(binding_parameters[1]) .. "' is not a valid DataRef."
-                    })
-                    current_entry_valid = false
-                end
-
-                if not is_valid_condition(cond_param) then
-                    table.insert(invalid_value_entries, {
-                        key = key,
-                        value = value_string,
-                        reason = "Second parameter '" .. tostring(binding_parameters[2]) .. "' is not a valid LED condition (expected e.g. '>0', '!=1', '=0')."
-                    })
-                    current_entry_valid = false
-                end
-
-                -- Apply specific parameter count rules based on the key
-                if two_param_led_keys[key] then
-                    -- For the explicitly listed keys, only 2 parameters are allowed.
-                    -- This implicitly means no index is required, even if the DataRef is an array.
-                    if #binding_parameters ~= 2 then
-                        table.insert(invalid_value_entries, {
-                            key = key,
-                            value = value_string,
-                            reason = "Invalid number of parameters for this LED. Expected exactly 2 (DataRef, Number), but found " .. #binding_parameters .. "."
-                        })
-                        current_entry_valid = false
-                    end
-                else
-                    -- For all other _LED keys, apply the general 2 or 3 parameter rule with array checks.
-
-                    if #binding_parameters == 3 then
-                        local index_param = tonumber(binding_parameters[3])
-                        local is_array_dataref = false
-                        if dr_table ~= nil then -- Only check array type if DataRef was valid
-                            is_array_dataref = util.is_dataref_array(dr_table)
-                        end
-
-                        if not is_array_dataref then
-                            table.insert(invalid_value_entries, {
-                                key = key,
-                                value = value_string,
-                                reason = "DataRef is not an array DataRef, but a third parameter (index) was provided. Only 2 parameters are allowed for non-array DataRefs."
-                            })
-                            current_entry_valid = false
-                        elseif index_param == nil then
-                            table.insert(invalid_value_entries, {
-                                key = key,
-                                value = value_string,
-                                reason = "Third parameter '" .. tostring(binding_parameters[3]) .. "' is not a valid number (expected DataRef index)."
-                            })
-                            current_entry_valid = false
-                        end
-                    elseif #binding_parameters == 2 then
-                        local is_array_dataref = false
-                        if dr_table ~= nil then -- Only check array type if DataRef was valid
-                            is_array_dataref = util.is_dataref_array(dr_table)
-                        end
-                        if is_array_dataref then
-                            table.insert(invalid_value_entries, {
-                                key = key,
-                                value = value_string,
-                                reason = "DataRef is an array DataRef, but no index was provided. A third parameter (index) is required for array DataRefs."
-                            })
-                            current_entry_valid = false
-                        end
-                    end
-                end
-            end
-        elseif key == "TRIM_INCREMENT" or key == "TRIM_BOOST" or key == "LONG_CLICK_THRESHOLD" or key == "CONTINUOUS_PRESS_THRESHOLD" then
-            local num_value = tonumber(value_string)
-            if num_value == nil then
-                table.insert(invalid_value_entries, {
-                    key = key,
-                    value = value_string,
-                    reason = "Value '" .. tostring(value_string) .. "' is not a valid number."
-                })
-            elseif num_value <= 0 then
-                table.insert(invalid_value_entries, {
-                    key = key,
-                    value = value_string,
-                    reason = "Value '" .. tostring(value_string) .. "' must be greater than 0."
-                })
-            end
-        else -- For other keys, assume the value is a command string
-            local command_name = util.create_table(value_string)
-            -- Check if it's a known internal command that will be created by this script
-                for i = 1, #command_name do
-            if command_name[i] == "FlyWithLua/Bravo++/cf_mode_button" or 
-               command_name[i] == "FlyWithLua/Bravo++/switch_mode_button" or
-               command_name[i] == "FlyWithLua/Bravo++/toggle_mode_select" then
-                -- Log a debug message and skip validation for this internal command
-                log.debug("Skipping command validation for internal command: '" .. command_name[i] .. "' (will be created later).")
-            elseif not util.safe_command_lookup(command_name[i]) then -- Check if the command exists using XPLMFindCommand
-					table.insert(invalid_value_entries, {
-						key = key,
-						value = value_string,
-						reason = "'" .. tostring(command_name[i]) .. "' is not a valid X-Plane Command or caused an error during lookup."
-					})
-				end
-            end
-        end
-    end
-
-    if #invalid_value_entries > 0 then
-        log.error("--- Configuration Values Validation Failed ---")
-        for _, entry in ipairs(invalid_value_entries) do
-            log.error("Key: '" .. entry.key .. "', Value: '" .. entry.value .. "', Reason: " .. entry.reason)
-        end
-        return false
-    else
-        log.info("All configuration values in bravo_multi-mode.cfg are valid.")
-        return true
-    end
-end
-
-log.info("Validating the config file...")
-local keys_valid = validate_config_keys()
-local values_valid = validate_config_values()
+local keys_valid = config.validate_keys(nav_bindings, validation_context)
+local values_valid = config.validate_values(nav_bindings, validation_context)
 
 if not keys_valid or not values_valid then return end
 
@@ -768,7 +379,7 @@ for i = 1, #modes do
                 log.debug("cond: " .. binding[2])
                 select_map["ALL"][default_button_labels[k]] = dataref_table(binding[1])
                 button_map_leds[modes[i]] = select_map
-                select_map2["ALL"][default_button_labels[k]] = compile_condition(binding[2], full_key)
+                            select_map2["ALL"][default_button_labels[k]] = config.compile_condition(binding[2], full_key)
                 button_map_leds_cond[modes[i]] = select_map2
                 select_map3["ALL"][default_button_labels[k]] = false
                 button_map_leds_state[modes[i]] = select_map3
@@ -789,7 +400,7 @@ for i = 1, #modes do
                     log.debug("cond: " .. binding[2])
                     select_map[default_selections[j]][default_button_labels[k]] = dataref_table(binding[1])
                     button_map_leds[modes[i]] = select_map
-                    select_map2[default_selections[j]][default_button_labels[k]] = compile_condition(binding[2], full_key)
+                    select_map2[default_selections[j]][default_button_labels[k]] = config.compile_condition(binding[2], full_key)
                     button_map_leds_cond[modes[i]] = select_map2
                     select_map3[default_selections[j]][default_button_labels[k]] = false
                     button_map_leds_state[modes[i]] = select_map3
@@ -2134,7 +1745,7 @@ local function get_led_state_for_dataref(dr_table, cond, index)
             end
             local vnum = tonumber(val)
             if vnum ~= nil then
-                return eval_condition(vnum, cond)
+                return config.eval_condition(vnum, cond)
             else
                 return false -- non-numeric value cannot satisfy numeric condition
             end
@@ -2165,7 +1776,7 @@ local function get_led_state_for_dataref(dr_table, cond, index)
                 break
             end
             log.debug('i: ' .. i .. ', vnum: ' .. vnum)
-            if eval_condition(vnum, cond) then
+            if config.eval_condition(vnum, cond) then
                 return true
             end
         end
@@ -2178,7 +1789,7 @@ local function get_led_state_for_dataref(dr_table, cond, index)
         end
         local vnum = tonumber(val)
         if vnum ~= nil then
-            return eval_condition(vnum, cond)
+            return config.eval_condition(vnum, cond)
         else
             return false -- non-numeric value cannot satisfy numeric condition
         end
@@ -2193,7 +1804,7 @@ for i = 1, 7 do
     if util.is_string(nav_bindings[key]) then
         local binding = util.create_table(nav_bindings[key])
         switch_map_leds[key] = dataref_table(binding[1])
-        switch_map_leds_cond[key] = compile_condition(binding[2], key)
+        switch_map_leds_cond[key] = config.compile_condition(binding[2], key)
         if #binding == 3 then
             switch_map_leds_index[key] = binding[3]
         end
@@ -2252,7 +1863,7 @@ for i = 1, #annunciator_labels do
     if util.is_string(nav_bindings[key]) then
         local binding = util.create_table(nav_bindings[key])
         annunciator_map_leds[annunciator_labels[i]] = dataref_table(binding[1])
-        annunciator_map_leds_cond[annunciator_labels[i]] = compile_condition(binding[2], key)
+        annunciator_map_leds_cond[annunciator_labels[i]] = config.compile_condition(binding[2], key)
     elseif util.is_string(nav_bindings[annunciator_labels[i] .. "_1_LED"]) then
         annunciator_map_leds[annunciator_labels[i]] = {}
         annunciator_map_leds_cond[annunciator_labels[i]] = {}
@@ -2262,7 +1873,7 @@ for i = 1, #annunciator_labels do
         while util.is_string(nav_bindings[key]) do
             local binding = util.create_table(nav_bindings[key])
             annunciator_map_leds[annunciator_labels[i]][idx] = dataref_table(binding[1])
-            annunciator_map_leds_cond[annunciator_labels[i]] = compile_condition(binding[2], key)
+            annunciator_map_leds_cond[annunciator_labels[i]] = config.compile_condition(binding[2], key)
             idx = idx + 1
             key = annunciator_labels[i] .. "_" .. tostring(idx) .. "_LED"
             -- logMsg("key: " .. key)
