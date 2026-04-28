@@ -23,6 +23,7 @@ local bravo_hid = require("bravo++.hardware")
 local bravo_decoder = require("bravo++.decoder")
 local bravo_state = require("bravo++.state")
 local bravo_debug = require("bravo++.debug")
+local dispatch = require("bravo++.dispatch")
 
 local HID_INPUT_DEBUG = false
 bravo_debug.enable(HID_INPUT_DEBUG)
@@ -71,13 +72,13 @@ end
 
 -- FlyWithLua runs callback strings in the global environment, so we keep a
 -- single global dispatcher and register local implementations in a table.
-local dispatch = {}
+local dispatch_callbacks = {}
 
 -- LuaJIT (Lua 5.1) has global `unpack`, while Lua 5.2+ uses `table.unpack`.
 local unpack_fn = table.unpack or unpack
 
 function bravo_dispatch(name, ...)
-    local fn = dispatch[name]
+    local fn = dispatch_callbacks[name]
     if not fn then
         log.warning("No dispatch target for: " .. tostring(name))
         return
@@ -136,20 +137,14 @@ local annunciator_labels = {
         "MASTER_CAUTION", "VACUUM", "HYD_LOW_PRESSURE", "AUX_FUEL_PUMP", "PARKING_BRAKE", "VOLTS_LOW", "DOOR"}
 
 
--- Mode management
+-- Mode management (managed by dispatch module)
 -- local modes = {"AUTO", "PFD", "MFD"} -- Add more modes as needed
 local modes = util.create_table(nav_bindings.MODES)
-local current_mode = modes[1]
 local outer_inner_modes = { "outer", "inner" }
-local current_cf_mode = outer_inner_modes[1]
 local up_down_modes = {"up", "down"}
-local current_switch_mode = up_down_modes[1]
 
--- Bindings for the selector knob
+-- Bindings for the selector knob (managed by dispatch module)
 local default_selections = { "ALT", "VS", "HDG", "CRS", "IAS" }
-local current_selection = default_selections[1]
-
-local current_selection_label = default_selections[1]
 
 -- The button labels that will be displayed on the console
 local default_button_labels = { "HDG", "NAV", "APR", "REV", "ALT", "VS", "IAS", "PLT" }
@@ -259,93 +254,15 @@ for i = 1, #modes do
     end
 end
 
--- The button actions that will be used depending on mode and selection
-log.info("Initializing the button action map and button switch map...")
-local button_map_actions = {}
-local button_is_switch_map = {}
-local up_down = { "UP", "DOWN" }
-for i = 1, #modes do
-    button_map_actions[modes[i]] = {}
-    button_is_switch_map[modes[i]] = {}
-	button_is_switch_map[modes[i]]["ALL"] = {}
-    for j = 1, #default_selections do
-        button_map_actions[modes[i]][default_selections[j]] = button_map_actions[modes[i]][default_selections[j]] or {}
-		button_is_switch_map[modes[i]][default_selections[j]] = button_is_switch_map[modes[i]][default_selections[j]] or {}
-        for k = 1, #default_button_labels do
-            button_map_actions[modes[i]][default_button_labels[k]] = button_map_actions[modes[i]][default_button_labels[k]] or {}
-            local full_key = modes[i] .. "_" .. default_button_labels[k] .. "_BUTTON"
-            local bindings = nil
-            local is_current_button_a_switch = false
-			local is_select_context_aware = false
-			
-            if default_selections[j] == "ALT" and nav_bindings[full_key] then                
-                bindings = util.create_table(nav_bindings[full_key])
-                button_map_actions[modes[i]][default_button_labels[k]]["ON_CLICK"] = bindings[1]
-                log.info("Adding " .. full_key .. " = " .. bindings[1] .. " for ON_CLICK")
-                local on_hold_action = bindings[2] or bindings[1]
-                button_map_actions[modes[i]][default_button_labels[k]]["ON_HOLD"] = on_hold_action
-                log.info("Adding " .. full_key .. " = " .. on_hold_action .. " for ON_HOLD")
-            elseif default_selections[j] == "ALT" and nav_bindings[full_key] == nil then
-                -- local switch_map = {}
-                for l = 1, #up_down do
-                    local full_key = modes[i] .. "_" .. default_button_labels[k] .. "_" .. up_down[l] .. "_BUTTON"
-                    bindings = util.create_table(nav_bindings[full_key])
-                    if bindings[1] then
-                        button_map_actions[modes[i]][default_button_labels[k]][up_down[l]] = button_map_actions[modes[i]][default_button_labels[k]][up_down[l]] or {}
-                        button_map_actions[modes[i]][default_button_labels[k]][up_down[l]]["ON_CLICK"] = bindings[1]
-                        log.info("Adding " .. full_key .. " = " .. bindings[1] .. " for ON_CLICK")
-                        local on_hold_action = bindings[2] or bindings[1]
-                        button_map_actions[modes[i]][default_button_labels[k]][up_down[l]]["ON_HOLD"] = on_hold_action
-                        log.info("Adding " .. full_key .. " = " .. on_hold_action .. " for ON_HOLD")
-                        local on_long_click_action = "FlyWithLua/Bravo++/switch_mode_button"
-						button_map_actions[modes[i]][default_button_labels[k]][up_down[l]]["ON_LONG_CLICK"] = on_long_click_action
-                        log.info("Adding " .. full_key .. " = " .. on_long_click_action .. " for ON_LONG_CLICK")
-						is_current_button_a_switch = true				
-                    end
-                end
-			end
-
-			local key = modes[i] .. "_" .. default_selections[j]
-			full_key = key .. "_" .. default_button_labels[k] .. "_BUTTON"
-			bindings = util.create_table(nav_bindings[full_key])
-			button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]] = button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]] or {}
-			
-			if bindings[1] then
-				button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]]["ON_CLICK"] = bindings[1]
-				log.info("Adding " .. full_key .. " = " .. bindings[1] .. " for ON_CLICK")
-				local on_hold_action = bindings[2] or bindings[1]
-				button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]]["ON_HOLD"] = on_hold_action
-				log.info("Adding " .. full_key .. " = " .. on_hold_action .. " for ON_HOLD")
-				is_select_context_aware = true
-			else
-				for l = 1, #up_down do
-					key = modes[i] .. "_" .. default_selections[j]
-					full_key = key .. "_" .. default_button_labels[k] .. "_" .. up_down[l] .. "_BUTTON"
-					bindings = util.create_table(nav_bindings[full_key])
-					if bindings[1] then
-						button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]][up_down[l]] = button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]][up_down[l]] or {}
-						button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]][up_down[l]]["ON_CLICK"] = bindings[1]
-						log.info("Adding " .. full_key .. " = " .. bindings[1] .. " for ON_CLICK")
-						local on_hold_action = bindings[2] or bindings[1]
-						button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]][up_down[l]]["ON_HOLD"] = on_hold_action
-						log.info("Adding " .. full_key .. " = " .. on_hold_action .. " for ON_HOLD")
-						local on_long_click_action = "FlyWithLua/Bravo++/switch_mode_button"
-						button_map_actions[modes[i]][default_selections[j]][default_button_labels[k]][up_down[l]]["ON_LONG_CLICK"] = on_long_click_action
-						log.info("Adding " .. full_key .. " = " .. on_long_click_action .. " for ON_LONG_CLICK")
-						is_current_button_a_switch = true
-						is_select_context_aware = true
-					end
-				end
-			end
-			if is_select_context_aware then
-				button_is_switch_map[modes[i]][default_selections[j]][default_button_labels[k]] = is_current_button_a_switch
-			elseif default_selections[j] == "ALT" then
-				log.info("************* Adding is switch to ALL ************ " .. tostring(is_current_button_a_switch))
-				button_is_switch_map[modes[i]]["ALL"][default_button_labels[k]] = is_current_button_a_switch			
-			end
-        end
-    end
-end
+-- Initialize the dispatch module with bindings and validation context
+log.info("Initializing button action map, twist knob action map, and rocker switch states via dispatch module...")
+dispatch.init(nav_bindings, {
+	modes = modes,
+	default_selections = default_selections,
+	default_button_labels = default_button_labels,
+	selection_map_labels = selection_map_labels,
+	button_map_labels = button_map_labels
+})
 -- The button led that will be displayed depending on mode and selection
 log.info("Initializing the button led map...")
 local button_map_leds = {}
@@ -417,44 +334,7 @@ for i = 1, #modes do
     end
 end
 
--- The actions that will be triggered when twisting the right knob depedning on mode and selection
-log.info("Initializing the twist knob action map...")
-local up_down = { "UP", "DOWN" }
-local outer_inner = { "OUTER", "INNER" }
-local twist_knob_map_actions = {}
-for i = 1, #modes do
-    twist_knob_map_actions[modes[i]] = {}
-    local select_map = {}
-    for j = 1, #default_selections do
-        select_map[default_selections[j]] = {}
-        local outer_map = {}
-        for l = 1, #outer_inner do
-            local oi = outer_inner[l]
-            outer_map[oi] = {}
-            for k = 1, #up_down do
-                local key = modes[i] .. "_" .. default_selections[j]
-                if outer_inner[l] == "INNER" and nav_bindings[key .. "_" .. up_down[k]] then
-                    local dir = up_down[k]
-                    local full_key = key .. "_" .. dir
-                    select_map[default_selections[j]][dir] = nav_bindings[full_key]
-                    twist_knob_map_actions[modes[i]] = select_map
-                    log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
-                end
-                if nav_bindings[key .. "_" .. outer_inner[l] .. "_" .. up_down[k]] then
-                    local dir = up_down[k]
-                    local full_key = key .. "_" .. oi .. "_" .. dir
-                    outer_map[oi][dir] = nav_bindings[full_key]
-                    select_map[default_selections[j]] = outer_map
-                    twist_knob_map_actions[modes[i]] = select_map
-                    log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key] .. " to " .. oi)
-                end
-            end
-        end
-    end
-end
-
-log.info("Initializing rocker switch led states...")
-local rocker_switch_led_states = {}
+-- Twist knob action map and rocker switch LED states are now managed by dispatch module.
 
 local current_buttons = default_button_labels
 local vertical_spacing = 30
@@ -493,26 +373,26 @@ end
 -- Build a context table for the UI module so it stays decoupled from globals.
 local function build_ui_context()
     return {
-        current_mode             = current_mode,
-        current_selection        = current_selection,
-        current_cf_mode          = current_cf_mode,
-        current_switch_mode      = current_switch_mode,
-        current_selection_label  = current_selection_label,
+        current_mode             = dispatch.get_current_mode(),
+        current_selection        = dispatch.get_current_selection(),
+        current_cf_mode          = dispatch.get_current_cf_mode(),
+        current_switch_mode      = dispatch.get_current_switch_mode(),
+        current_selection_label  = dispatch._get_current_selection_label(),
         conceptual_mode_order    = conceptual_mode_order,
         selection_map_labels     = selection_map_labels,
-        button_is_switch_map     = button_is_switch_map,
-        default_button_labels    = default_button_labels,
-        current_buttons          = current_buttons,
+        button_is_switch_map     = dispatch.get_button_is_switch_map(),
+        default_button_labels    = dispatch.get_default_button_labels(),
+        current_buttons          = dispatch.get_current_buttons(),
         switch_map_labels        = switch_map_labels,
-        twist_knob_map_actions   = twist_knob_map_actions,
+        twist_knob_map_actions   = dispatch.get_twist_knob_map_actions(),
         twist_knob_map_labels    = twist_knob_map_labels,
         get_button_led_state     = get_button_led_state,
-        get_led_state_for_switch = function(name) return rocker_switch_led_states[name] or false end,
+        get_led_state_for_switch = dispatch.get_rocker_switch_led,
         vertical_spacing         = 30
     }
 end
 
-dispatch.build_bravo_gui = function(wnd, x, y)
+dispatch_callbacks.build_bravo_gui = function(wnd, x, y)
     ui.build_gui(build_ui_context())
 end
 function build_bravo_gui(wnd, x, y)
@@ -523,7 +403,7 @@ local function on_close_floating_window_impl(my_floating_wnd)
     ui.on_close({ hid_close_fn = hid_close, bravo = bravo })
 end
 
-dispatch.on_close_floating_window = on_close_floating_window_impl
+dispatch_callbacks.on_close_floating_window = on_close_floating_window_impl
 
 -- Global wrapper for FlyWithLua float window callback
 function on_close_floating_window(my_floating_wnd)
@@ -539,13 +419,11 @@ local selector_index = 1
 
 local function set_current_selector(idx)
     selector_index = idx
-    if current_selection_label ~= selection_map_labels[current_mode][selector_index] then
-        current_selection_label = selection_map_labels[current_mode][selector_index]
-        current_selection = default_selections[selector_index]
-		prime_button_led_states_for_mode_change()
+    dispatch.set_selector_index(idx, function()
+        prime_button_led_states_for_mode_change()
         led_state_modified = true
         handle_led_changes()
-    end
+    end)
 end
 
 local function refresh_selector_hid()
@@ -567,7 +445,7 @@ local function refresh_selector_task()
     return refresh_selector_hid()
 end
 
-dispatch.refresh_selector_task = refresh_selector_task
+dispatch_callbacks.refresh_selector_task = refresh_selector_task
 
 do_every_frame("bravo_dispatch('refresh_selector_task')")
 
@@ -575,31 +453,27 @@ do_every_frame("bravo_dispatch('refresh_selector_task')")
 -- Function to cycle the mode down one
 local function cycle_mode_down()
     return try_catch(function()
-        local index = util.find(modes, current_mode)
-        index = ((index - 2) % #modes) + 1
-        current_mode = modes[index]
+        dispatch.cycle_mode_down()
         prime_button_led_states_for_mode_change()
         led_state_modified = true
         handle_led_changes()
     end, 'cycle_mode_down')
 end
 
-dispatch.cycle_mode_down = cycle_mode_down
+dispatch_callbacks.cycle_mode_down = cycle_mode_down
 
 
--- Function to cycle the mode down one
+-- Function to cycle the mode up one
 local function cycle_mode_up()
     return try_catch(function()
-        local index = util.find(modes, current_mode)
-        index = (index % #modes) + 1
-        current_mode = modes[index]
-		prime_button_led_states_for_mode_change()
+        dispatch.cycle_mode_up()
+        prime_button_led_states_for_mode_change()
         led_state_modified = true
         handle_led_changes()
     end, 'cycle_mode_up')
 end
 
-dispatch.cycle_mode_up = cycle_mode_up
+dispatch_callbacks.cycle_mode_up = cycle_mode_up
 
 -- Create a custom command for changing mode
 create_command(
@@ -628,27 +502,21 @@ create_command(
     ""
 )
 
-local mode_select_command = {}
-mode_select_command["UP"] = "FlyWithLua/Bravo++/cycle_mode_up"
-mode_select_command["DOWN"] = "FlyWithLua/Bravo++/cycle_mode_down"
-
-local mode_select = false
-
 local function toggle_mode_select_true()
     return try_catch(function()
-        mode_select = true
+        dispatch.activate_mode_select()
     end, 'toggle_mode_select_true')
 end
 
-dispatch.toggle_mode_select_true = toggle_mode_select_true
+dispatch_callbacks.toggle_mode_select_true = toggle_mode_select_true
 
 local function toggle_mode_select_false()
     return try_catch(function()
-        mode_select = false
+        dispatch.deactivate_mode_select()
     end, 'toggle_mode_select_false')
 end
 
-dispatch.toggle_mode_select_false = toggle_mode_select_false
+dispatch_callbacks.toggle_mode_select_false = toggle_mode_select_false
 
 create_command(
     "FlyWithLua/Bravo++/toggle_mode_select",
@@ -662,13 +530,11 @@ create_command(
 -- Function to cycle through outer/inner modes
 local function cycle_cf_mode()
     return try_catch(function()
-        local index = util.find(outer_inner_modes, current_cf_mode)
-        index = (index % #outer_inner_modes) + 1
-        current_cf_mode = outer_inner_modes[index]
+        dispatch.cycle_cf_mode()
     end, 'cycle_cf_mode')
 end
 
-dispatch.cycle_cf_mode = cycle_cf_mode
+dispatch_callbacks.cycle_cf_mode = cycle_cf_mode
 
 -- Create a custom command for changing cf mode
 create_command(
@@ -682,13 +548,11 @@ create_command(
 -- Function to cycle through up/down switch modes
 local function cycle_switch_mode()
     return try_catch(function()
-        local index = util.find(up_down_modes, current_switch_mode)
-        index = (index % #up_down_modes) + 1
-        current_switch_mode = up_down_modes[index]
+        dispatch.cycle_switch_mode()
     end, 'cycle_switch_mode')
 end
 
-dispatch.cycle_switch_mode = cycle_switch_mode
+dispatch_callbacks.cycle_switch_mode = cycle_switch_mode
 
 -- Create a custom command for changing ud mode
 create_command(
@@ -700,8 +564,8 @@ create_command(
 )
 
 local function set_current_buttons()
-    if button_map_labels[current_mode][current_selection] ~= nil then
-        current_buttons = button_map_labels[current_mode][current_selection]
+    if button_map_labels[dispatch.get_current_mode()][dispatch.get_current_selection()] ~= nil then
+        current_buttons = button_map_labels[dispatch.get_current_mode()][dispatch.get_current_selection()]
     end
 end
 
@@ -709,7 +573,7 @@ local function set_current_buttons_task()
     return set_current_buttons()
 end
 
-dispatch.set_current_buttons_task = set_current_buttons_task
+dispatch_callbacks.set_current_buttons_task = set_current_buttons_task
 
 -- Update the currently available buttons
 do_every_frame("bravo_dispatch('set_current_buttons_task')")
@@ -718,22 +582,11 @@ do_every_frame("bravo_dispatch('set_current_buttons_task')")
 ---- ROCKER SWITCHES
 --------------------------------------
 
-local function handle_rocker_switch(rocker_number, dir)
-    local key = "SWITCH" .. rocker_number .. "_" .. dir
-    local binding = nav_bindings[key]
-    if binding then
-        log.info("SWITCH: " .. binding)
-        local command_dataref = binding or "sim/none/none"
-        command_once(command_dataref)
-    else
-        log.warning("Nothing to do.")
-    end
-end
-
--- FlyWithLua executes callback strings in the global environment.
--- Route rocker switch commands through the global bravo_dispatch entrypoint.
-dispatch.rocker_switch = function(rocker_number, dir)
-    handle_rocker_switch(rocker_number, dir)
+-- Route rocker switch commands through the dispatch module.
+dispatch_callbacks.rocker_switch = function(rocker_number, dir)
+    return try_catch(function()
+        dispatch.rocker_switch(rocker_number, dir)
+    end, 'rocker_switch:' .. rocker_number .. ':' .. dir)
 end
 
 -- Initialize the rocker switch commands
@@ -778,39 +631,15 @@ end
 ---- TRIM WHEEL
 --------------------------------------
 
-local trim_last_click_time = 0
-local trim_boost_window = 0.2 -- 200ms
+-- Trim wheel is handled by the dispatch module.
+-- Set up the dataref after initialization (X-Plane may not be ready yet).
 local trim_dataref = dataref_table("sim/flightmodel2/controls/elevator_trim")
-local increment = tonumber(nav_bindings.TRIM_INCREMENT) and tonumber(nav_bindings.TRIM_INCREMENT) + 0 or 0.01 
-local boost_factor = tonumber(nav_bindings.TRIM_BOOST) and tonumber(nav_bindings.TRIM_BOOST) + 0 or 3
+dispatch.set_trim_dataref(trim_dataref)
 
-log.debug("TRIM_INCREMENT = " .. nav_bindings.TRIM_INCREMENT)
-log.debug("TRIM_BOOST = " .. nav_bindings.TRIM_BOOST)
-
-local function handle_bravo_trim_nose_up()
-    local current_time = os.clock()
-    local diff = current_time - trim_last_click_time
-
-    log.debug("Trim nose up")
-    local current_value = tonumber(trim_dataref[0])
-    local new_value = current_value
-    log.debug("Time since last call: " .. diff)
-    if diff < trim_boost_window then
-        new_value = current_value + increment*boost_factor
-        log.debug("Boosting nose up")
-    else
-        new_value = current_value + increment        
-    end
-    if new_value <= 1 then 
-        trim_dataref[0] = new_value
-    elseif  current_value ~= 1 then
-        trim_dataref[0] = 1
-    end
-    log.debug("New trim value: " .. new_value)
-    trim_last_click_time = current_time
+-- Thin wrappers that delegate to dispatch module
+dispatch_callbacks.trim_nose_up = function()
+    return try_catch(dispatch.trim_nose_up, 'trim_nose_up')
 end
-
-dispatch.trim_nose_up = handle_bravo_trim_nose_up
 
 create_command(
     "FlyWithLua/Bravo++/trim_nose_up_handler",
@@ -820,30 +649,9 @@ create_command(
     ""
 )
 
-local function handle_bravo_trim_nose_down()
-    local current_time = os.clock()
-    local diff = current_time - trim_last_click_time
-
-    log.debug("Trim nose down")
-    local current_value = tonumber(trim_dataref[0])
-    local new_value = current_value
-    log.debug("Time since last call: " .. diff)
-    if diff < trim_boost_window then
-        new_value = current_value - increment*boost_factor
-        log.debug("Boosting nose down")
-    else
-        new_value = current_value - increment        
-    end
-    if new_value >= -1 then
-        trim_dataref[0] = new_value -- This updates the dataref
-    elseif  current_value ~= -1 then
-        trim_dataref[0] = -1
-    end
-    log.debug("New trim value: " .. new_value)
-    trim_last_click_time = current_time
+dispatch_callbacks.trim_nose_down = function()
+    return try_catch(dispatch.trim_nose_down, 'trim_nose_down')
 end
-
-dispatch.trim_nose_down = handle_bravo_trim_nose_down
 
 create_command(
     "FlyWithLua/Bravo++/trim_nose_down_handler",
@@ -857,26 +665,10 @@ create_command(
 --- HANDLE TWIST-KNOB THAT INCREASES/DECREASES VALUES
 -----------------------------------------------------
 
-
-local function handle_bravo_knob_increase()
-    local current_time = os.clock()
-    local current_twist_knob_action = nil
-    if mode_select then
-        current_twist_knob_action = mode_select_command
-    else
-        current_twist_knob_action = twist_knob_map_actions[current_mode][current_selection]       
-    end    
-    if current_twist_knob_action ~= nil then
-        if current_twist_knob_action["UP"] then
-            command_once(current_twist_knob_action["UP"])        elseif current_cf_mode == "outer" and current_twist_knob_action["OUTER"] then
-            command_once(current_twist_knob_action["OUTER"]["UP"])        elseif current_cf_mode == "inner" and current_twist_knob_action["INNER"] then
-            command_once(current_twist_knob_action["INNER"]["UP"])        else
-            log.debug("Nothing to do.")
-        end
-    end
+-- Thin wrappers that delegate to dispatch module
+dispatch_callbacks.knob_increase = function()
+    return try_catch(dispatch.knob_increase, 'knob_increase')
 end
-
-dispatch.knob_increase = handle_bravo_knob_increase
 
 create_command(
     "FlyWithLua/Bravo++/knob_increase_handler",
@@ -886,28 +678,11 @@ create_command(
     ""
 )
 
-local function handle_bravo_knob_decrease()
-    local current_time = os.clock()
-
-    local current_twist_knob_action = nil
-    if mode_select then
-        current_twist_knob_action = mode_select_command
-    else
-        current_twist_knob_action = twist_knob_map_actions[current_mode][current_selection]
-    end
-    if current_twist_knob_action ~= nil then
-		if current_twist_knob_action["DOWN"] then
-			command_once(current_twist_knob_action["DOWN"])		elseif current_cf_mode == "outer" and current_twist_knob_action["OUTER"] then
-			command_once(current_twist_knob_action["OUTER"]["DOWN"])		elseif current_cf_mode == "inner" and current_twist_knob_action["INNER"] then
-			command_once(current_twist_knob_action["INNER"]["DOWN"])		else
-			log.debug("Nothing to do.")
-		end
-	end
+dispatch_callbacks.knob_decrease = function()
+    return try_catch(dispatch.knob_decrease, 'knob_decrease')
 end
 
-dispatch.knob_decrease = handle_bravo_knob_decrease
-
--- Wire the new modular decoder to the existing handlers
+-- Wire the new modular decoder to dispatch-based handlers
 bravo_decoder.set_handlers({
     on_selector_changed = function(new)
         -- new is a raw byte for now; attempt to map to selector index if possible
@@ -922,13 +697,13 @@ bravo_decoder.set_handlers({
             log.info('Decoder: selector change (non-numeric) ' .. tostring(new))
         end
     end,
-    on_rotary_cw = handle_bravo_knob_increase,
-    on_rotary_ccw = handle_bravo_knob_decrease,
+    on_rotary_cw = function() pcall(dispatch.knob_increase) end,
+    on_rotary_ccw = function() pcall(dispatch.knob_decrease) end,
     on_trim_changed = function(v)
         if v == "down" then
-            pcall(handle_bravo_trim_nose_down)
+            pcall(dispatch.trim_nose_down)
         elseif v == "up" then
-            pcall(handle_bravo_trim_nose_up)
+            pcall(dispatch.trim_nose_up)
         else
             log.info('Decoder: trim change raw=' .. tostring(v))
         end
@@ -939,7 +714,7 @@ bravo_decoder.set_handlers({
 bravo_hid.subscribe(bravo_decoder.on_report)
 
 -- Ensure bravo_hid.poll is called every frame via the centralized dispatcher
-dispatch.bravo_hid_poll_task = function() bravo_hid.poll() end
+dispatch_callbacks.bravo_hid_poll_task = function() bravo_hid.poll() end
 -- Use bravo_dispatch so FlyWithLua stores a short string
 do_every_frame("bravo_dispatch('bravo_hid_poll_task')")
 
@@ -984,119 +759,28 @@ create_command(
 --------------------------------------
 ---- BUTTON HANDLING
 --------------------------------------
--- Define a threshold for what constitutes a "long press" in seconds
-local DEFAULT_LONG_CLICK_THRESHOLD = is_windows and 0.250 or 0.500
-local DEFAULT_CONTINUOUS_PRESS_THRESHOLD = is_windows and 0.750 or 1.0
-
-local LONG_CLICK_THRESHOLD = nav_bindings.LONG_CLICK_THRESHOLD and tonumber(nav_bindings.LONG_CLICK_THRESHOLD) or DEFAULT_LONG_CLICK_THRESHOLD
-local CONTINUOUS_PRESS_THRESHOLD = nav_bindings.CONTINUOUS_PRESS_THRESHOLD and tonumber(nav_bindings.CONTINUOUS_PRESS_THRESHOLD) or DEFAULT_CONTINUOUS_PRESS_THRESHOLD
-
--- Declare global variables to track button state across command phases
--- These are necessary because the different parts of create_command run in independent Lua blocks.
-local command = "sim/none/none"
-local command_state = {}
-
-local function get_commands_for_button(button_name)
-    local command = "sim/none/none"
-    if util.is_string(button_map_actions[current_mode][button_name]["ON_CLICK"]) then
-        command = button_map_actions[current_mode][button_name]
-    elseif current_switch_mode == "up" and util.is_table(button_map_actions[current_mode][button_name]) and util.is_table(button_map_actions[current_mode][button_name]["UP"]) and util.is_string(button_map_actions[current_mode][button_name]["UP"]["ON_CLICK"]) then
-        command = button_map_actions[current_mode][button_name]["UP"]
-    elseif current_switch_mode == "down" and util.is_table(button_map_actions[current_mode][button_name]) and  util.is_table(button_map_actions[current_mode][button_name]["DOWN"]) and util.is_string(button_map_actions[current_mode][button_name]["DOWN"]["ON_CLICK"]) then
-        command = button_map_actions[current_mode][button_name]["DOWN"]
-    elseif util.is_table(button_map_actions[current_mode][current_selection]) and util.is_table(button_map_actions[current_mode][current_selection][button_name]) then
-        if util.is_string(button_map_actions[current_mode][current_selection][button_name]["ON_CLICK"]) then
-            command = button_map_actions[current_mode][current_selection][button_name]
-        elseif current_switch_mode == "up" and util.is_string(button_map_actions[current_mode][current_selection][button_name]["UP"]["ON_CLICK"]) then
-            command = button_map_actions[current_mode][current_selection][button_name]["UP"]
-        elseif current_switch_mode == "down" and util.is_string(button_map_actions[current_mode][current_selection][button_name]["DOWN"]["ON_CLICK"]) then
-            command = button_map_actions[current_mode][current_selection][button_name]["DOWN"]
-        else
-            log.debug("Button action not found!")
-        end
-    else
-        log.debug("Button action not found!")
-    end
-    return command
-end
-
-local function trigger_command_for(button_name)
-    local commands = get_commands_for_button(button_name)
-    local button_is_continuous_mode = command_state[button_name]["is_continous_mode"]
-    local command_phase = command_state[button_name]["phase"]
-    try_catch(function()
-        if button_is_continuous_mode then 
-            if command_phase == "begin" then
-                log.debug("Trigger command begin: " .. commands["ON_HOLD"])
-                command_begin(commands["ON_HOLD"])
-                command_state[button_name]["phase"] = "continuous"
-            elseif command_phase == "end" then
-                log.debug("Trigger command end: " .. commands["ON_HOLD"])
-                command_end(commands["ON_HOLD"])
-            end
-        elseif not button_is_continuous_mode then
-            if command_phase == "long_click" and commands["ON_LONG_CLICK"] ~= nil then
-                log.debug("Trigger command once: " .. commands["ON_LONG_CLICK"])
-                command_once(commands["ON_LONG_CLICK"])
-            else
-                log.debug("Trigger command once: " .. commands["ON_CLICK"])
-                command_once(commands["ON_CLICK"])
-            end
-        end
-
-    end, "handle_bravo_button")
-end
-
-local function start_timer(button_name)
-    command_state[button_name] = {}
-    command_state[button_name]["start_time"] = os.clock()
-    command_state[button_name]["is_continous_mode"] = false
-    command_state[button_name]["phase"] = "begin"
-end
-
-local function handle_continuous_mode(button_name)
-    if os.clock() - command_state[button_name]["start_time"] >= CONTINUOUS_PRESS_THRESHOLD then
-        if not command_state[button_name]["is_continous_mode"] then
-            log.debug("Button " .. button_name .. " held down long enough. Starting continuous mode.")
-            command_state[button_name]["is_continous_mode"] = true
-			arrow_color = 0xFFED10D8
-        end        
-        trigger_command_for(button_name)
-	elseif os.clock() - command_state[button_name]["start_time"] >= LONG_CLICK_THRESHOLD then
-		local commands = get_commands_for_button(button_name)
-		if commands["ON_LONG_CLICK"] ~= nil then
-			arrow_color = 0xFF18D1CB
-		end	
-    end
-end
-
-local function handle_single_click_mode(button_name)
-	log.debug("Calling handle_single_click_mode for " .. button_name)
-    if not command_state[button_name]["is_continous_mode"] and os.clock() - command_state[button_name]["start_time"] >= LONG_CLICK_THRESHOLD then
-		log.debug("Changing state to long_click")
-		command_state[button_name]["phase"] = "long_click"
-		trigger_command_for(button_name)
-	else
-		log.debug("Changing state to end")
-		command_state[button_name]["phase"] = "end"
-		trigger_command_for(button_name)
-	end
-	arrow_color = 0xFF00FF00
-end
+-- Button handling is delegated to the dispatch module.
+-- Thin wrappers that delegate to dispatch module:
 
 -- Autopilot panel buttons
 -- FlyWithLua executes callback strings in the global environment.
 -- Route autopilot panel commands via the global bravo_dispatch entrypoint.
-dispatch.ap_begin = function(button_name)
-    start_timer(button_name)
+dispatch_callbacks.ap_begin = function(button_name)
+    return try_catch(function()
+        dispatch.button_begin(button_name)
+    end, 'ap_begin:' .. button_name)
 end
 
-dispatch.ap_continue = function(button_name)
-    handle_continuous_mode(button_name)
+dispatch_callbacks.ap_continue = function(button_name)
+    return try_catch(function()
+        dispatch.button_continue(button_name)
+    end, 'ap_continue:' .. button_name)
 end
 
-dispatch.ap_end = function(button_name)
-    handle_single_click_mode(button_name)
+dispatch_callbacks.ap_end = function(button_name)
+    return try_catch(function()
+        dispatch.button_end(button_name)
+    end, 'ap_end:' .. button_name)
 end
 
 local ap_buttons = {
@@ -1148,19 +832,19 @@ local LED_ANC_DOOR =		{4, 4}
 
 -- BUTTON LED handling
 get_button_led_state = function(button_name)
-    if util.is_table(button_map_leds_state[current_mode]["ALL"]) and util.is_boolean(button_map_leds_state[current_mode]["ALL"][button_name]) then
+    if util.is_table(button_map_leds_state[dispatch.get_current_mode()]["ALL"]) and util.is_boolean(button_map_leds_state[dispatch.get_current_mode()]["ALL"][button_name]) then
         if log_led_state then
             log.debug("get_led_state for mode ALL and button name " .. button_name)
         end
-        return button_map_leds_state[current_mode]["ALL"][button_name]
-    elseif util.is_table(button_map_leds_state[current_mode][current_selection]) and util.is_boolean(button_map_leds_state[current_mode][current_selection][button_name]) then
+        return button_map_leds_state[dispatch.get_current_mode()]["ALL"][button_name]
+    elseif util.is_table(button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()]) and util.is_boolean(button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()][button_name]) then
         if log_led_state then
-            log.debug("get_led_state for mode " .. current_mode .. ", current selection " .. current_selection .. " and button name " .. button_name)
+            log.debug("get_led_state for mode " .. dispatch.get_current_mode() .. ", current selection " .. dispatch.get_current_selection() .. " and button name " .. button_name)
         end
-        return button_map_leds_state[current_mode][current_selection][button_name]
+        return button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()][button_name]
     else
         if log_led_state then       
-            log.debug("Return nil for mode " .. current_mode .. " and button_name " .. button_name)
+            log.debug("Return nil for mode " .. dispatch.get_current_mode() .. " and button_name " .. button_name)
         end
         return nil
     end
@@ -1172,18 +856,18 @@ local function set_button_led_state(button_name, state)
         if log_led_state then
             log.debug("get_led_state for " .. button_name .. " = " .. tostring(current_led_state))
         end
-        if util.is_table(button_map_leds_state[current_mode]["ALL"]) and util.is_boolean(button_map_leds_state[current_mode]["ALL"][button_name]) then
-            button_map_leds_state[current_mode]["ALL"][button_name] = state
-        elseif util.is_table(button_map_leds_state[current_mode][current_selection]) and  util.is_boolean(button_map_leds_state[current_mode][current_selection][button_name]) then
-            button_map_leds_state[current_mode][current_selection][button_name] = state
+        if util.is_table(button_map_leds_state[dispatch.get_current_mode()]["ALL"]) and util.is_boolean(button_map_leds_state[dispatch.get_current_mode()]["ALL"][button_name]) then
+            button_map_leds_state[dispatch.get_current_mode()]["ALL"][button_name] = state
+        elseif util.is_table(button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()]) and  util.is_boolean(button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()][button_name]) then
+            button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()][button_name] = state
         end
         led_state_modified = true
     else
         if log_led_state then
             if current_led_state ~= nil then
-                log.debug("state did not change for mode " .. current_mode .. " and button " .. button_name)
+                log.debug("state did not change for mode " .. dispatch.get_current_mode() .. " and button " .. button_name)
             else
-                log.debug("state does not exist for mode " .. current_mode .. " and button " .. button_name)
+                log.debug("state does not exist for mode " .. dispatch.get_current_mode() .. " and button " .. button_name)
             end
         end
     end
@@ -1217,7 +901,7 @@ local function all_leds_off()
 
 	for i = 1,7 do
 		local key = "SWITCH" .. i .. "_LED"
-		rocker_switch_led_states[key] = false
+		dispatch.set_rocker_switch_led(key, false)
 	end
 	
     led_state_modified = true
@@ -1237,25 +921,25 @@ prime_button_led_states_for_mode_change = function()
 
         -- Check and set for "ALL" selection within the current mode context
         -- The "ALL" selection is used for LEDs that are common across all selector positions within a mode [2, 3]
-        if util.is_table(button_map_leds_state[current_mode]) and util.is_table(button_map_leds_state[current_mode]["ALL"]) then
+        if util.is_table(button_map_leds_state[dispatch.get_current_mode()]) and util.is_table(button_map_leds_state[dispatch.get_current_mode()]["ALL"]) then
             -- Only prime if the LED state entry actually exists for this button in the "ALL" category [4, 5]
-            if util.is_boolean(button_map_leds_state[current_mode]["ALL"][button_label]) then
-                button_map_leds_state[current_mode]["ALL"][button_label] = false
+            if util.is_boolean(button_map_leds_state[dispatch.get_current_mode()]["ALL"][button_label]) then
+                button_map_leds_state[dispatch.get_current_mode()]["ALL"][button_label] = false
                 -- Manually setting led_state_modified to true ensures a HID update will be sent [6, 7].
                 -- This is a safeguard in case no other state changes occur that would trigger it.
 				if log_led_state then
-                    log.debug("Setting led to true for [" .. current_mode .. "][ALL][" .. button_label .."]")
+                    log.debug("Setting led to true for [" .. dispatch.get_current_mode() .. "][ALL][" .. button_label .."]")
                 end
                 led_state_modified = true
 				led_detected = true
             end
-        elseif util.is_table(button_map_leds_state[current_mode]) and util.is_table(button_map_leds_state[current_mode][current_selection]) then
+        elseif util.is_table(button_map_leds_state[dispatch.get_current_mode()]) and util.is_table(button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()]) then
             -- Only prime if the LED state entry actually exists for this button in this specific selection [5, 9]
-            if util.is_boolean(button_map_leds_state[current_mode][current_selection][button_label]) then
-                button_map_leds_state[current_mode][current_selection][button_label] = false
+            if util.is_boolean(button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()][button_label]) then
+                button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()][button_label] = false
                 -- As above, manually forcing led_state_modified to ensure a HID update.
                 if log_led_state then
-                    log.debug("Setting led to true for [" .. current_mode .. "][" .. current_selection .. "][" .. button_label .."]")
+                    log.debug("Setting led to true for [" .. dispatch.get_current_mode() .. "][" .. dispatch.get_current_selection() .. "][" .. button_label .."]")
                 end
                 led_state_modified = true
 				led_detected = true
@@ -1279,9 +963,9 @@ local function send_hid_data()
 
     for i = 1, #default_button_labels do
         local button_name = default_button_labels[i]
-        if util.is_table(button_map_leds_state[current_mode]["ALL"]) and button_map_leds_state[current_mode]["ALL"][button_name] == true then
+        if util.is_table(button_map_leds_state[dispatch.get_current_mode()]["ALL"]) and button_map_leds_state[dispatch.get_current_mode()]["ALL"][button_name] == true then
             data[1] = bit.bor(data[1], bit.lshift(1, i - 1))
-        elseif util.is_table(button_map_leds_state[current_mode][current_selection]) and button_map_leds_state[current_mode][current_selection][button_name] == true then
+        elseif util.is_table(button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()]) and button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()][button_name] == true then
             data[1] = bit.bor(data[1], bit.lshift(1, i - 1))
         end
     end
@@ -1396,7 +1080,7 @@ for i = 1, 7 do
 end
 
 get_led_state_for_switch = function(switch_label)
-	return rocker_switch_led_states[switch_label] or false
+	return dispatch.get_rocker_switch_led(switch_label) or false
 end
 
 local function handle_rocker_switch_led_changes()
@@ -1421,8 +1105,8 @@ local function handle_rocker_switch_led_changes()
             )
 
             -- Check if the state has changed to minimize unnecessary updates
-            if rocker_switch_led_states[switch_label_key] ~= current_state_from_dataref then
-                rocker_switch_led_states[switch_label_key] = current_state_from_dataref
+            if dispatch.get_rocker_switch_led(switch_label_key) ~= current_state_from_dataref then
+                dispatch.set_rocker_switch_led(switch_label_key, current_state_from_dataref)
                 led_state_modified = true -- Mark `led_state_modified` to trigger a HID update for the device
             end
         end
@@ -1486,29 +1170,29 @@ local function handle_button_led_changes()
         local led_state_for_button = nil
 		local button_label = default_button_labels[i]
 
-		-- log.debug("Before if: [" .. current_mode .. "][" .. current_selection .. "][" .. button_label .. "]")
-		if util.is_table(button_map_leds[current_mode]["ALL"]) then
-			local dataref = button_map_leds[current_mode]["ALL"][button_label]
+		-- log.debug("Before if: [" .. dispatch.get_current_mode() .. "][" .. dispatch.get_current_selection() .. "][" .. button_label .. "]")
+		if util.is_table(button_map_leds[dispatch.get_current_mode()]["ALL"]) then
+			local dataref = button_map_leds[dispatch.get_current_mode()]["ALL"][button_label]
             if dataref ~= nil then
                 local index = nil
-                if util.is_table(button_map_leds_index[current_mode]["ALL"]) then
-                    index = button_map_leds_index[current_mode]["ALL"][button_label]
+                if util.is_table(button_map_leds_index[dispatch.get_current_mode()]["ALL"]) then
+                    index = button_map_leds_index[dispatch.get_current_mode()]["ALL"][button_label]
                 end
                 
-                led_state_for_dataref = get_led_state_for_dataref(dataref, button_map_leds_cond[current_mode]["ALL"][button_label], index)
-                led_state_for_button = button_map_leds_state[current_mode]["ALL"][button_label]
+                led_state_for_dataref = get_led_state_for_dataref(dataref, button_map_leds_cond[dispatch.get_current_mode()]["ALL"][button_label], index)
+                led_state_for_button = button_map_leds_state[dispatch.get_current_mode()]["ALL"][button_label]
             end
-		elseif util.is_table(button_map_leds[current_mode][current_selection]) then
-			local dataref = button_map_leds[current_mode][current_selection][button_label]
+		elseif util.is_table(button_map_leds[dispatch.get_current_mode()][dispatch.get_current_selection()]) then
+			local dataref = button_map_leds[dispatch.get_current_mode()][dispatch.get_current_selection()][button_label]
 
             if dataref ~= nil then
                 local index = nil
-                if util.is_table(button_map_leds_index[current_mode][current_selection]) then
-                    index = button_map_leds_index[current_mode][current_selection][button_label]
+                if util.is_table(button_map_leds_index[dispatch.get_current_mode()][dispatch.get_current_selection()]) then
+                    index = button_map_leds_index[dispatch.get_current_mode()][dispatch.get_current_selection()][button_label]
                 end
 
-                led_state_for_dataref = get_led_state_for_dataref(dataref, button_map_leds_cond[current_mode][current_selection][button_label], index)
-                led_state_for_button = button_map_leds_state[current_mode][current_selection][button_label]
+                led_state_for_dataref = get_led_state_for_dataref(dataref, button_map_leds_cond[dispatch.get_current_mode()][dispatch.get_current_selection()][button_label], index)
+                led_state_for_button = button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()][button_label]
             end
 		end
         -- Check if we need to update the state of the button
@@ -1661,7 +1345,7 @@ local function handle_led_changes_task()
     do_more_often(handle_led_changes, 'handle_led_changes', 0.25)
 end
 
-dispatch.handle_led_changes_task = handle_led_changes_task
+dispatch_callbacks.handle_led_changes_task = handle_led_changes_task
 
 -- Register the corrected function to be called every frame
 do_every_frame("bravo_dispatch('handle_led_changes_task')")
@@ -1689,7 +1373,7 @@ local function do_on_exit_task()
     end, 'do_on_exit')
 end
 
-dispatch.do_on_exit_task = do_on_exit_task
+dispatch_callbacks.do_on_exit_task = do_on_exit_task
 
 do_on_exit("bravo_dispatch('do_on_exit_task')")
 
