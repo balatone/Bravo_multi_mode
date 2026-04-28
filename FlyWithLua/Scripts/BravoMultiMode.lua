@@ -5,6 +5,108 @@ local config = require("bravo++.config")
 local ui = require("bravo++.ui")
 local MapBuilder = require("bravo++.mapbuilder")
 
+-----------------------------------------------------
+--- PERFORMANCE PROFILER (Method 2: Cumulative Stats)
+-----------------------------------------------------
+-- Lightweight profiler to track CPU time consumption of core tasks.
+-- Logs cumulative stats every 60 seconds to X-Plane log for "before/after" comparison.
+local PROFILER_ENABLED = false -- Set to true to enable profiling
+
+local profiler = {
+	_tasks = {},
+	_last_log_time = os.clock(),
+	_log_interval = 60, -- seconds
+}
+
+--- Start timing a specific task
+function profiler.start(task_name)
+	if not PROFILER_ENABLED then
+		return nil -- Zero overhead when disabled
+	end
+	if not profiler._tasks[task_name] then
+		profiler._tasks[task_name] = { total_time = 0, calls = 0 }
+	end
+	return os.clock()
+end
+
+--- Stop timing and record the delta for the task
+function profiler.stop(task_name, start_time)
+	if not PROFILER_ENABLED or not start_time then
+		return -- Zero overhead when disabled
+	end
+	if profiler._tasks[task_name] then
+		local delta = os.clock() - start_time
+		profiler._tasks[task_name].total_time = profiler._tasks[task_name].total_time + delta
+		profiler._tasks[task_name].calls = profiler._tasks[task_name].calls + 1
+	end
+end
+
+--- Log all accumulated stats and reset the counters
+function profiler.log_and_reset()
+	log.info("======================================================")
+	log.info("BRAVO++ PERFORMANCE PROFILER (Last " .. profiler._log_interval .. "s)")
+	log.info("------------------------------------------------------")
+
+	-- Sort tasks by total time descending for easier analysis
+	local sorted_tasks = {}
+	for name, stats in pairs(profiler._tasks) do
+		table.insert(sorted_tasks, { name = name, stats = stats })
+	end
+	table.sort(sorted_tasks, function(a, b)
+		return a.stats.total_time > b.stats.total_time
+	end)
+
+	for _, entry in ipairs(sorted_tasks) do
+		local name = entry.name
+		local stats = entry.stats
+		local avg = (stats.calls > 0) and (stats.total_time / stats.calls) or 0
+		log.info(
+			string.format(
+				"Task: %-30s | Calls: %5d | Total: %.4fs | Avg: %.6fs",
+				name,
+				stats.calls,
+				stats.total_time,
+				avg
+			)
+		)
+	end
+
+	log.info("======================================================")
+
+	-- Reset for next interval
+	profiler._tasks = {}
+end
+
+--- Periodic logging task (called every frame via FlyWithLua string callback)
+-- Must be global because do_every_frame evaluates strings in the global environment.
+function profiler_log_task() -- luacheck: ignore (used by do_every_frame string callback)
+	if not PROFILER_ENABLED then
+		return -- Zero overhead when disabled
+	end
+	local now = os.clock()
+	if (now - profiler._last_log_time) >= profiler._log_interval then
+		profiler.log_and_reset()
+		profiler._last_log_time = now
+	end
+end
+
+--- Toggle profiling on/off at runtime via custom command
+function profiler_toggle() -- luacheck: ignore (used by create_command callback)
+	PROFILER_ENABLED = not PROFILER_ENABLED
+	log.info("Profiling " .. (PROFILER_ENABLED and "ENABLED" or "DISABLED"))
+end
+
+create_command(
+	"FlyWithLua/Bravo++/toggle_profiler",
+	"Toggle Bravo++ performance profiler on/off",
+	"profiler_toggle()",
+	"",
+	""
+)
+
+-- Register periodic logging to run every frame (lightweight check)
+do_every_frame("profiler_log_task()")
+
 -- Custom commands that will only be imported when corresponding aircraft is loaded
 local custom_directory = MODULES_DIRECTORY .. "bravo++" .. DIRECTORY_SEPARATOR .. "custom" .. DIRECTORY_SEPARATOR
 dofile(custom_directory .. "C90B.lua")
@@ -296,7 +398,9 @@ local function build_ui_context()
 end
 
 dispatch_callbacks.build_bravo_gui = function(wnd, x, y)
+	local t = profiler.start("build_gui")
 	ui.build_gui(build_ui_context())
+	profiler.stop("build_gui", t)
 end
 function build_bravo_gui(wnd, x, y)
 	return bravo_dispatch("build_bravo_gui", wnd, x, y)
@@ -345,7 +449,9 @@ end
 
 -- Choose the available method for updating the selector
 local function refresh_selector_task()
-	return refresh_selector_hid()
+	local t = profiler.start("refresh_selector")
+	refresh_selector_hid()
+	profiler.stop("refresh_selector", t)
 end
 
 dispatch_callbacks.refresh_selector_task = refresh_selector_task
@@ -470,7 +576,9 @@ local function set_current_buttons()
 end
 
 local function set_current_buttons_task()
-	return set_current_buttons()
+	local t = profiler.start("set_current_buttons")
+	set_current_buttons()
+	profiler.stop("set_current_buttons", t)
 end
 
 dispatch_callbacks.set_current_buttons_task = set_current_buttons_task
@@ -619,7 +727,9 @@ bravo_hid.subscribe(bravo_decoder.on_report)
 
 -- Ensure bravo_hid.poll is called every frame via the centralized dispatcher
 dispatch_callbacks.bravo_hid_poll_task = function()
+	local t = profiler.start("bravo_hid_poll")
 	bravo_hid.poll()
+	profiler.stop("bravo_hid_poll", t)
 end
 -- Use bravo_dispatch so FlyWithLua stores a short string
 do_every_frame("bravo_dispatch('bravo_hid_poll_task')")
@@ -1319,7 +1429,9 @@ local function do_more_often(func_to_execute, description, interval_seconds)
 end
 
 local function handle_led_changes_task()
+	local t = profiler.start("handle_led_changes")
 	do_more_often(handle_led_changes, "handle_led_changes", 0.25)
+	profiler.stop("handle_led_changes", t)
 end
 
 dispatch_callbacks.handle_led_changes_task = handle_led_changes_task
