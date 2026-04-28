@@ -3,6 +3,7 @@
 local util = require("bravo++.util")
 local log = require("bravo++.log")
 local config = require("bravo++.config")
+local ui = require("bravo++.ui")
 local MapBuilder = require("bravo++.mapbuilder")
 
 -- Custom commands that will only be imported when corresponding aircraft is loaded
@@ -18,7 +19,7 @@ log.LOG_LEVEL = log.LOG_INFO
 local log_led_state = false
 
 -- New modular HID/decoder modules
-local bravo_hid = require("bravo++.hid")
+local bravo_hid = require("bravo++.hardware")
 local bravo_decoder = require("bravo++.decoder")
 local bravo_state = require("bravo++.state")
 local bravo_debug = require("bravo++.debug")
@@ -489,454 +490,37 @@ for i = 1, #modes do
     end
 end
 
--- Helper function to wrap text for a given width and font scale
-local function wrap_text_for_width(text_str, max_width, current_font_scale)
-    local lines = {}
-    local current_line = ""
-    local words = {}
-    local max_line_width = 0 -- NEW: Track the maximum width of any line
-
-    -- Split the text into words by one or more spaces [Conversational Turn 1]
-    for word in string.gmatch(text_str, "[^%s]+") do
-        table.insert(words, word)
-    end
-
-    -- Temporarily apply scale for accurate measurement [Conversational Turn 1]
-    imgui.SetWindowFontScale(current_font_scale) 
-    
-    local line_height = imgui.CalcTextSize("Wy") -- Get height of a typical line at this scale [Conversational Turn 1]
-
-    -- Handle empty text case
-    if #words == 0 then
-        imgui.SetWindowFontScale(1.0) -- Reset font scale after measurement [Conversational Turn 1]
-        return {}, 0, 0
-    end
-
-    for i, word in ipairs(words) do
-        local test_line = current_line
-        if current_line ~= "" then
-            test_line = test_line .. " " -- Add space if not the first word
-        end
-        test_line = test_line .. word
-
-        local test_w, _ = imgui.CalcTextSize(test_line) -- Get width of the test line
-
-        if test_w <= max_width then
-            current_line = test_line
-            max_line_width = math.max(max_line_width, test_w) -- Update max_line_width if this line is wider
-        else
-            -- If adding the current word makes the line exceed max_width, save current_line and start a new one
-            if current_line ~= "" then
-                table.insert(lines, current_line)
-            end
-            current_line = word -- Start a new line with the current word
-            -- Important: If the single 'word' itself is wider than max_width, it will be on its own line.
-            -- Its width should also be considered for max_line_width.
-            max_line_width = math.max(max_line_width, imgui.CalcTextSize(word)) -- Update for the new single word line
-        end
-    end
-    -- Add the last line if any content remains
-    if current_line ~= "" then
-        table.insert(lines, current_line)
-    end
-
-    imgui.SetWindowFontScale(1.0) -- Reset font scale after measurement [Conversational Turn 1]
-    -- NEW RETURN VALUE: Return table of lines, total height, AND the maximum line width found
-    return lines, #lines * line_height, max_line_width 
+-- Build a context table for the UI module so it stays decoupled from globals.
+local function build_ui_context()
+    return {
+        current_mode             = current_mode,
+        current_selection        = current_selection,
+        current_cf_mode          = current_cf_mode,
+        current_switch_mode      = current_switch_mode,
+        current_selection_label  = current_selection_label,
+        conceptual_mode_order    = conceptual_mode_order,
+        selection_map_labels     = selection_map_labels,
+        button_is_switch_map     = button_is_switch_map,
+        default_button_labels    = default_button_labels,
+        current_buttons          = current_buttons,
+        switch_map_labels        = switch_map_labels,
+        twist_knob_map_actions   = twist_knob_map_actions,
+        twist_knob_map_labels    = twist_knob_map_labels,
+        get_button_led_state     = get_button_led_state,
+        get_led_state_for_switch = function(name) return rocker_switch_led_states[name] or false end,
+        vertical_spacing         = 30
+    }
 end
 
-local cached_scaling_data = {}
--- Main helper function to determine best font scale and wrapped text
-local function get_scaled_wrapped_text(text_string, button_width, button_height, min_font_scale)
-    min_font_scale = min_font_scale or 0.6 -- Define a minimum readable font scale (e.g., 60% of original) [Conversational Turn 1]
-    local key = text_string .. tostring(button_width) .. tostring(button_height) .. tostring(min_font_scale)
-
-    local cached_data = cached_scaling_data[key]
-    if cached_data then
-        -- Access the values by their named fields
-        local lines = cached_data.wrapped_lines
-        local height = cached_data.total_height
-        local scale = cached_data.final_scale
-        -- log.debug("Cache hit for text: " .. tostring(text_string))
-        return lines, height, scale
-    end
-
-        local best_scale = min_font_scale
-        local best_lines = {}
-        local best_height = 0
-        local border_width_buffer = 6
-
-        -- Binary search for the largest scale that fits within button dimensions.
-        -- Replaces linear decrement (O(N) iterations) with binary search (O(log N)).
-        -- Each iteration calls wrap_text_for_width which invokes imgui.CalcTextSize,
-        -- so fewer iterations = fewer frame-time spikes during first render.
-        local low = min_font_scale
-        local high = 1.0
-        local precision = 0.001
-
-        while (high - low) > precision do
-            local mid = (low + high) / 2
-            local lines, required_height, widest_line_width = wrap_text_for_width(tostring(text_string), button_width, mid)
-
-            if required_height <= button_height and widest_line_width + border_width_buffer <= button_width then
-                -- This scale fits; try a larger one
-                best_scale = mid
-                low = mid
-            else
-                -- Too big; try smaller
-                high = mid
-            end
-        end
-
-        -- Final wrap call at the determined best scale to get lines and height for caching
-        best_lines, best_height, _ = wrap_text_for_width(tostring(text_string), button_width, best_scale)
-
-        -- Cache the results
-        cached_scaling_data[key] = {
-            wrapped_lines = best_lines,
-            total_height = best_height,
-            final_scale = best_scale
-        }
-
-        return best_lines, best_height, best_scale
+dispatch.build_bravo_gui = function(wnd, x, y)
+    ui.build_gui(build_ui_context())
 end
-
-local function draw_label(text, width, height, text_color_int)
-    local cx, cy = imgui.GetCursorScreenPos()
-
-    imgui.Dummy(width, height)
-
-    local text_w, text_h = imgui.CalcTextSize(tostring(text))
-    local text_draw_x = cx + (width - text_w) / 2
-    local text_draw_y = cy + (height - text_h) / 2
-
-    imgui.SetCursorScreenPos(text_draw_x, text_draw_y)
-    imgui.PushStyleColor(imgui.constant.Col.Text, text_color_int)
-    imgui.TextUnformatted(tostring(text))
-    imgui.PopStyleColor()
-end
-
-local function draw_knob(centerX, centerY, outerRad, innerRad, segments, thickness, current_mode, current_selection, current_cf_mode, twist_knob_map_actions, twist_knob_map_labels)
-    -- Base colors for the knob components (from original build_bravo_gui)
-    local outer_outline_color = 0xFF222222 -- Opaque Gray
-    local inner_outline_color = 0xFF222222 -- Opaque Gray
-    local outer_color = 0xFF505050        -- Opaque Dark Gray for the interior
-    local inner_color = 0xFF505050        -- Opaque Dark Gray for the interior
-    local knob_text_color = 0xFFFFFFFF    -- White for the text
-
-    -- Highlight colors (semi-transparent and opaque green, also from original)
-    local highlight_color = 0x4400FF00      -- Semi-transparent Green
-    local highlight_outline_color = 0xFF00FF00 -- Opaque Green
-
-    -- **Apply highlighting logic based on current_cf_mode and available actions**
-    if util.is_table(twist_knob_map_actions[current_mode]) and util.is_table(twist_knob_map_actions[current_mode][current_selection]) then
-        if util.is_table(twist_knob_map_actions[current_mode][current_selection]["INNER"]) then
-            -- This path is for knobs with explicit inner/outer functionality
-            if current_cf_mode == "outer" then
-                outer_color = highlight_color
-                outer_outline_color = highlight_outline_color
-            elseif current_cf_mode == "inner" then
-                inner_color = highlight_color
-                inner_outline_color = highlight_outline_color
-            end
-        elseif util.is_string(twist_knob_map_actions[current_mode][current_selection]["UP"]) then
-            -- This path is for simpler knobs that use only "UP" / "DOWN" without "INNER" / "OUTER" distinction
-            outer_color = highlight_color
-            outer_outline_color = highlight_outline_color
-            inner_color = highlight_color
-            inner_outline_color = highlight_outline_color
-        end
-    end
-
-    -- **Draw the circles that form the knob's appearance**
-    imgui.DrawList_AddCircle(centerX, centerY, outerRad, outer_outline_color, segments, thickness)
-    imgui.DrawList_AddCircleFilled(centerX, centerY, outerRad, outer_color, segments)
-    imgui.DrawList_AddCircle(centerX, centerY, innerRad, inner_outline_color, segments, thickness)
-    imgui.DrawList_AddCircleFilled(centerX, centerY, innerRad, inner_color, segments)
-
-    -- **Draw the text label on the knob**
-    if util.is_table(twist_knob_map_labels[current_mode]) then
-        local text_to_display = nil
-        if util.is_table(twist_knob_map_labels[current_mode][current_selection]) then
-            -- Retrieve text for inner/outer knob, dependent on current_cf_mode
-            text_to_display = twist_knob_map_labels[current_mode][current_selection][string.upper(current_cf_mode)]
-        elseif util.is_string(twist_knob_map_labels[current_mode][current_selection]) then
-            -- Retrieve text for simple knob (single label)
-            text_to_display = twist_knob_map_labels[current_mode][current_selection]
-        end
-
-        if text_to_display ~= nil then
-            -- Determine the available text area within the knob
-            -- The knob's inner circle has a radius of 'innerRad'.
-            -- So, the maximum square area for text within it would be 2 * innerRad on each side.
-            local knob_text_max_width = innerRad * 2
-            local knob_text_max_height = innerRad * 2 -- Allow text to span vertically if needed
-
-            -- **Use get_scaled_wrapped_text to get wrapped lines and the optimal font scale**
-            local wrapped_lines, text_total_height, final_font_scale =
-                get_scaled_wrapped_text(tostring(text_to_display), knob_text_max_width, knob_text_max_height, 0.6) -- 0.6 is the minimum font scale used in draw_button
-
-            -- Apply the determined font scale for drawing the text
-            imgui.SetWindowFontScale(final_font_scale)
-
-            -- Calculate the vertical starting position to center the block of text within the knob
-            local start_text_y = centerY - text_total_height / 2
-
-            -- Draw each wrapped line of text
-            local current_line_y = start_text_y
-            for _, line in ipairs(wrapped_lines) do
-                -- Recalculate line size at the final_font_scale for accurate centering
-                local line_w, line_h = imgui.CalcTextSize(line)
-                local line_draw_x = centerX - line_w / 2 -- Center each line horizontally within the knob
-
-                -- Set cursor position for the current line's top-left corner
-                imgui.SetCursorPosX(line_draw_x)
-                imgui.SetCursorPosY(current_line_y)
-
-                -- Call the global draw_label function to render the text for this line
-                draw_label(line, line_w, line_h, knob_text_color)
-
-                current_line_y = current_line_y + line_h -- Move the Y position down for the next line
-            end
-
-            -- Restore the original font scale to avoid affecting subsequent UI elements
-            imgui.SetWindowFontScale(1.0)
-        end
-    end
-end
-
-local arrow_color = 0xFF00FF00
-
-local function draw_button(text, width, height, box_bg_color_int, text_color_int, is_switch_button)
-    imgui.SetWindowFontScale(1.0) -- Always reset to default at the start [Conversational Turn 1]
-    local cx, cy = imgui.GetCursorScreenPos() -- Get current cursor position for drawing
-    imgui.Dummy(width, height) -- Reserve space for the button in the layout
-    imgui.DrawList_AddRectFilled(cx, cy, cx + width, cy + height, box_bg_color_int, 0) -- Draw button background
-
-    -- Step 1: Determine the appropriate font scale and wrap the text
-    -- The 'get_scaled_wrapped_text' function now handles splitting text into lines and
-    -- finding the largest font scale that allows the text to fit both horizontally and vertically.
-    local wrapped_lines, text_total_height, final_font_scale = get_scaled_wrapped_text(tostring(text), width, height, 0.6)
-
-    -- Apply the determined font scale for drawing the text on this button [Conversational Turn 1]
-    imgui.SetWindowFontScale(final_font_scale)
-
-    -- Step 2: Calculate the vertical starting position to center the block of text within the button
-    local start_text_y = cy + (height - text_total_height) / 2
-    
-    -- Step 3: Draw each wrapped line of text
-    local current_line_y = start_text_y
-    for _, line in ipairs(wrapped_lines) do
-        -- Recalculate size at the final_font_scale, this will now respect the scaling
-        local line_w, line_h = imgui.CalcTextSize(line) 
-        local line_draw_x = cx + (width - line_w) / 2 -- Center each line horizontally
-        
-        imgui.SetCursorScreenPos(line_draw_x, current_line_y) -- Set cursor for current line
-        imgui.PushStyleColor(imgui.constant.Col.Text, text_color_int) -- Set text color
-        imgui.TextUnformatted(line) -- Draw the line of text
-        imgui.PopStyleColor() -- Revert text color
-        
-        current_line_y = current_line_y + line_h -- Move the Y position down for the next line
-    end
-
-    -- Crucially, reset font scale to default (1.0) after drawing the button's text
-    imgui.SetWindowFontScale(1.0) 
-                                  
-    -- Step 4: Handle the drawing of the switch indicator (^^ or vv) if it's a switch button
-    if is_switch_button then
-        local ud_symbol = ""
-        local symbol_offset_y = 0
-        local padding = -2
-
-        -- Measure the symbol using the same final font scale determined for the main text
-        imgui.SetWindowFontScale(final_font_scale) 
-        local symbol_w, symbol_h = imgui.CalcTextSize("^^") -- Get height of the symbol at the scaled size
-        imgui.SetWindowFontScale(1.0) -- Reset immediately after measuring [Conversational Turn 1]
-
-        -- Determine symbol and its vertical offset
-        if current_switch_mode == "up" then -- `current_switch_mode` is a local variable in the script
-            ud_symbol = "^^"
-            -- symbol_offset_y = -(text_total_height / 2 + symbol_h + padding)
-            symbol_offset_y = -(height / 2 + symbol_h + padding)
-        elseif current_switch_mode == "down" then
-            ud_symbol = "vv"
-            -- symbol_offset_y = (text_total_height / 2 + padding)
-            symbol_offset_y = (height / 2 + padding)
-        end
-
-        -- Apply the determined font scale before drawing the symbol
-        imgui.SetWindowFontScale(final_font_scale) 
-        local symbol_draw_x = cx + (width - symbol_w) / 2 -- Center the symbol horizontally
-        local symbol_draw_y = cy + height / 2 + symbol_offset_y -- Calculate the base Y (center of the button) and then apply the offset
-        -- local symbol_draw_y = cy + height / 2 -- Calculate the base Y (center of the button) and then apply the offset
-
-        imgui.SetCursorScreenPos(symbol_draw_x, symbol_draw_y)
-		imgui.PushStyleColor(imgui.constant.Col.Text, arrow_color) -- Set symbol color to yellow
-        imgui.TextUnformatted(ud_symbol)
-        imgui.PopStyleColor()
-        imgui.SetWindowFontScale(1.0) -- Reset font scale after drawing the symbol
-    end
-end
-
-local H_OFFSET = 10
-local H_SPACING = 5
-local Y_OFFSET = 10
-local WIDGET_WIDTH = 60
-local imgui = imgui
-
-local function build_bravo_gui_impl(wnd, x, y)
-    -- Set the ImGui window background style color using AABBGGRR hex format.
-    -- imgui.PushStyleColor(imgui.constant.Col.Border, 0xFF262626)
-    imgui.PushStyleColor(imgui.constant.Col.WindowBg, 0xCC333333) -- Light Grey
-
-    -- Avoid allocating a temporary table every frame; we only need to highlight the active conceptual mode.
-    local current_mode_conceptual_name = util.get_name_before_index(current_mode) -- Get conceptual name for current mode
-
-    -- Parameters for mode label display
-    local h_offset_mode = H_OFFSET -- Initial horizontal offset for the first mode label
-    local h_spacing_mode = H_SPACING -- Horizontal spacing between mode labels
-    local y_offset_mode = Y_OFFSET -- Vertical position for mode labels
-    local mode_width = WIDGET_WIDTH -- Fixed width for each mode label
-
-    imgui.NewLine() -- Start a new line for the mode labels
-    imgui.SetWindowFontScale(1.2) -- Set font scale for mode labels
-
-    -- Step 2: Draw the conceptual mode names based on the collected info
-    for i, conceptual_name_to_draw in ipairs(conceptual_mode_order) do
-        local current_x_position = h_offset_mode + (i - 1) * (mode_width + h_spacing_mode)
-        imgui.SetCursorPosX(current_x_position)
-        imgui.SetCursorPosY(y_offset_mode)
-
-        local text_color_for_label = 0xFF111111 -- Default color: Dark Grey
-        if conceptual_name_to_draw == current_mode_conceptual_name then
-            text_color_for_label = 0xFF00FF00 -- Highlight color: Green
-        end
-        draw_label(conceptual_name_to_draw, mode_width, 20, text_color_for_label)
-    end
-    imgui.SetWindowFontScale(1.0) -- Restore default font scale for subsequent UI elements
-
-    local h_offset_select = H_OFFSET -- Initial horizontal offset for buttons
-    local h_spacing_select = H_SPACING -- Horizontal spacing between button columns
-    local y_offset_select = 45
-    local select_width = WIDGET_WIDTH
-
-    -- Current Selection Label
-    local selection_labels = selection_map_labels[current_mode] or {}
-    for i, selection_label in ipairs(selection_labels) do
-        -- log.info("Selection label: " .. selection_label)
-        local x = h_offset_select + (i - 1) * (select_width + h_spacing_select)
-        imgui.SetCursorPosX(x)
-        imgui.SetCursorPosY(y_offset_select)
-
-        local text_color = 0xFF000000
-        if current_selection_label == selection_label then
-            text_color = 0xFFFFFFFF -- White (AABBGGRR)
-        else
-            text_color = 0xFF111111 -- Dark Grey (AABBGGRR)
-        end
-        draw_label(selection_label, select_width, 20, text_color)            
-    end
-
-    imgui.SetWindowFontScale(1.0)
-
-    -- Button Labels and States
-    local h_offset_button = H_OFFSET -- Initial horizontal offset for buttons
-    local h_spacing_button = H_SPACING -- Horizontal spacing between button columns
-    local y_offset_button = 90
-    local button_width = WIDGET_WIDTH    -- Width of button as used in draw_button
-    local button_color = 0xFF575049
-	local button_off_label_color = 0xFF111111 -- 0xFF5A5A5A
-	local button_on_label_color = 0xFFFFFFFF
-	local button_no_led_label_color = 0xFF18D1CB -- 0xFF111111
-
-    imgui.NewLine() -- Start a new line after selection label for buttons
-    imgui.SetCursorPosX(h_offset_button) 
-    imgui.SetCursorPosY(y_offset_button)
-
-    -- Cache switch maps to avoid repeated table lookups inside the hot loop.
-    local mode_switch_map = button_is_switch_map[current_mode] or {}
-    local selection_switch_map = mode_switch_map[current_selection] or {}
-    local all_switch_map = mode_switch_map["ALL"] or {}
-
-    for i = 1, #current_buttons do
-        local button_label = current_buttons[i]
-        local button_name = default_button_labels[i]
-        local led_state = get_button_led_state(button_name)
-        local button_label_color =  button_no_led_label_color
-        if led_state == true then
-            button_label_color = button_on_label_color
-        elseif led_state == false then
-            button_label_color = button_off_label_color
-        end
-		
-		-- log.info("button_is_switch_map[" .. current_mode .. "][\"ALL\"][" .. button_name.. "] = " .. tostring(button_is_switch_map[current_mode]["ALL"][button_name]))
-        local is_switch = (selection_switch_map[button_name] == true) or (all_switch_map[button_name] == true)
-
-        local current_button_x = h_offset_button + (i - 1) * (button_width + h_spacing_button)
-		
-		if i == #current_buttons then
-			current_button_x = h_offset_button + (i - 2) * (button_width + h_spacing_button)
-			y_offset_button = y_offset_button - 45
-		end
-
-        imgui.SetCursorPosX(current_button_x)
-        imgui.SetCursorPosY(y_offset_button)            
-        draw_button(button_label, button_width, 30, button_color, button_label_color, is_switch)
-    end
-
-    -- Switch Labels and States
-    local h_offset_switch = h_offset_mode -- Initial horizontal offset for buttons
-    local h_spacing_switch = 5 -- Horizontal spacing between button columns
-    local y_offset_switch = 180 -- 170
-    local switch_width = 60    -- Width of button as used in draw_button
-    local switch_color = button_color
-
-    imgui.NewLine()
-    imgui.SetCursorPosX(h_offset_button) 
-    imgui.SetCursorPosY(y_offset_button)
-
-    for i = 1, #switch_map_labels do
-        local switch_label = switch_map_labels[i]
-        local current_switch_x = h_offset_switch + (i - 1) * (switch_width + h_spacing_switch)
-        local led_state = get_led_state_for_switch("SWITCH" .. i .. "_LED")
-        local switch_label_color =  button_no_led_label_color
-        if led_state == true then
-            switch_label_color = button_on_label_color
-        elseif led_state == false then
-            switch_label_color = button_off_label_color
-        end
-        imgui.SetCursorPosX(current_switch_x)
-        imgui.SetCursorPosY(y_offset_switch - vertical_spacing*1.5)
-        draw_button(switch_label, switch_width, 30, switch_color, switch_label_color, false)        
-    end
-
-    local graphic_center_x = 505
-    local graphic_center_y = 75
-    local outer_radius = 36
-    local inner_radius = 25
-    local num_segments = 32
-    local outline_thickness = 2
-
-    draw_knob(
-        graphic_center_x, graphic_center_y,
-        outer_radius, inner_radius,
-        num_segments, outline_thickness,
-        current_mode, current_selection, current_cf_mode,
-        twist_knob_map_actions, twist_knob_map_labels
-    )
-end
-
--- Register the GUI builder implementation and expose a tiny global wrapper.
--- FlyWithLua's float window callbacks resolve by global function name.
-dispatch.build_bravo_gui = build_bravo_gui_impl
 function build_bravo_gui(wnd, x, y)
     return bravo_dispatch('build_bravo_gui', wnd, x, y)
 end
 
 local function on_close_floating_window_impl(my_floating_wnd)
-    if bravo then
-        hid_close(bravo)
-    end
+    ui.on_close({ hid_close_fn = hid_close, bravo = bravo })
 end
 
 dispatch.on_close_floating_window = on_close_floating_window_impl
