@@ -182,76 +182,31 @@ local values_valid = config.validate_values(nav_bindings, validation_context)
 if not keys_valid or not values_valid then return end
 
 -----------------------------------------------------
---- Initialize the various maps/tables
+--- Unified mapping initialization via MapBuilder
 -----------------------------------------------------
-log.info("Initializing the selector labels map...")
-local selection_map_labels = {}
-for i = 1, #modes do
-    local key = modes[i] .. "_SELECTOR_LABELS"
-    if modes[i] ~= "AUTO" or (modes[i] == "AUTO" and nav_bindings[key] ~= nil) then
-        selection_map_labels[modes[i]] = util.create_table(nav_bindings[key])
-        log.info("Adding " .. key .. " = " .. nav_bindings[key])
-    else
-        selection_map_labels[modes[i]] = default_selections
-        log.info("Adding default selector labels.")
-    end
-end
+log.info("Initializing all maps via unified MapBuilder...")
+local built = MapBuilder.build(
+    nav_bindings,
+    modes,
+    default_selections,
+    default_button_labels,
+    no_button_labels,
+    default_selections          -- used as fallback selector labels for AUTO mode
+)
 
-log.info("Initializing the button labels map...")
-local button_map_labels = {}
-for i = 1, #modes do
-    local select_map = {}
-    for j = 1, #default_selections do
-        select_map[default_selections[j]] = {}
-        local key = modes[i] .. "_" .. default_selections[j] .. "_BUTTON_LABELS"
-        if modes[i] ~= "AUTO" or (modes[i] == "AUTO" and nav_bindings[key] ~= nil) then
-            if nav_bindings[key] ~= nil then
-                select_map[default_selections[j]] = util.create_table(nav_bindings[key])
-                button_map_labels[modes[i]] = select_map
-                log.info("Adding " .. key .. " = " .. nav_bindings[key])
-			else
-				select_map[default_selections[j]] = no_button_labels
-				button_map_labels[modes[i]] = select_map
-				log.info("No bindings found for mode and selection. Adding no button labels.")			
-            end
-        else
-			select_map[default_selections[j]] = default_button_labels
-			button_map_labels[modes[i]] = select_map
-			log.info("Adding default button labels.")
-        end
-    end
-end
+local selection_map_labels  = built.selection_map_labels
+local button_map_labels     = built.button_map_labels
+local twist_knob_map_labels = built.twist_knob_map_labels
+local button_map_leds       = built.button_map_leds
+local button_map_leds_cond  = built.button_map_leds_cond
+local button_map_leds_state = built.button_map_leds_state
+local button_map_leds_index = built.button_map_leds_index
 
 -- The labels for the rocker switches
 log.info("Initializing the switch labels...")
 local switch_map_labels = {}
-
 if nav_bindings["SWITCH_LABELS"] ~= nil then
     switch_map_labels = util.create_table(nav_bindings["SWITCH_LABELS"])
-end
-
--- The labels used for the right twist knob
-log.info("Initializing the right twist knob labels...")
-local twist_knob_map_labels = {}
-for i = 1, #modes do
-    local select_map = {}
-    for j = 1, #default_selections do
-        select_map[default_selections[j]] = {}
-        local key = modes[i] .. "_" .. default_selections[j] .. "_KNOB_LABELS"
-        if nav_bindings[key] ~= nil then
-            local bindings = util.create_table(nav_bindings[key])
-            if #bindings > 1 then
-                select_map[default_selections[j]]["OUTER"] = bindings[1]
-                select_map[default_selections[j]]["INNER"] = bindings[2]
-            elseif #bindings == 1 then
-                select_map[default_selections[j]] = bindings[1]
-            end
-            twist_knob_map_labels[modes[i]] = select_map
-            log.info("Adding " .. key .. " = " .. nav_bindings[key])
-        else
-            log.info("No bindings found for mode and selection. Adding no knob labels.")			
-        end
-    end
 end
 
 -- Initialize the dispatch module with bindings and validation context
@@ -263,76 +218,6 @@ dispatch.init(nav_bindings, {
 	selection_map_labels = selection_map_labels,
 	button_map_labels = button_map_labels
 })
--- The button led that will be displayed depending on mode and selection
-log.info("Initializing the button led map...")
-local button_map_leds = {}
-local button_map_leds_state = {}
-local button_map_leds_cond = {}
-local button_map_leds_index = {}
-
-for i = 1, #modes do
-    button_map_leds[modes[i]] = {}
-    button_map_leds_state[modes[i]] = {}
-    button_map_leds_cond[modes[i]] = {}
-    button_map_leds_index[modes[i]] = {}
-    local select_map = {}
-    local select_map2 = {}
-    local select_map3 = {}
-    local select_map4 = {}
-    for j = 1, #default_selections do
-        select_map[default_selections[j]] = {}
-        select_map2[default_selections[j]] = {}
-        select_map3[default_selections[j]] = {}
-        select_map4[default_selections[j]] = {}
-        for k = 1, #default_button_labels do
-            local full_key = modes[i] .. "_" .. default_button_labels[k] .. "_BUTTON_LED"
-            if default_selections[j] == "ALT" and nav_bindings[full_key] then
-				select_map["ALL"] = select_map["ALL"] or {}
-				select_map2["ALL"] = select_map2["ALL"] or {}
-				select_map3["ALL"] = select_map3["ALL"] or {}
-				select_map4["ALL"] = select_map4["ALL"] or {}
-                log.debug("navbinding: " .. nav_bindings[full_key])
-                local binding = util.create_table(nav_bindings[full_key])
-                log.debug("datref: " .. binding[1])
-                log.debug("cond: " .. binding[2])
-                select_map["ALL"][default_button_labels[k]] = dataref_table(binding[1])
-                button_map_leds[modes[i]] = select_map
-                            select_map2["ALL"][default_button_labels[k]] = config.compile_condition(binding[2], full_key)
-                button_map_leds_cond[modes[i]] = select_map2
-                select_map3["ALL"][default_button_labels[k]] = false
-                button_map_leds_state[modes[i]] = select_map3
-
-				if binding[3] ~= nil then
-					log.debug("index: " .. binding[3])
-					select_map4["ALL"][default_button_labels[k]] = binding[3]
-					button_map_leds_index[modes[i]] = select_map4
-				end
-                log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
-            else
-                local key = modes[i] .. "_" .. default_selections[j]
-                full_key = key .. "_" .. default_button_labels[k] .. "_BUTTON_LED"
-                if nav_bindings[full_key] then
-                    log.debug("navbinding: " .. nav_bindings[full_key])
-                    local binding = util.create_table(nav_bindings[full_key])
-                    log.debug("datref: " .. binding[1])
-                    log.debug("cond: " .. binding[2])
-                    select_map[default_selections[j]][default_button_labels[k]] = dataref_table(binding[1])
-                    button_map_leds[modes[i]] = select_map
-                    select_map2[default_selections[j]][default_button_labels[k]] = config.compile_condition(binding[2], full_key)
-                    button_map_leds_cond[modes[i]] = select_map2
-                    select_map3[default_selections[j]][default_button_labels[k]] = false
-                    button_map_leds_state[modes[i]] = select_map3
-                    if binding[3] ~= nil then
-                        log.debug("index: " .. binding[3])
-                        select_map4[default_selections[j]][default_button_labels[k]] = binding[3]
-                        button_map_leds_index[modes[i]] = select_map4
-                    end
-                    log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
-                end
-            end
-        end
-    end
-end
 
 -- Twist knob action map and rocker switch LED states are now managed by dispatch module.
 
@@ -1376,11 +1261,3 @@ end
 dispatch_callbacks.do_on_exit_task = do_on_exit_task
 
 do_on_exit("bravo_dispatch('do_on_exit_task')")
-
-
-
-
-
-
-
-
