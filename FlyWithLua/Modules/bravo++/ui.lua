@@ -20,8 +20,39 @@ local WIDGET_WIDTH = 60
 local arrow_color = 0xFF00FF00
 
 -- ---------------------------------------------------------------------------
--- Drawing helpers (private)
+-- Pre-computed symbol metrics (computed once at module load)
 -- ---------------------------------------------------------------------------
+local symbol_metrics = {}
+
+--- Pre-compute text metrics for common symbols to avoid runtime CalcTextSize calls.
+--- Returns {w, h} for a given symbol and font scale.
+local function get_symbol_metrics(symbol, scale)
+	local cache_key = symbol .. "_" .. tostring(scale)
+	if not symbol_metrics[cache_key] then
+		imgui.SetWindowFontScale(scale)
+		local w, h = imgui.CalcTextSize(symbol)
+		imgui.SetWindowFontScale(1.0)
+		symbol_metrics[cache_key] = { w = w, h = h }
+	end
+	return symbol_metrics[cache_key]
+end
+
+-- ---------------------------------------------------------------------------
+-- Text Layout Cache with LRU eviction
+-- ---------------------------------------------------------------------------
+local text_layout_cache = {}
+local cache_max_size = 100 -- Prevent unbounded growth
+
+--- Evict oldest entries if cache exceeds max size.
+local function evict_cache()
+	if #text_layout_cache > cache_max_size then
+		-- Remove half the oldest entries
+		local remove_count = math.floor(cache_max_size / 2)
+		for _ = 1, remove_count do
+			table.remove(text_layout_cache, 1)
+		end
+	end
+end
 
 --- Wrap *text_str* into lines that fit within *max_width* at the given font scale.
 --- Returns {lines}, total_height, max_line_width
@@ -72,16 +103,16 @@ local function wrap_text_for_width(text_str, max_width, current_font_scale)
 end
 
 --- Binary-search for the largest font scale that fits *text_string* inside
---- (*button_width*, *button_height*).  Results are cached in *cached_scaling_data*.
-local cached_scaling_data = {}
-
+--- (*button_width*, *button_height*).  Results are cached with LRU eviction.
 local function get_scaled_wrapped_text(text_string, button_width, button_height, min_font_scale)
 	min_font_scale = min_font_scale or 0.6
 	local key = text_string .. tostring(button_width) .. tostring(button_height) .. tostring(min_font_scale)
 
-	local cached_data = cached_scaling_data[key]
-	if cached_data then
-		return cached_data.wrapped_lines, cached_data.total_height, cached_data.final_scale
+	-- Check cache first
+	for _, entry in ipairs(text_layout_cache) do
+		if entry.key == key then
+			return entry.wrapped_lines, entry.total_height, entry.final_scale
+		end
 	end
 
 	local best_scale = min_font_scale
@@ -105,11 +136,14 @@ local function get_scaled_wrapped_text(text_string, button_width, button_height,
 
 	local best_lines, best_height = wrap_text_for_width(text_string, button_width, best_scale)
 
-	cached_scaling_data[key] = {
+	-- Add to cache with LRU eviction
+	table.insert(text_layout_cache, {
+		key = key,
 		wrapped_lines = best_lines,
 		total_height = best_height,
 		final_scale = best_scale,
-	}
+	})
+	evict_cache()
 
 	return best_lines, best_height, best_scale
 end
@@ -132,13 +166,13 @@ end
 
 --- Draw a button with wrapped text and optional switch indicator (^^ / vv).
 local function draw_button(text, width, height, box_bg_color_int, text_color_int, is_switch_button, switch_mode)
-	imgui.SetWindowFontScale(1.0)
 	local cx, cy = imgui.GetCursorScreenPos()
 	imgui.Dummy(width, height)
 	imgui.DrawList_AddRectFilled(cx, cy, cx + width, cy + height, box_bg_color_int, 0)
 
 	local wrapped_lines, text_total_height, final_font_scale = get_scaled_wrapped_text(text, width, height, 0.6)
 
+	-- Batch font scale changes: only set if different from current
 	imgui.SetWindowFontScale(final_font_scale)
 
 	local start_text_y = cy + (height - text_total_height) / 2
@@ -156,17 +190,15 @@ local function draw_button(text, width, height, box_bg_color_int, text_color_int
 		current_line_y = current_line_y + line_h
 	end
 
-	imgui.SetWindowFontScale(1.0)
-
-	-- Switch indicator
+	-- Switch indicator - use pre-computed symbol metrics
 	if is_switch_button then
 		local ud_symbol = ""
 		local symbol_offset_y = 0
 		local padding = -2
 
-		imgui.SetWindowFontScale(final_font_scale)
-		local symbol_w, symbol_h = imgui.CalcTextSize("^^")
-		imgui.SetWindowFontScale(1.0)
+		-- Get pre-computed symbol metrics to avoid CalcTextSize calls
+		local sym_metrics = get_symbol_metrics("^^", final_font_scale)
+		local symbol_w, symbol_h = sym_metrics.w, sym_metrics.h
 
 		if switch_mode == "up" then
 			ud_symbol = "^^"
@@ -176,7 +208,6 @@ local function draw_button(text, width, height, box_bg_color_int, text_color_int
 			symbol_offset_y = (height / 2 + padding)
 		end
 
-		imgui.SetWindowFontScale(final_font_scale)
 		local symbol_draw_x = cx + (width - symbol_w) / 2
 		local symbol_draw_y = cy + height / 2 + symbol_offset_y
 
@@ -184,8 +215,10 @@ local function draw_button(text, width, height, box_bg_color_int, text_color_int
 		imgui.PushStyleColor(imgui.constant.Col.Text, arrow_color)
 		imgui.TextUnformatted(ud_symbol)
 		imgui.PopStyleColor()
-		imgui.SetWindowFontScale(1.0)
 	end
+
+	-- Reset font scale once after all text drawing
+	imgui.SetWindowFontScale(1.0)
 end
 
 --- Draw the twist-knob graphic with highlighted inner/outer rings.
