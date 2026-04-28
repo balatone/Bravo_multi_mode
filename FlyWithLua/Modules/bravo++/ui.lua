@@ -93,7 +93,7 @@ local function get_scaled_wrapped_text(text_string, button_width, button_height,
 
 	while (high - low) > precision do
 		local mid = (low + high) / 2
-		local _, required_height, widest_line_width = wrap_text_for_width(tostring(text_string), button_width, mid)
+		local _, required_height, widest_line_width = wrap_text_for_width(text_string, button_width, mid)
 
 		if required_height <= button_height and widest_line_width + border_width_buffer <= button_width then
 			best_scale = mid
@@ -103,7 +103,7 @@ local function get_scaled_wrapped_text(text_string, button_width, button_height,
 		end
 	end
 
-	local best_lines, best_height = wrap_text_for_width(tostring(text_string), button_width, best_scale)
+	local best_lines, best_height = wrap_text_for_width(text_string, button_width, best_scale)
 
 	cached_scaling_data[key] = {
 		wrapped_lines = best_lines,
@@ -120,13 +120,13 @@ local function draw_label(text, width, height, text_color_int)
 
 	imgui.Dummy(width, height)
 
-	local text_w, text_h = imgui.CalcTextSize(tostring(text))
+	local text_w, text_h = imgui.CalcTextSize(text)
 	local text_draw_x = cx + (width - text_w) / 2
 	local text_draw_y = cy + (height - text_h) / 2
 
 	imgui.SetCursorScreenPos(text_draw_x, text_draw_y)
 	imgui.PushStyleColor(imgui.constant.Col.Text, text_color_int)
-	imgui.TextUnformatted(tostring(text))
+	imgui.TextUnformatted(text)
 	imgui.PopStyleColor()
 end
 
@@ -137,8 +137,7 @@ local function draw_button(text, width, height, box_bg_color_int, text_color_int
 	imgui.Dummy(width, height)
 	imgui.DrawList_AddRectFilled(cx, cy, cx + width, cy + height, box_bg_color_int, 0)
 
-	local wrapped_lines, text_total_height, final_font_scale =
-		get_scaled_wrapped_text(tostring(text), width, height, 0.6)
+	local wrapped_lines, text_total_height, final_font_scale = get_scaled_wrapped_text(text, width, height, 0.6)
 
 	imgui.SetWindowFontScale(final_font_scale)
 
@@ -200,6 +199,7 @@ local function draw_knob(
 	current_mode,
 	current_selection,
 	current_cf_mode,
+	current_cf_mode_upper,
 	twist_knob_map_actions,
 	twist_knob_map_labels
 )
@@ -240,7 +240,7 @@ local function draw_knob(
 	if util.is_table(twist_knob_map_labels[current_mode]) then
 		local text_to_display = nil
 		if util.is_table(twist_knob_map_labels[current_mode][current_selection]) then
-			text_to_display = twist_knob_map_labels[current_mode][current_selection][string.upper(current_cf_mode)]
+			text_to_display = twist_knob_map_labels[current_mode][current_selection][current_cf_mode_upper]
 		elseif util.is_string(twist_knob_map_labels[current_mode][current_selection]) then
 			text_to_display = twist_knob_map_labels[current_mode][current_selection]
 		end
@@ -250,7 +250,7 @@ local function draw_knob(
 			local knob_text_max_height = innerRad * 2
 
 			local wrapped_lines, text_total_height, final_font_scale =
-				get_scaled_wrapped_text(tostring(text_to_display), knob_text_max_width, knob_text_max_height, 0.6)
+				get_scaled_wrapped_text(text_to_display, knob_text_max_width, knob_text_max_height, 0.6)
 
 			imgui.SetWindowFontScale(final_font_scale)
 
@@ -427,6 +427,7 @@ function M.build_gui(ctx)
 		ctx.current_mode,
 		ctx.current_selection,
 		ctx.current_cf_mode,
+		ctx.current_cf_mode_upper,
 		ctx.twist_knob_map_actions,
 		ctx.twist_knob_map_labels
 	)
