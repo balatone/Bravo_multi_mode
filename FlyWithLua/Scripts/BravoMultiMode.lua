@@ -394,6 +394,7 @@ local function build_ui_context()
 		get_button_led_state = get_button_led_state,
 		get_led_state_for_switch = dispatch.get_rocker_switch_led,
 		vertical_spacing = 30,
+		arrow_color = dispatch.get_arrow_color(),
 	}
 end
 

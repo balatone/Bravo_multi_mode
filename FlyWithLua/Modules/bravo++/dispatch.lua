@@ -519,6 +519,9 @@ end
 
 --- Begin button press: initialize timer and state
 function dispatch.button_begin(button_name)
+	-- Reset arrow color on new press to ensure clean visual state
+	arrow_color = 0xFF00FF00
+
 	command_state[button_name] = {
 		start_time = os.clock(),
 		is_continuous_mode = false,
@@ -552,6 +555,9 @@ end
 --- End button press: trigger single-click or long-click action
 function dispatch.button_end(button_name)
 	if not command_state[button_name] then
+		-- Robustness: handle unexpected end without a begin
+		log.debug("Button " .. button_name .. " ended without a begin - resetting state")
+		arrow_color = 0xFF00FF00
 		return
 	end
 
@@ -567,6 +573,8 @@ function dispatch.button_end(button_name)
 		_trigger_button_command(button_name)
 	end
 
+	-- Clean up state to prevent stale data from corrupting subsequent clicks
+	command_state[button_name] = nil
 	arrow_color = 0xFF00FF00
 end
 

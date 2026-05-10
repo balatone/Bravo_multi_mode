@@ -17,7 +17,7 @@ local H_SPACING = 5
 local Y_OFFSET = 10
 local WIDGET_WIDTH = 60
 
-local arrow_color = 0xFF00FF00
+-- Arrow color is now supplied via the context table (dispatch.lua manages intent colors)
 
 -- ---------------------------------------------------------------------------
 -- Pre-computed symbol metrics (computed once at module load)
@@ -165,7 +165,16 @@ local function draw_label(text, width, height, text_color_int)
 end
 
 --- Draw a button with wrapped text and optional switch indicator (^^ / vv).
-local function draw_button(text, width, height, box_bg_color_int, text_color_int, is_switch_button, switch_mode)
+local function draw_button(
+	text,
+	width,
+	height,
+	box_bg_color_int,
+	text_color_int,
+	is_switch_button,
+	switch_mode,
+	arrow_color_int
+)
 	local cx, cy = imgui.GetCursorScreenPos()
 	imgui.Dummy(width, height)
 	imgui.DrawList_AddRectFilled(cx, cy, cx + width, cy + height, box_bg_color_int, 0)
@@ -212,7 +221,7 @@ local function draw_button(text, width, height, box_bg_color_int, text_color_int
 		local symbol_draw_y = cy + height / 2 + symbol_offset_y
 
 		imgui.SetCursorScreenPos(symbol_draw_x, symbol_draw_y)
-		imgui.PushStyleColor(imgui.constant.Col.Text, arrow_color)
+		imgui.PushStyleColor(imgui.constant.Col.Text, arrow_color_int or 0xFF00FF00)
 		imgui.TextUnformatted(ud_symbol)
 		imgui.PopStyleColor()
 	end
@@ -412,7 +421,8 @@ function M.build_gui(ctx)
 			button_color,
 			button_label_color,
 			is_switch,
-			ctx.current_switch_mode
+			ctx.current_switch_mode,
+			ctx.arrow_color
 		)
 	end
 
