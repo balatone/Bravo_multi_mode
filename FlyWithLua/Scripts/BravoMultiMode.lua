@@ -220,29 +220,84 @@ if config.read_preferences(prefs_path, nav_bindings) then
 	log.info("Loaded global preferences from " .. prefs_path)
 end
 
--- Load aircraft-specific config (takes precedence over global preferences)
-local nav_cfg_file_full_path = aircraft_dir .. "bravo_multi-mode.cfg"
-local file_ok = config.read_file(nav_cfg_file_full_path, nav_bindings)
+-- Load aircraft-specific config (takes precedence over global preferences).
+-- Detection order:
+--   1. bravo_multi-mode.<aircraft_name>.cfg       (exact match, e.g. C90B)
+--   2. bravo_multi-mode.<aircraft_name>.*.cfg     (variant match, e.g. C90B.EVO)
+--   3. bravo_multi-mode.cfg                       (generic fallback)
+-- If none are found, stop the script.
 
-if file_ok then
-	log.info("Successfully parsed config file")
-else
-	local nav_cfg_file_name = "bravo_multi-mode." .. aircraft_name .. ".cfg"
-	nav_cfg_file_full_path = aircraft_dir .. nav_cfg_file_name
-	log.info("nav_cfg_file: " .. nav_cfg_file_full_path)
+local nav_cfg_file_full_path = nil
+local file_ok = false
+
+-- Step 1: Exact aircraft name match
+do
+	local candidate = "bravo_multi-mode." .. aircraft_name .. ".cfg"
+	nav_cfg_file_full_path = aircraft_dir .. candidate
+	log.info("Trying config: " .. nav_cfg_file_full_path)
 	file_ok = config.read_file(nav_cfg_file_full_path, nav_bindings)
 	if file_ok then
-		log.info("Successfully parsed config file specific for " .. aircraft_name)
-	else
-		log.warning(
-			"No config file found in  "
-				.. aircraft_dir
-				.. " with name bravo_multi-mode.cfg or "
-				.. nav_cfg_file_name
-				.. ". Bravo script will be stopped."
-		)
-		return -- Stop script if config is missing
+		log.info("Successfully parsed exact-match config for " .. aircraft_name)
 	end
+end
+
+-- Step 2: Variant match (bravo_multi-mode.<aircraft_name>.*.cfg)
+if not file_ok then
+	-- Build the regex from the aircraft name, escaping any literal dots and hyphens
+	local escaped_name = aircraft_name:gsub("%-", "%%-"):gsub("%.", "%%.")
+	local variant_pattern = "^bravo_multi%-mode%." .. escaped_name .. "%.([^.]+)%.[cC][fF][gG]$"
+
+	-- Find matching variant files in the aircraft directory
+	local all_files = util.list_files(aircraft_dir)
+	local variant_matches = {}
+	for _, filename in ipairs(all_files) do
+		if string.match(filename, variant_pattern) then
+			table.insert(variant_matches, filename)
+		end
+	end
+
+	if #variant_matches > 0 then
+		-- Sort for deterministic selection when multiple variants exist
+		table.sort(variant_matches)
+
+		if #variant_matches > 1 then
+			log.warning(
+				"Multiple variant config files found: "
+					.. table.concat(variant_matches, ", ")
+					.. ". Using first alphabetically."
+			)
+		end
+
+		nav_cfg_file_full_path = aircraft_dir .. variant_matches[1]
+		log.info("Trying variant config: " .. nav_cfg_file_full_path)
+		file_ok = config.read_file(nav_cfg_file_full_path, nav_bindings)
+		if file_ok then
+			log.info("Successfully parsed variant config: " .. variant_matches[1])
+		end
+	end
+end
+
+-- Step 3: Generic fallback
+if not file_ok then
+	local candidate = "bravo_multi-mode.cfg"
+	nav_cfg_file_full_path = aircraft_dir .. candidate
+	log.info("Trying generic config: " .. nav_cfg_file_full_path)
+	file_ok = config.read_file(nav_cfg_file_full_path, nav_bindings)
+	if file_ok then
+		log.info("Successfully parsed generic config")
+	end
+end
+
+-- Step 4: No config found — stop script
+if not file_ok then
+	log.warning(
+		"No config file found in "
+			.. aircraft_dir
+			.. ". Tried bravo_multi-mode."
+			.. aircraft_name
+			.. ".cfg, variant configs, and bravo_multi-mode.cfg. Bravo script will be stopped."
+	)
+	return -- Stop script if config is missing
 end
 
 -- The annunciator labels. These are used for validation and in the led logic.

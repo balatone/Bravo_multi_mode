@@ -140,4 +140,28 @@ function util.get_dataref_array_size(dr_table)
 	return reftype % 4096
 end
 
+--- List files in a directory using io.popen with platform-appropriate commands.
+-- Returns a table of filenames (strings) found in the given directory path.
+-- Uses 'dir /b' on Windows and 'ls -1' on POSIX systems.
+function util.list_files(dir_path)
+	local is_windows = (package.config and package.config:sub(1, 1) == "\\")
+
+	-- Quote the path to handle spaces in directory names
+	local cmd = is_windows and ('dir /b "' .. dir_path .. '"') or ('ls -1 "' .. dir_path .. '"')
+
+	-- luacheck: ignore (io.popen is available in FlyWithLua sandbox)
+	local handle = io.popen(cmd)
+	if not handle then
+		return {}
+	end
+
+	local files = {}
+	for line in handle:lines() do
+		table.insert(files, util.trim(line))
+	end
+	handle:close()
+
+	return files
+end
+
 return util
