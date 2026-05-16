@@ -148,19 +148,27 @@ local function get_scaled_wrapped_text(text_string, button_width, button_height,
 	return best_lines, best_height, best_scale
 end
 
+--- Strip underscore characters used as invisible padding in button labels.
+-- Underscores are measured during layout (so they affect font scaling and wrapping)
+-- but removed before rendering, allowing paired buttons to share the same scale.
+local function strip_padding(text)
+	return text:gsub("_", "")
+end
+
 --- Draw a simple centred text label inside a *width*×*height* box.
 local function draw_label(text, width, height, text_color_int)
 	local cx, cy = imgui.GetCursorScreenPos()
 
 	imgui.Dummy(width, height)
 
-	local text_w, text_h = imgui.CalcTextSize(text)
+	local display_text = strip_padding(text)
+	local text_w, text_h = imgui.CalcTextSize(display_text)
 	local text_draw_x = cx + (width - text_w) / 2
 	local text_draw_y = cy + (height - text_h) / 2
 
 	imgui.SetCursorScreenPos(text_draw_x, text_draw_y)
 	imgui.PushStyleColor(imgui.constant.Col.Text, text_color_int)
-	imgui.TextUnformatted(text)
+	imgui.TextUnformatted(display_text)
 	imgui.PopStyleColor()
 end
 
@@ -188,12 +196,13 @@ local function draw_button(
 
 	local current_line_y = start_text_y
 	for _, line in ipairs(wrapped_lines) do
-		local line_w, line_h = imgui.CalcTextSize(line)
+		local display_line = strip_padding(line)
+		local line_w, line_h = imgui.CalcTextSize(display_line)
 		local line_draw_x = cx + (width - line_w) / 2
 
 		imgui.SetCursorScreenPos(line_draw_x, current_line_y)
 		imgui.PushStyleColor(imgui.constant.Col.Text, text_color_int)
-		imgui.TextUnformatted(line)
+		imgui.TextUnformatted(display_line)
 		imgui.PopStyleColor()
 
 		current_line_y = current_line_y + line_h
