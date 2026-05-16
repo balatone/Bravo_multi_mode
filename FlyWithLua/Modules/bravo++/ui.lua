@@ -208,14 +208,16 @@ local function draw_button(
 		current_line_y = current_line_y + line_h
 	end
 
-	-- Switch indicator - use pre-computed symbol metrics
+	-- Switch indicator - use a fixed font scale independent of button text
 	if is_switch_button then
 		local ud_symbol = ""
 		local symbol_offset_y = 0
 		local padding = -2
 
-		-- Get pre-computed symbol metrics to avoid CalcTextSize calls
-		local sym_metrics = get_symbol_metrics("^^", final_font_scale)
+		imgui.SetWindowFontScale(1.0)
+
+		-- Get pre-computed symbol metrics at the arrow's own scale
+		local sym_metrics = get_symbol_metrics("^^", 1.0)
 		local symbol_w, symbol_h = sym_metrics.w, sym_metrics.h
 
 		if switch_mode == "up" then
