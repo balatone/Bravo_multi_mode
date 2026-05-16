@@ -227,6 +227,7 @@ end
 --   3. bravo_multi-mode.cfg                       (generic fallback)
 -- If none are found, stop the script.
 
+-- luacheck: ignore nav_cfg_file_full_path file_ok (intentionally overwritten across config detection steps)
 local nav_cfg_file_full_path = nil
 local file_ok = false
 

@@ -498,7 +498,7 @@ end
 --- Unlike read_file(), this does not fail when the file is missing, as it
 --- is an optional user-provided configuration layer.
 --- Returns true if the file was found and parsed, false otherwise.
-function config.read_preferences(path, table)
+local function read_preferences(path, table)
 	local cfg_file = io.open(path, "r")
 	if not cfg_file then
 		return false
@@ -522,6 +522,6 @@ end
 -- Expose compile_condition, eval_condition, and read_preferences for use by the main script during initialization
 config.compile_condition = compile_condition
 config.eval_condition = eval_condition
-config.read_preferences = config.read_preferences
+config.read_preferences = read_preferences
 
 return config
