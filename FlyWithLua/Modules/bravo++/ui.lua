@@ -152,7 +152,7 @@ end
 -- Underscores are measured during layout (so they affect font scaling and wrapping)
 -- but removed before rendering, allowing paired buttons to share the same scale.
 local function strip_padding(text)
-	return text:gsub("_", "")
+	return text:gsub("_", " ")
 end
 
 --- Draw a simple centred text label inside a *width*×*height* box.
