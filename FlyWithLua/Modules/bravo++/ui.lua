@@ -364,6 +364,15 @@ function M.build_gui(ctx)
 			text_color_for_label = 0xFF00FF00
 		end
 		draw_label(conceptual_name_to_draw, mode_width, 20, text_color_for_label)
+
+		-- Draw mode group indicator if there are multiple variants (e.g., AUTO_1, AUTO_2)
+		local group_info = ctx.mode_group_info and ctx.mode_group_info[conceptual_name_to_draw]
+		if group_info and group_info.count > 1 then
+			imgui.SetCursorPosY(y_offset_mode + 20)
+			imgui.SetWindowFontScale(0.6)
+			local indicator_text = tostring(group_info.current_index or 1) .. "/" .. tostring(group_info.count)
+			draw_label(indicator_text, mode_width, 15, text_color_for_label)
+		end
 	end
 	imgui.SetWindowFontScale(1.0)
 

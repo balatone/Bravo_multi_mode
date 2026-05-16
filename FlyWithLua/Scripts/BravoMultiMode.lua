@@ -438,6 +438,33 @@ for i = 1, #modes do
 	end
 end
 
+-- Build mode group info: maps conceptual name -> {count, current_index}
+local mode_group_info = {}
+for _, conceptual_name in ipairs(conceptual_mode_order) do
+	local count = 0
+	for i = 1, #modes do
+		if util.get_name_before_index(modes[i]) == conceptual_name then
+			count = count + 1
+		end
+	end
+	mode_group_info[conceptual_name] = { count = count }
+end
+
+-- Set current index for each mode group based on the active mode
+local current_mode_conceptual = util.get_name_before_index(dispatch.get_current_mode())
+if mode_group_info[current_mode_conceptual] then
+	local idx = 0
+	for i = 1, #modes do
+		if util.get_name_before_index(modes[i]) == current_mode_conceptual then
+			idx = idx + 1
+			if modes[i] == dispatch.get_current_mode() then
+				mode_group_info[current_mode_conceptual].current_index = idx
+				break
+			end
+		end
+	end
+end
+
 -- Build a context table for the UI module so it stays decoupled from globals.
 local function build_ui_context()
 	return {
@@ -448,6 +475,7 @@ local function build_ui_context()
 		current_switch_mode = dispatch.get_current_switch_mode(),
 		current_selection_label = dispatch._get_current_selection_label(),
 		conceptual_mode_order = conceptual_mode_order,
+		mode_group_info = mode_group_info,
 		selection_map_labels = selection_map_labels,
 		button_is_switch_map = dispatch.get_button_is_switch_map(),
 		default_button_labels = dispatch.get_default_button_labels(),
