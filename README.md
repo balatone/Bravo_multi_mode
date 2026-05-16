@@ -19,7 +19,8 @@ The functionality is provided as a FlyWithLua script and consists of 3 parts:
 
 - BravoMultiMode.lua - This is the main script that provides all the functionality and is placed in the FlyWithLua/Scripts directory.
 - log.lua -  This is a log utility that is used by BravoMultiMode.lua and is located in the FlyWithLua/Modules directory.
-- config file - The file can be called either bravo_multi-mode.cfg or bravo_multi-mode.<aircraft file name>.cfg and is where you onfigure all the different modes you want to have on your specific aircraft. Some example files are included in the FlyWithLua/conf directory and should be placed directly under the corresponding aircraft folder.
+- preferences.cfg - A global configuration file located in `FlyWithLua/Modules/bravo++/` that provides default values for thresholds and trim settings across all aircraft. This file can be edited to suit your hardware and personal preference. Aircraft-specific config files override these defaults.
+- config file - The file can be called either `bravo_multi-mode.cfg`, `bravo_multi-mode.<aircraft name>.cfg`, or `bravo_multi-mode.<aircraft name>.<variant>.cfg` (e.g., `bravo_multi-mode.C90B.EVO.cfg`) and is where you configure all the different modes you want to have on your specific aircraft. Some example files are included in the FlyWithLua/Modules/bravo++/conf directory and should be placed directly under the corresponding aircraft folder.
 
 There is also an extra utility called ButtonLogUtility.lua that is used to determine which buttons the selector knob is mapped to in X-Plane. By default it is set to 0 and will use the HID to determine the state of the left selector knob, but this will introduce lag (at least on Windows 11). So to have a more responsive update to the GUI it is better to determine the button number X-Plane has assigned to the selector knob when it is set to "alt".
 
@@ -51,11 +52,13 @@ There are also datarefs that are used for toggling/scrolling through the modes. 
 - If you prefer scrolling through the modes with the right rotary encoded knob located on the Honeycomb Bravo, then you need to map the following command with description ```Bravo++ activates the mode select when button is held in```. The way this works is that you need to keep the button pressed down while you scroll with the right knob. When you are done you release the button.
 - If you don't like these options, you can also map the commands that move the selection up or down to any key or button you like using the provided commands with description ```Bravo++ cycle mode up``` and ```Bravo++ cycle mode down```
 
-A small note on button behavior and assuming: 
-  - `LONG_CLICK_THRESHOLD` = 0.350
-  - `CONTINUOUS_PRESS_THRESHOLD` = 0.750
- 
-A click (below 350 msec) will actuate the button or switch and the arrows will stay green during this time. A long click (between 350 - 750 msec) is use for switches and will change the direction in which the switches will be actuated on the following click. In order to help with the timing, the arrow will turn yellow indicating that you can release it to do a long click. Holding a button down for over 750 msec will assume you want to sustain a switch and is useful for spring-loaded switches that cannot be activated with a simple click. The arrows will turn a magenta color and will remain so until you release the button. 
+A small note on button behavior and assuming:
+  - `LONG_CLICK_THRESHOLD` = 0.750 (default from preferences.cfg)
+  - `CONTINUOUS_PRESS_THRESHOLD` = 2.0 (default from preferences.cfg)
+
+These defaults can be changed in the global `preferences.cfg` file or overridden per-aircraft in your config file.
+
+A click (below 750 msec) will actuate the button or switch and the arrows will stay green during this time. A long click (between 750 - 2000 msec) is used for switches and will change the direction in which the switches will be actuated on the following click. In order to help with the timing, the arrow will turn yellow indicating that you can release it to do a long click. Holding a button down for over 2000 msec will assume you want to sustain a switch and is useful for spring-loaded switches that cannot be activated with a simple click. The arrows will turn a magenta color and will remain so until you release the button. 
 
 Finally, there are two internal commands that are often assigned to one of the Honeycomb Bravo buttons. 
 - The ```I/O``` button (see one of the example configs) is used for switching between the inner or outer scroll knob. The active state is shown in the knob depiction in the Bravo++ window. The dataref is described as ```Bravo++ toggles INNER/OUTER mode```.
@@ -97,11 +100,32 @@ Using the built-in decoder
 
 - Make sure the Bravo device is plugged in before starting X-Plane (the script will exit if it cannot find the Bravo HID).
 - Do not bind the selector knob, right knob or trim wheel in X-Plane if you want the built-in decoder to handle them.
-- You can fine-tune behaviour of the button clicks in `bravo_multi-mode.cfg` via these properties (defaults come from the script):
-  - `LONG_CLICK_THRESHOLD` (seconds) - default: 0.250 on Windows, 0.500 on other platforms
-  - `CONTINUOUS_PRESS_THRESHOLD` (seconds) -  default: 0.750 on Windows, 1.0 on other platforms
 
-Example lines to add to your config file (if you want explicit values):
+### Global Preferences
+
+The `preferences.cfg` file located at `FlyWithLua/Modules/bravo++/preferences.cfg` provides default values used across all aircraft. You can edit this file to customize settings for your hardware and personal preference:
+
+```ini
+# Time in seconds before a button press is considered a "long click"
+LONG_CLICK_THRESHOLD=0.750
+
+# Time in seconds before a held button enters continuous repeat mode
+CONTINUOUS_PRESS_THRESHOLD=2.0
+
+# Trim increment per wheel click (range -1 to 1)
+TRIM_INCREMENT=0.005
+
+# Multiplier applied when turning the trim wheel quickly
+TRIM_BOOST=6
+```
+
+These values can be overridden on a per-aircraft basis by adding them to your aircraft-specific config file. The precedence order is:
+
+1. Aircraft config file (highest priority)
+2. Global `preferences.cfg`
+3. OS-specific defaults in the script (lowest priority, used only if neither of the above specify a value)
+
+Example lines to add to your aircraft config file (if you want explicit values):
 ```
 LONG_CLICK_THRESHOLD=0.350
 CONTINUOUS_PRESS_THRESHOLD=0.750
@@ -113,6 +137,16 @@ The easiest way to start is to use one of the predefined G1000 configurations (a
 So let's configure the Cessna 172 that uses the G1000.
 
 Start by copying the file under ```Resources\plugins\FlyWithLua\Modules\bravo++\conf\bravo_multi-mode.Cessna_172SP_G1000.cfg``` or download the file from [bravo_multi-mode.Cessna_172SP_G1000.cfg](https://raw.githubusercontent.com/balatone/Bravo_multi_mode/refs/heads/main/FlyWithLua/Modules/bravo%2B%2B/conf/bravo_multi-mode.Cessna_172SP_G1000.cfg) and copy to the ```Aircraft\Laminar Research\Cessna 172 SP``` directory. Note that the Cessna has 3 .acf files and the configuration contains the name that is in ```Cessna_172SP_G1000.acf```. This is how the script knows which configuration to use when it starts up. If you start any of the other two variants that aren't G1000 equipped, the script will just stop, since it can't find a corresponding config file.
+
+### Config File Detection Order
+
+The script searches for your aircraft's config file in this order:
+
+1. **Exact match**: `bravo_multi-mode.<aircraft_name>.cfg` — matches the name from the `.acf` file (e.g., `C90B.acf` → `bravo_multi-mode.C90B.cfg`)
+2. **Variant match**: `bravo_multi-mode.<aircraft_name>.*.cfg` — for aircraft variants sharing the same `.acf` name (e.g., `C90B.acf` → `bravo_multi-mode.C90B.EVO.cfg`). If multiple variant files exist, one is selected alphabetically and a warning is logged.
+3. **Generic fallback**: `bravo_multi-mode.cfg` — used if no aircraft-specific file is found
+
+This allows you to keep separate config files for different variants of the same aircraft (e.g., stock C90B vs. C90B EVO) without renaming them, as long as they follow the naming convention.
 
 Once the file is copied, you can load the aircraft and hopefully you will now see the Bravo++ window that contains the current mode and status of the buttons. If you don't, then either the script couldn't find the config file, the Honeycomb Bravo device is not plugged in or something went wrong with the script. In the latter case you will probably hear FlyWithLua complaining and telling you that it has moved the bad script to ```Script (Quarantine)``` folder. This shouldn't happen, but if it does check the ```log.txt``` file for any errors.
 
@@ -178,7 +212,17 @@ A button label is specifed by using the ```mode name``` + ```selector name``` se
 
 For ```AUTO```, it will use default button labels, but like the selector labels they can be overridden by specifying them in the config file.
 
-Note that even if you do not want to have all the buttons assigned to something you need to assign a blank label as seen in the example above. 
+Note that even if you do not want to have all the buttons assigned to something you need to assign a blank label as seen in the example above.
+
+### Aligning Paired Button Labels
+
+When you have paired buttons with labels of different lengths (e.g., "Left IGN" vs "Right IGN"), the auto-scaler may render them at different font sizes because it optimizes each button independently. To force paired buttons to use the same scale, use underscore (`_`) characters as invisible padding in the shorter label:
+
+```
+SYS_HDG_BUTTON_LABELS = "Left__IGN","Right IGN"
+```
+
+The underscores are measured during layout (so both labels get identical font scaling and wrapping) but are stripped before rendering. The result is that both buttons display at the same size, with the underscores invisible to the user. 
   
 ### Actions for right rotary encoded knob
 The rotary encoded knob on the right of the Honeycomb Bravo is used for incrementing or decrementing values for various components of the cockpit. For the GNS530/GNS430 and the G1000 the rotary encoded knobs have an inner and outer wheel, and this is implemented in the Bravo++. 
@@ -328,11 +372,11 @@ Each led has its own unique name that matches the corresponding led ligh on the 
 Note that the GEAR_DEPLOYMENT_LED will most likely always be this value for retractable gears. For fixed gear aircraft you should not specify the GEAR_DEPLOYMENT_LED in the configuration.
 
 ### The trim wheel
-The trim wheel overrides the default values used in X-Plane to better simulate a manual trim wheel. The two parameters that can be set are TRIM_INCREMENT and TRIM_BOOST. The value of the trim is any value between -1 and 1, so the trim increment specifies how much one "click" of the wheel will change the value of the trim. The default value, if nothing is specified, is 0.01.
+The trim wheel overrides the default values used in X-Plane to better simulate a manual trim wheel. The two parameters that can be set are TRIM_INCREMENT and TRIM_BOOST. The value of the trim is any value between -1 and 1, so the trim increment specifies how much one "click" of the wheel will change the value of the trim.
 
-The trim boost is a value that is applied to the trim increment if the wheel is turned quickly. So if there are many "clicks" in short succession, the trim increment will be multiplied by the trim boost value. The default, if not specified, is 3.
+The trim boost is a value that is applied to the trim increment if the wheel is turned quickly. So if there are many "clicks" in short succession, the trim increment will be multiplied by the trim boost value.
 
-To specify your own values you can just add the following to the config file:
+Default values for both TRIM_INCREMENT and TRIM_BOOST come from `preferences.cfg` (0.005 and 6 respectively) and can be overridden per-aircraft:
 
 ```
 TRIM_INCREMENT=0.005
