@@ -212,15 +212,23 @@ local aircraft_name = string.sub(AIRCRAFT_FILENAME, 1, string.len(AIRCRAFT_FILEN
 
 -- Table to hold dataref assignments
 local nav_bindings = {}
+
+-- Load global user preferences first (optional file, won't fail if missing).
+-- Aircraft config loaded below will override any overlapping keys.
+local prefs_path = MODULES_DIRECTORY .. "bravo++" .. DIRECTORY_SEPARATOR .. "preferences.cfg"
+if config.read_preferences(prefs_path, nav_bindings) then
+	log.info("Loaded global preferences from " .. prefs_path)
+end
+
+-- Load aircraft-specific config (takes precedence over global preferences)
 local nav_cfg_file_full_path = aircraft_dir .. "bravo_multi-mode.cfg"
--- Check if config file exists
 local file_ok = config.read_file(nav_cfg_file_full_path, nav_bindings)
 
 if file_ok then
 	log.info("Successfully parsed config file")
 else
 	local nav_cfg_file_name = "bravo_multi-mode." .. aircraft_name .. ".cfg"
-	local nav_cfg_file_full_path = aircraft_dir .. nav_cfg_file_name
+	nav_cfg_file_full_path = aircraft_dir .. nav_cfg_file_name
 	log.info("nav_cfg_file: " .. nav_cfg_file_full_path)
 	file_ok = config.read_file(nav_cfg_file_full_path, nav_bindings)
 	if file_ok then
