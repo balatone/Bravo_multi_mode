@@ -377,7 +377,7 @@ function M.build_gui(ctx)
 
 			for j = 1, group_info.count do
 				local is_selected = (j == current_idx)
-				local dot_color = is_selected and 0xFF00FF00 or 0xFF333333
+				local dot_color = is_selected and 0xFF00FF00 or 0xFF000000
 				local center_x = start_x + (j - 1) * dot_spacing
 
 				imgui.DrawList_AddCircleFilled(center_x, dot_y, dot_radius, dot_color, 8)

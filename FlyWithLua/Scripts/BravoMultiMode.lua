@@ -438,7 +438,7 @@ for i = 1, #modes do
 	end
 end
 
--- Build mode group info: maps conceptual name -> {count, current_index}
+-- Build mode group info: maps conceptual name -> {count} (static, computed once)
 local mode_group_info = {}
 for _, conceptual_name in ipairs(conceptual_mode_order) do
 	local count = 0
@@ -450,23 +450,28 @@ for _, conceptual_name in ipairs(conceptual_mode_order) do
 	mode_group_info[conceptual_name] = { count = count }
 end
 
--- Set current index for each mode group based on the active mode
-local current_mode_conceptual = util.get_name_before_index(dispatch.get_current_mode())
-if mode_group_info[current_mode_conceptual] then
-	local idx = 0
-	for i = 1, #modes do
-		if util.get_name_before_index(modes[i]) == current_mode_conceptual then
-			idx = idx + 1
-			if modes[i] == dispatch.get_current_mode() then
-				mode_group_info[current_mode_conceptual].current_index = idx
-				break
+-- Build a context table for the UI module so it stays decoupled from globals.
+local function build_ui_context()
+	local current_mode = dispatch.get_current_mode()
+	local current_mode_conceptual = util.get_name_before_index(current_mode)
+
+	-- Update current_index dynamically based on active mode (recalculated each frame)
+	for conceptual_name, group in pairs(mode_group_info) do
+		if group.count > 1 then
+			group.current_index = nil -- reset until found
+			local idx = 0
+			for i = 1, #modes do
+				if util.get_name_before_index(modes[i]) == conceptual_name then
+					idx = idx + 1
+					if modes[i] == current_mode and conceptual_name == current_mode_conceptual then
+						group.current_index = idx
+						break
+					end
+				end
 			end
 		end
 	end
-end
 
--- Build a context table for the UI module so it stays decoupled from globals.
-local function build_ui_context()
 	return {
 		current_mode = dispatch.get_current_mode(),
 		current_selection = dispatch.get_current_selection(),
