@@ -368,7 +368,7 @@ function M.build_gui(ctx)
 		-- Draw mode group dots if there are multiple variants (e.g., AUTO_1, AUTO_2)
 		local group_info = ctx.mode_group_info and ctx.mode_group_info[conceptual_name_to_draw]
 		if group_info and group_info.count > 1 then
-			local current_idx = group_info.current_index or 1
+			local current_idx = group_info.current_index
 			local dot_radius = 3
 			local dot_spacing = 10
 			local total_width = (group_info.count - 1) * dot_spacing
