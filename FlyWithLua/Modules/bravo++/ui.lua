@@ -369,15 +369,18 @@ function M.build_gui(ctx)
 		local group_info = ctx.mode_group_info and ctx.mode_group_info[conceptual_name_to_draw]
 		if group_info and group_info.count > 1 then
 			local current_idx = group_info.current_index or 1
-			imgui.SetCursorPosY(y_offset_mode + 20)
+			local dot_radius = 3
+			local dot_spacing = 10
+			local total_width = (group_info.count - 1) * dot_spacing
+			local start_x = current_x_position + mode_width / 2 - total_width / 2
+			local dot_y = y_offset_mode + 20 + dot_radius
+
 			for j = 1, group_info.count do
-				local dot_color = (j == current_idx) and 0xFF00FF00 or 0xFF333333
-				-- Draw a small filled circle using imgui's text character
-				imgui.SetCursorPosX(current_x_position + mode_width / 2 - (group_info.count * 8) / 2 + j * 8)
-				local dot_text = (j == current_idx) and "●" or "○"
-				imgui.PushStyleColor(imgui.constant.Col.Text, dot_color)
-				imgui.Text(dot_text)
-				imgui.PopStyleColor()
+				local is_selected = (j == current_idx)
+				local dot_color = is_selected and 0xFF00FF00 or 0xFF333333
+				local center_x = start_x + (j - 1) * dot_spacing
+
+				imgui.DrawList_AddCircleFilled(center_x, dot_y, dot_radius, dot_color, 8)
 			end
 		end
 	end
