@@ -219,7 +219,7 @@ Note that even if you do not want to have all the buttons assigned to something 
 When you have paired buttons with labels of different lengths (e.g., "Left IGN" vs "Right IGN"), the auto-scaler may render them at different font sizes because it optimizes each button independently. To force paired buttons to use the same scale, use underscore (`_`) characters as invisible padding in the shorter label:
 
 ```
-SYS_HDG_BUTTON_LABELS = "Left__IGN","Right IGN"
+SYS_HDG_BUTTON_LABELS = "Left_ IGN","Right IGN"
 ```
 
 The underscores are measured during layout (so both labels get identical font scaling and wrapping) but are stripped before rendering. The result is that both buttons display at the same size, with the underscores invisible to the user. 
