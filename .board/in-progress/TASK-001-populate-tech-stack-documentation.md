@@ -2,9 +2,9 @@
 id: TASK-001
 title: "Populate Tech Stack Documentation"
 version: 1.0.0
-status: PLANNING
+status: IMPLEMENTING
 created: "2026-07-14 16:33:59"
-updated: "2026-07-14 17:35:58"
+updated: "2026-07-14 17:45:38"
 primary_doc: REQ-001
 related_docs: ["REQ-001"]
 ---
@@ -26,4 +26,8 @@ related_docs: ["REQ-001"]
 [2026-07-14 17:32:xx] - [analyst/technical-analyst] - Created FEAT-001-implement-lua-tech-stack-documentation-and-tooling.md (435 lines) at internal-docs/04_planning/04b_features/.
 [2026-07-14 17:33:xx] - [analyst/technical-analyst] - FEAT-001 defines 5 implementation phases: (1) docs correction, (2) .luacheckrc creation, (3) stylua.toml creation, (4) busted test infrastructure for decoder.lua, (5) luacov coverage integration.
 [2026-07-14 17:34:xx] - [analyst/technical-analyst] - FEAT-001 includes 8 acceptance criteria, definition of done checklist, dependency/risk matrix, and implementation notes for sequencing and test isolation strategies.
+[2026-07-14 17:45:xx] - [user] - Requested addition of Python pre-commit hook configuration task to FEAT-001.
+[2026-07-14 17:46:xx] - [analyst/technical-analyst] - Added Phase 6 (Python Pre-commit Hook Configuration) to FEAT-001 with 3 tasks, 3 new acceptance criteria (AC-9 through AC-11), updated Objectives and Scope sections.
+[2026-07-14 17:47:xx] - [analyst/technical-analyst] - Pre-commit config includes ruff (lint+format) for Python, StyLua for Lua, pre-commit-hooks for hygiene, local validate_docs hook — total FEAT-001 now 524 lines with 6 phases and 11 acceptance criteria.
 [2026-07-14 17:41:xx] - [team-lead] - FEAT-001 reviewed and approved (status=APPROVED); committed to repo.
+[2026-07-14 17:45:38] - [team-lead] - Feature plan FEAT-001 ready; starting implementation.
