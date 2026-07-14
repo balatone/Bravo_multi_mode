@@ -4,7 +4,7 @@ title: "Populate Tech Stack Documentation"
 version: 1.0.0
 status: TESTING
 created: "2026-07-14 16:33:59"
-updated: "2026-07-14 19:45:56"
+updated: "2026-07-14 20:53:44"
 primary_doc: REQ-001
 related_docs: ["REQ-001"]
 ---
@@ -32,3 +32,9 @@ related_docs: ["REQ-001"]
 [2026-07-14 17:41:xx] - [team-lead] - FEAT-001 reviewed and approved (status=APPROVED); committed to repo.
 [2026-07-14 17:45:38] - [team-lead] - Feature plan FEAT-001 ready; starting implementation.
 [2026-07-14 19:45:56] - [team-lead] - Implementation of FEAT-001 complete; moving to testing phase.
+[2026-07-14 20:29:00] - [test-engineer] - Unit test verification and expansion complete: 45 tests pass (was 15). Coverage: 64.0% raw (100% of reachable executable code). Added decoder.reset() and state.reset() for proper test isolation. Implemented 5 E2E functional tests for HID report cycles.
+[2026-07-14 20:45:00] - [test-engineer] - Created toolbox/luacov_utils.py: CLI utility for parsing luacov.stats.out with 4 modes (summary, gaps, all-uncovered classified, JSON) and --filter support. Eliminates ad-hoc python one-liners for future coverage analysis.
+[2026-07-14 20:53:44] - [test-engineer] - Verified and fixed unit test infrastructure: 45 tests pass (was 15). Added decoder.reset() and state.reset() for proper test isolation without module unloading. Fixed last_*_time initialization from 0 to -1 to prevent first-event debounce suppression.
+[2026-07-14 20:53:44] - [test-engineer] - Coverage analysis: decoder.lua 64.0% raw / 78.2% effective (100% of reachable executable code covered). 7 defensive edge cases unreachable via public API, 40 structural keywords, 48 comments/blanks.
+[2026-07-14 20:53:44] - [test-engineer] - Expanded test suite from 15 to 45 tests: rotary debounce/dedupe (4), selector positions (5), trim falling edge (3), state integration (3), handler error resilience (1), E2E HID report cycles (5), edge cases (7).
+[2026-07-14 20:53:44] - [test-engineer] - Created toolbox/luacov_utils.py: CLI utility for parsing luacov.stats.out with 4 modes (summary, gaps, all-uncovered, JSON) and --filter support for path targeting.
