@@ -4,7 +4,7 @@ title: "Populate Tech Stack Documentation"
 version: 1.0.0
 status: TESTING
 created: "2026-07-14 16:33:59"
-updated: "2026-07-14 20:54:13"
+updated: "2026-07-14 20:54:17"
 primary_doc: REQ-001
 related_docs: ["REQ-001"]
 ---
@@ -43,3 +43,4 @@ related_docs: ["REQ-001"]
 [2026-07-14 20:54:05] - [test-engineer] - Expanded test suite from 15 to 45 tests: rotary debounce/dedupe (4), selector positions (5), trim falling edge (3), state integration (3), handler error resilience (1), E2E HID report cycles (5), edge cases (7).
 [2026-07-14 20:54:09] - [test-engineer] - Created toolbox/luacov_utils.py: CLI utility for parsing luacov.stats.out with 4 modes (summary, gaps, all-uncovered, JSON) and --filter support for path targeting.
 [2026-07-14 20:54:13] - [test-engineer] - E2E functional tests implemented: full HID report cycles, rapid debounced events, rotary/selector isolation, CCW/trim mask disambiguation, all 5 selector positions.
+[2026-07-14 20:54:17] - [test-engineer] - Bug fixes: (1) Added decoder.reset() and state.reset() for test isolation without module unloading, (2) Fixed last_*_time initialization from 0 to -1 to prevent first-event debounce suppression.
