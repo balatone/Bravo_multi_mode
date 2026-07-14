@@ -4,7 +4,7 @@ title: "Populate Tech Stack Documentation"
 version: 1.0.0
 status: TESTING
 created: "2026-07-14 16:33:59"
-updated: "2026-07-14 20:54:05"
+updated: "2026-07-14 20:54:09"
 primary_doc: REQ-001
 related_docs: ["REQ-001"]
 ---
@@ -41,3 +41,4 @@ related_docs: ["REQ-001"]
 [2026-07-14 20:53:55] - [test-engineer] - Verified and fixed unit test infrastructure: 45 tests pass (was 15). Added decoder.reset() and state.reset() for proper test isolation without module unloading. Fixed last_*_time initialization from 0 to -1 to prevent first-event debounce suppression.
 [2026-07-14 20:53:59] - [test-engineer] - Coverage analysis complete: decoder.lua 64.0% raw / 78.2% effective (100% of reachable executable code covered). 7 defensive edge cases unreachable via public API, 40 structural keywords, 48 comments/blanks.
 [2026-07-14 20:54:05] - [test-engineer] - Expanded test suite from 15 to 45 tests: rotary debounce/dedupe (4), selector positions (5), trim falling edge (3), state integration (3), handler error resilience (1), E2E HID report cycles (5), edge cases (7).
+[2026-07-14 20:54:09] - [test-engineer] - Created toolbox/luacov_utils.py: CLI utility for parsing luacov.stats.out with 4 modes (summary, gaps, all-uncovered, JSON) and --filter support for path targeting.
