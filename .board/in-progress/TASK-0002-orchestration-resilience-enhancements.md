@@ -4,7 +4,7 @@ title: "Orchestration & Resilience Enhancements"
 version: 1.0.0
 status: REVIEWING
 created: "2026-07-15 13:58:06"
-updated: "2026-07-15 16:32:06"
+updated: "2026-07-15 16:41:48"
 primary_doc: REQ-002
 related_docs: ["REQ-002", "FEAT-002", "SPIKE-001"]
 ---
@@ -27,3 +27,4 @@ related_docs: ["REQ-002", "FEAT-002", "SPIKE-001"]
 [2026-07-15 16:15:40] - [code-reviewer] - BUGFIX-002 approved and committed (b5629be). Status: APPROVED. Addresses REVIEW-002 major issues #1 (log overwrite) and #2 (missing git persistence).
 [2026-07-15 16:31:16] - [code-reviewer] - REVIEW-003 re-review in progress: verifying BUGFIX-002 fixes for FEAT-002
 [2026-07-15 16:32:06] - [code-reviewer] - REVIEW-003 completed: FEAT-002 re-review APPROVED. Both BUGFIX-002 fixes verified (log append + git persistence). 22/22 tests passing.
+[2026-07-15 16:41:48] - [stall-recovery] - MANUAL_RESUME required: subagent role:worker:backend-engineer stalled (cause: MAX_TURNS_EXHAUSTED). Human intervention needed. Log: orchestrator_20260715_164148.log
