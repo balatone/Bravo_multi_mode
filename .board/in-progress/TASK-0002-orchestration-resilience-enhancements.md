@@ -28,3 +28,4 @@ related_docs: ["REQ-002", "FEAT-002", "SPIKE-001"]
 [2026-07-15 16:31:16] - [code-reviewer] - REVIEW-003 re-review in progress: verifying BUGFIX-002 fixes for FEAT-002
 [2026-07-15 16:32:06] - [code-reviewer] - REVIEW-003 completed: FEAT-002 re-review APPROVED. Both BUGFIX-002 fixes verified (log append + git persistence). 22/22 tests passing.
 [2026-07-15 16:41:48] - [stall-recovery] - MANUAL_RESUME required: subagent role:worker:backend-engineer stalled (cause: MAX_TURNS_EXHAUSTED). Human intervention needed. Log: orchestrator_20260715_164148.log
+[2026-07-15 16:41:48] - [stall-recovery] - MANUAL_RESUME required: subagent role:worker:backend-engineer stalled (cause: UNRESPONSIVE_TIMEOUT). Human intervention needed. Log: orchestrator_20260715_164148.log
