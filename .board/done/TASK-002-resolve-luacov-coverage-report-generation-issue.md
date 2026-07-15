@@ -2,9 +2,9 @@
 id: TASK-002
 title: "Resolve Luacov Coverage Report Generation Issue"
 version: 1.0.0
-status: IMPLEMENTING
+status: DONE
 created: "2026-07-15 12:45:22"
-updated: "2026-07-15 12:45:37"
+updated: "2026-07-15 12:45:40"
 primary_doc: BUGFIX-001
 related_docs: ["BUGFIX-001", "FEAT-001"]
 ---
@@ -14,3 +14,4 @@ related_docs: ["BUGFIX-001", "FEAT-001"]
 [2026-07-15 12:45:30] - [backend-engineer] - Fix implemented: Added require('luacov') to tests/_bootstrap.lua to activate instrumentation. Created .luacov config with correct key names (statsfile, not stats_file) per luacov 0.17.0 defaults. Committed 53089a2.
 [2026-07-15 12:45:33] - [backend-engineer] - Verification: 45 tests pass, luacov.stats.out generated (19KB), luacov_utils.py --summary --filter bravo++ parses output correctly (decoder.lua 78.2% effective coverage). All acceptance criteria met.
 [2026-07-15 12:45:37] - [backend-engineer] - Follow-up fix: Replaced hardcoded absolute paths in _bootstrap.lua with portable relative resolution via debug.getinfo(1).source. Committed 42b8fc7. All 45 tests still pass.
+[2026-07-15 12:45:40] - [backend-engineer] - BUGFIX-001 complete: luacov instrumentation enabled in test bootstrap, .luacov config created with correct keys, hardcoded paths replaced with portable resolution. All acceptance criteria verified.
