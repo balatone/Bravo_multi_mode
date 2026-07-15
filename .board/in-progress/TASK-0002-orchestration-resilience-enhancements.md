@@ -4,7 +4,7 @@ title: "Orchestration & Resilience Enhancements"
 version: 1.0.0
 status: REVIEWING
 created: "2026-07-15 13:58:06"
-updated: "2026-07-15 16:45:52"
+updated: "2026-07-15 16:45:53"
 primary_doc: REQ-002
 related_docs: ["REQ-002", "FEAT-002", "SPIKE-001"]
 ---
@@ -79,3 +79,4 @@ related_docs: ["REQ-002", "FEAT-002", "SPIKE-001"]
 [2026-07-15 16:45:52] - [stall-recovery] - ESCALATION: no alternative agent available for role:worker:backend-engineer (cause: ERROR). Human intervention needed. Log: orchestrator_20260715_164552.log
 [2026-07-15 16:45:52] - [stall-recovery] - ESCALATION: no alternative agent available for role:worker:backend-engineer (cause: ERROR). Human intervention needed. Log: orchestrator_20260715_164552.log
 [2026-07-15 16:45:52] - [stall-recovery] - RE_DELEGATION: task re-delegated from role:worker:backend-engineer to role:worker:frontend-engineer (cause: ERROR). Log: orchestrator_20260715_164552.log
+[2026-07-15 16:45:53] - [stall-recovery] - RE_DELEGATION: task re-delegated from role:worker:backend-engineer to role:worker:frontend-engineer (cause: NETWORK_ERROR). Log: orchestrator_20260715_164553.log
