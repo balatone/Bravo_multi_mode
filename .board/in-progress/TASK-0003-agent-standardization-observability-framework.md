@@ -4,7 +4,7 @@ title: "Agent Standardization & Observability Framework"
 version: 1.0.0
 status: PLANNING
 created: "2026-07-15 14:12:33"
-updated: "2026-07-15 18:01:53"
+updated: "2026-07-15 18:07:13"
 primary_doc: REQ-003
 related_docs: ["REQ-003"]
 ---
@@ -16,3 +16,4 @@ related_docs: ["REQ-003"]
 [2026-07-15 17:50:46] - [business-analyst] - Planning phase complete: PLAN-002, FEAT-004, FEAT-005, FEAT-006 created and set to IN_REVIEW.
 [2026-07-15 17:57:05] - [business-analyst] - Resolved SPIKE-002 open questions: (1) Snippets referenced by orchestrator in delegation instructions — subagents must read specified snippet files at runtime. (2) Examples included showing correct vs incorrect formatting to reduce agent errors.
 [2026-07-15 18:01:53] - [business-analyst] - Removed backward compatibility constraints from PLAN-002 and FEAT-004. Worker prompt directives will be replaced with snippet references in a single update cycle — no gradual adoption needed.
+[2026-07-15 18:07:13] - [business-analyst] - Updated FEAT-004: Workers (backend-engineer, generic-worker, qwen_worker_specialist) do not create documents — doc-management.md snippet removed from their scope. They reference only board-logging.md and specialist-log-formatting.md; doc-creation directives are removed entirely.
