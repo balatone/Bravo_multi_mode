@@ -26,6 +26,388 @@ FOLDERS = {
 VALID_STATUSES = set(FOLDERS.keys())
 
 
+# ──────────────────────────────────────────────────────────────
+# Stall Detection and Recovery Protocol (FEAT-003)
+# ──────────────────────────────────────────────────────────────
+
+# Stall cause constants
+STALL_CAUSE_MAX_TURNS = "MAX_TURNS_EXHAUSTED"
+STALL_CAUSE_UNRESPONSIVE = "UNRESPONSIVE_TIMEOUT"
+STALL_CAUSE_ERROR = "ERROR"
+
+# Recovery path constants
+RECOVERY_MANUAL_RESUME = "MANUAL_RESUME"
+RECOVERY_RE_DELEGATION = "RE_DELEGATION"
+
+# Default unresponsiveness timeout in seconds (15 minutes per REQ-002)
+DEFAULT_UNRESPONSIVE_TIMEOUT_SECONDS = 15 * 60
+
+
+class StallResult:
+    """Result of a stall detection check."""
+
+    def __init__(
+        self,
+        is_stalled: bool,
+        cause: str | None = None,
+        details: str = "",
+    ):
+        self.is_stalled = is_stalled
+        self.cause = cause
+        self.details = details
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "is_stalled": self.is_stalled,
+            "cause": self.cause,
+            "details": self.details,
+        }
+
+    def __repr__(self) -> str:
+        return (
+            f"StallResult(is_stalled={self.is_stalled}, "
+            f"cause={self.cause!r}, details={self.details!r})"
+        )
+
+
+def max_turns_tracker(
+    subagent_id: str,
+    current_turns: int,
+    max_turns: int,
+) -> StallResult:
+    """
+    Track subagent turn count against configured max_turns threshold.
+
+    Per FEAT-003 Phase A: The orchestrator tracks each subagent's turn count
+    against its configured max_turns (from get_delegation_params.py).
+    When the limit is reached, a stall event is raised with cause = MAX_TURNS_EXHAUSTED.
+
+    Args:
+        subagent_id: The unique identifier of the subagent being tracked.
+        current_turns: The current number of turns executed by the subagent.
+        max_turns: The configured maximum number of turns allowed.
+
+    Returns:
+        StallResult indicating whether a stall was detected and the cause.
+
+    Raises:
+        ValueError: If current_turns or max_turns is negative.
+    """
+    if current_turns < 0:
+        raise ValueError(f"current_turns must be non-negative, got {current_turns}")
+    if max_turns <= 0:
+        raise ValueError(f"max_turns must be positive, got {max_turns}")
+
+    if current_turns >= max_turns:
+        return StallResult(
+            is_stalled=True,
+            cause=STALL_CAUSE_MAX_TURNS,
+            details=(
+                f"Subagent {subagent_id} reached max_turns limit: "
+                f"{current_turns}/{max_turns} turns"
+            ),
+        )
+
+    return StallResult(
+        is_stalled=False,
+        details=(
+            f"Subagent {subagent_id} within turn limit: "
+            f"{current_turns}/{max_turns} turns"
+        ),
+    )
+
+
+def unresponsiveness_monitor(
+    subagent_id: str,
+    last_activity_timestamp: datetime,
+    timeout_seconds: float | None = None,
+) -> StallResult:
+    """
+    Monitor subagent unresponsiveness based on last activity timestamp.
+
+    Per FEAT-003 Phase A: A configurable idle timeout (default 15 minutes
+    per REQ-002) detects when no activity occurs for a subagent session.
+    When exceeded, stall event raised with cause = UNRESPONSIVE_TIMEOUT.
+
+    Args:
+        subagent_id: The unique identifier of the subagent being monitored.
+        last_activity_timestamp: The timestamp of the subagent's last known activity.
+        timeout_seconds: Timeout threshold in seconds. Defaults to 15 minutes
+                         (DEFAULT_UNRESPONSIVE_TIMEOUT_SECONDS).
+
+    Returns:
+        StallResult indicating whether a stall was detected and the cause.
+
+    Raises:
+        ValueError: If timeout_seconds is non-positive.
+    """
+    if timeout_seconds is not None and timeout_seconds <= 0:
+        raise ValueError(f"timeout_seconds must be positive, got {timeout_seconds}")
+
+    effective_timeout = (
+        timeout_seconds
+        if timeout_seconds is not None
+        else DEFAULT_UNRESPONSIVE_TIMEOUT_SECONDS
+    )
+
+    now = datetime.now()
+    elapsed = (now - last_activity_timestamp).total_seconds()
+
+    if elapsed >= effective_timeout:
+        return StallResult(
+            is_stalled=True,
+            cause=STALL_CAUSE_UNRESPONSIVE,
+            details=(
+                f"Subagent {subagent_id} unresponsive for {elapsed:.0f}s "
+                f"(threshold: {effective_timeout:.0f}s)"
+            ),
+        )
+
+    return StallResult(
+        is_stalled=False,
+        details=(
+            f"Subagent {subagent_id} active: last activity {elapsed:.0f}s ago "
+            f"(threshold: {effective_timeout:.0f}s)"
+        ),
+    )
+
+
+def classify_stall(stall_cause: str) -> str:
+    """
+    Classify a stall cause and return the appropriate recovery path.
+
+    Per FEAT-003 Phase B: Maps stall causes to recovery paths:
+    - MAX_TURNS_EXHAUSTED -> MANUAL_RESUME
+    - UNRESPONSIVE_TIMEOUT -> MANUAL_RESUME
+    - Any error/unknown cause -> RE_DELEGATION
+
+    Args:
+        stall_cause: The cause of the stall (e.g., MAX_TURNS_EXHAUSTED).
+
+    Returns:
+        Recovery path string (MANUAL_RESUME or RE_DELEGATION).
+    """
+    if stall_cause in (STALL_CAUSE_MAX_TURNS, STALL_CAUSE_UNRESPONSIVE):
+        return RECOVERY_MANUAL_RESUME
+
+    return RECOVERY_RE_DELEGATION
+
+
+def log_stall_event(
+    subagent_id: str,
+    cause: str,
+    recovery_path: str,
+    task_id: str | None = None,
+    details: str = "",
+    repo_root: Path | None = None,
+) -> Path:
+    """
+    Log a stall event to the orchestrator specialist log file.
+
+    Per FEAT-003 Phase C: All stall events logged to
+    logs/specialist_logs/orchestrator_<timestamp>.log following format:
+    [TIMESTAMP] - [CURRENT_SUBTASK] - [STATUS: FAILED] - [DETAILS]
+
+    Args:
+        subagent_id: The ID of the subagent that stalled.
+        cause: The cause of the stall (e.g., MAX_TURNS_EXHAUSTED).
+        recovery_path: The recovery path selected (MANUAL_RESUME or RE_DELEGATION).
+        task_id: Optional task ID for logging context.
+        details: Additional details about the stall.
+        repo_root: Optional repo root override (for testing).
+
+    Returns:
+        Path to the log file that was written.
+    """
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    root = repo_root if repo_root is not None else REPO_ROOT
+    log_dir = root / "logs" / "specialist_logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    log_filename = f"orchestrator_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    log_path = log_dir / log_filename
+
+    task_context = task_id if task_id else "unknown"
+
+    log_line = (
+        f"[{timestamp}] - [{task_context}] - [STATUS: FAILED] - "
+        f"[Stall detected: subagent={subagent_id}, "
+        f"cause={cause}, recovery={recovery_path}"
+    )
+    if details:
+        log_line += f", details={details}"
+    log_line += "]\n"
+
+    with log_path.open("a", encoding="utf-8") as f:
+        f.write(log_line)
+
+    return log_path
+
+
+def execute_manual_resume(
+    task_id: str,
+    subagent_id: str,
+    cause: str,
+    details: str = "",
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    """
+    Execute the manual resume recovery path.
+
+    Per FEAT-003 Phase B: For stalls caused by MAX_TURNS_EXHAUSTED or
+    UNRESPONSIVE_TIMEOUT, the system routes to manual resume -- preserving
+    subagent context and allowing a human operator to continue execution.
+
+    Args:
+        task_id: The board task ID to update.
+        subagent_id: The ID of the stalled subagent.
+        cause: The cause of the stall.
+        details: Additional details about the stall.
+        repo_root: Optional repo root override (for testing).
+
+    Returns:
+        Dict with recovery result details.
+    """
+    root = repo_root if repo_root is not None else REPO_ROOT
+
+    # Log the stall event
+    log_path = log_stall_event(
+        subagent_id=subagent_id,
+        cause=cause,
+        recovery_path=RECOVERY_MANUAL_RESUME,
+        task_id=task_id,
+        details=details,
+        repo_root=root,
+    )
+
+    # Update board task status to require manual resume
+    try:
+        log_event(
+            task_id=task_id,
+            actor="stall-recovery",
+            message=(
+                f"MANUAL_RESUME required: subagent {subagent_id} stalled "
+                f"(cause: {cause}). Human intervention needed. Log: {log_path.name}"
+            ),
+        )
+    except RuntimeError:
+        # Task may not exist on board; still return success for the recovery action
+        pass
+
+    return {
+        "success": True,
+        "recovery_path": RECOVERY_MANUAL_RESUME,
+        "task_id": task_id,
+        "subagent_id": subagent_id,
+        "cause": cause,
+        "log_path": str(log_path),
+        "message": (
+            f"Task {task_id} flagged for MANUAL_RESUME. "
+            f"Subagent {subagent_id} stalled (cause: {cause})."
+        ),
+    }
+
+
+def execute_re_delegation(
+    task_id: str,
+    original_subagent_id: str,
+    new_subagent_id: str | None = None,
+    cause: str = STALL_CAUSE_ERROR,
+    details: str = "",
+    repo_root: Path | None = None,
+) -> dict[str, Any]:
+    """
+    Execute the re-delegation recovery path.
+
+    Per FEAT-003 Phase B: For stalls caused by unexpected errors/crashes,
+    the orchestrator re-delegates the task to another available agent with
+    matching role specialization. If no alternative is available, escalation
+    to human operator occurs as fallback.
+
+    Args:
+        task_id: The board task ID to update.
+        original_subagent_id: The ID of the original stalled subagent.
+        new_subagent_id: The ID of the new subagent to delegate to.
+                         If None, escalates to human operator.
+        cause: The cause of the stall.
+        details: Additional details about the stall.
+        repo_root: Optional repo root override (for testing).
+
+    Returns:
+        Dict with recovery result details.
+    """
+    root = repo_root if repo_root is not None else REPO_ROOT
+
+    # Log the stall event
+    log_path = log_stall_event(
+        subagent_id=original_subagent_id,
+        cause=cause,
+        recovery_path=RECOVERY_RE_DELEGATION,
+        task_id=task_id,
+        details=details,
+        repo_root=root,
+    )
+
+    if new_subagent_id:
+        # Re-delegate to new subagent
+        try:
+            log_event(
+                task_id=task_id,
+                actor="stall-recovery",
+                message=(
+                    f"RE_DELEGATION: task re-delegated from "
+                    f"{original_subagent_id} to {new_subagent_id} "
+                    f"(cause: {cause}). Log: {log_path.name}"
+                ),
+            )
+        except RuntimeError:
+            pass
+
+        return {
+            "success": True,
+            "recovery_path": RECOVERY_RE_DELEGATION,
+            "task_id": task_id,
+            "original_subagent_id": original_subagent_id,
+            "new_subagent_id": new_subagent_id,
+            "cause": cause,
+            "log_path": str(log_path),
+            "escalated": False,
+            "message": (
+                f"Task {task_id} re-delegated from {original_subagent_id} "
+                f"to {new_subagent_id}."
+            ),
+        }
+    else:
+        # No alternative agent available - escalate to human operator
+        try:
+            log_event(
+                task_id=task_id,
+                actor="stall-recovery",
+                message=(
+                    f"ESCALATION: no alternative agent available for "
+                    f"{original_subagent_id} (cause: {cause}). "
+                    f"Human intervention needed. Log: {log_path.name}"
+                ),
+            )
+        except RuntimeError:
+            pass
+
+        return {
+            "success": True,
+            "recovery_path": RECOVERY_RE_DELEGATION,
+            "task_id": task_id,
+            "original_subagent_id": original_subagent_id,
+            "new_subagent_id": None,
+            "cause": cause,
+            "log_path": str(log_path),
+            "escalated": True,
+            "message": (
+                f"Task {task_id} escalated to human operator. "
+                f"No alternative agent available for {original_subagent_id}."
+            ),
+        }
+
+
 def slugify(text: str) -> str:
     text = text.lower()
     text = re.sub(r"[^a-z0-9]+", "-", text)
