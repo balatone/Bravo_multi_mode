@@ -3,11 +3,10 @@ id: RETRO-001
 title: FEAT-001 Implementation Retrospective
 version: 1.0.0
 status: DRAFT
-created: 2026-07-15 13:10:00
-updated: 2026-07-15 13:10:00
+created: 2026-07-15 13:12:33
+updated: 2026-07-15 13:13:01
 related_docs: ["FEAT-001"]
 ---
-
 # Executive Summary
 
 This retrospective reviews the implementation of **FEAT-001** (Lua tech stack documentation and tooling). The effort exposed several gaps in orchestration logic, subagent completion protocols, prompt engineering practices, and observability. Key outcomes include proposed improvements to auto-delegation approval handling, mandatory post-task logging for all agents, standardized prompt snippets, and a Python utility for consistent specialist log formatting. These changes aim to reduce workflow stalls, improve cross-agent visibility, and establish repeatable patterns for future implementations.
@@ -50,9 +49,9 @@ Instructions for using `toolbox` utilities (doc creation, status updates, task l
 
 ### Missing Standardization
 There was no standardized prompt snippet library covering:
-1. Creating and updating documents.
-2. Logging activities on the current task.
-3. Logging in the specialist log.
+1. Creating and updating documents (via `toolbox/doc_utils.py`).
+2. Logging activities on the current task via `.board/`.
+3. Logging in the specialist log with consistent format: `[TIMESTAMP] - [CURRENT_SUBTASK] - [STATUS: IN_PROGRESS|COMPLETE|FAILED] - [DETAILS]`
 
 Each agent interpreted these responsibilities independently, resulting in variable compliance levels.
 
