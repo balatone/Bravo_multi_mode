@@ -325,6 +325,229 @@ def update_task(
     print(f"✅ Updated task {task_id}.")
 
 
+# Document type to directory mapping (mirrors doc_utils.py TYPE_MAP)
+DOC_TYPE_MAP = {
+    "REQ": "internal-docs/01_requirements",
+    "BUG": "internal-docs/01_requirements",
+    "RAD": "internal-docs/02_analysis",
+    "SPIKE": "internal-docs/02_analysis",
+    "DSGN": "internal-docs/03_design",
+    "DEC": "internal-docs/03_design",
+    "PLAN": "internal-docs/04_planning/04a_master",
+    "FEAT": "internal-docs/04_planning/04b_features",
+    "BUGFIX": "internal-docs/04_planning/04b_features",
+    "REVIEW": "internal-docs/05_review",
+    "RETRO": "internal-docs/06_retrospective",
+}
+
+VALID_LIFECYCLE_STATUSES = {
+    "DRAFT",
+    "IN_REVIEW",
+    "APPROVED",
+    "SUPERSEDED",
+    "DEPRECATED",
+    "ARCHIVED",
+}
+
+
+def resolve_document_path(doc_id: str) -> Path | None:
+    """
+    Resolve a document ID (e.g. 'FEAT-002') to its filesystem path.
+    Searches all known document directories for a file matching the ID.
+    Returns None if the document is not found.
+    """
+    # Extract the type prefix (e.g. 'FEAT' from 'FEAT-002')
+    match = re.match(r"^([A-Z]+)-\d+", doc_id)
+    if not match:
+        return None
+
+    doc_type = match.group(1)
+    search_dirs: list[Path] = []
+
+    # Use the type map to narrow search if we know the type
+    if doc_type in DOC_TYPE_MAP:
+        search_dirs = [REPO_ROOT / DOC_TYPE_MAP[doc_type]]
+    else:
+        # Fallback: search all known directories
+        search_dirs = [REPO_ROOT / dir_path for dir_path in DOC_TYPE_MAP.values()]
+
+    for directory in search_dirs:
+        if not directory.exists():
+            continue
+        for filepath in directory.rglob("*.md"):
+            try:
+                metadata = load_task(filepath)["metadata"]
+            except Exception:
+                continue
+            if metadata.get("id") == doc_id:
+                return filepath
+
+    return None
+
+
+def read_document_preamble(filepath: Path) -> dict[str, Any]:
+    """Read and parse the YAML preamble from a document file."""
+    content = filepath.read_text(encoding="utf-8")
+    parts = re.split(r"^---$", content, flags=re.MULTILINE)
+    if len(parts) < 3:
+        raise ValueError(
+            f"Invalid document format in {filepath}. Missing YAML preamble."
+        )
+    metadata = yaml.safe_load(parts[1]) or {}
+    return metadata
+
+
+def write_document_preamble(filepath: Path, metadata: dict[str, Any]) -> None:
+    """Rewrite the YAML preamble of a document, preserving the body."""
+    content = filepath.read_text(encoding="utf-8")
+    parts = re.split(r"^---$", content, flags=re.MULTILINE)
+    if len(parts) < 3:
+        raise ValueError(
+            f"Invalid document format in {filepath}. Missing YAML preamble."
+        )
+
+    yaml_str = yaml.dump(metadata, default_flow_style=False, sort_keys=False)
+    body = parts[2]
+    new_content = f"---\n{yaml_str.rstrip()}\n---\n{body}"
+    filepath.write_text(new_content, encoding="utf-8")
+
+
+def _log_auto_approval(
+    doc_id: str,
+    filepath: Path,
+    task_id: str | None,
+    was_approved: bool,
+    repo_root: Path | None = None,
+) -> None:
+    """
+    Log an auto-approval event to the specialist log file.
+    Format: [TIMESTAMP] - [SUBTASK_NAME] - [STATUS] - [DETAILS]
+
+    Args:
+        doc_id: The document ID that was processed.
+        filepath: The filesystem path of the document.
+        task_id: Optional task ID for logging context.
+        was_approved: Whether the document was actually approved (vs already approved).
+        repo_root: Optional repo root override (for testing).
+    """
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    root = repo_root if repo_root is not None else REPO_ROOT
+    log_dir = root / "logs" / "specialist_logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    log_filename = f"backend-engineer_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log"
+    log_path = log_dir / log_filename
+
+    if was_approved:
+        status_label = "INFO"
+        detail = f"Auto-approved document {doc_id} ({filepath})"
+    else:
+        status_label = "INFO"
+        detail = f"Document {doc_id} ({filepath}) already approved - no action taken"
+
+    task_context = f"TASK-{task_id}" if task_id else "auto-approval"
+    log_line = (
+        f"[{timestamp}] - [{task_context}] - [STATUS: {status_label}] - [{detail}]\n"
+    )
+
+    with log_path.open("a", encoding="utf-8") as f:
+        f.write(log_line)
+    print(f"Log written to {log_path}")
+
+
+def auto_approve_delegation(doc_id: str, task_id: str | None = None) -> dict[str, Any]:
+    """
+    Auto-approve a target document as part of the delegation process.
+
+    This function reads the target document's YAML preamble, checks if
+    its status is not APPROVED, and updates it to APPROVED. This is
+    scoped strictly to the delegation context per REQ-002 constraints.
+
+    Args:
+        doc_id: The document ID to approve (e.g. 'FEAT-002', 'REQ-001').
+        task_id: Optional task ID for logging context (e.g. 'TASK-0002').
+
+    Returns:
+        A dict with keys:
+            - success (bool): Whether the operation completed without error.
+            - doc_id (str): The document ID that was processed.
+            - filepath (str | None): Resolved filesystem path, or None if not found.
+            - previous_status (str | None): Status before the operation.
+            - new_status (str | None): Status after the operation.
+            - message (str): Human-readable result description.
+            - error (str | None): Error message if success is False.
+
+    Raises:
+        ValueError: If doc_id format is invalid.
+        RuntimeError: If the document does not exist.
+    """
+    result: dict[str, Any] = {
+        "success": False,
+        "doc_id": doc_id,
+        "filepath": None,
+        "previous_status": None,
+        "new_status": None,
+        "message": "",
+        "error": None,
+    }
+
+    # Validate doc_id format
+    if not re.match(r"^[A-Z]+-\d+$", doc_id):
+        result["error"] = (
+            f"Invalid document ID format: '{doc_id}'. "
+            "Expected format: TYPE-NNN (e.g. FEAT-002, REQ-001)."
+        )
+        return result
+
+    # Resolve the document path
+    filepath = resolve_document_path(doc_id)
+    if filepath is None:
+        result["error"] = f"Document not found: '{doc_id}'."
+        return result
+
+    result["filepath"] = str(filepath)
+
+    # Read current metadata
+    try:
+        metadata = read_document_preamble(filepath)
+    except Exception as exc:
+        result["error"] = f"Failed to read document preamble: {exc}"
+        return result
+
+    current_status = metadata.get("status", "").upper()
+    result["previous_status"] = current_status
+
+    # Check if already approved (idempotent behavior)
+    if current_status == "APPROVED":
+        result["success"] = True
+        result["new_status"] = "APPROVED"
+        result["message"] = f"Document {doc_id} is already APPROVED. No changes made."
+        _log_auto_approval(doc_id, filepath, task_id, was_approved=False)
+        return result
+
+    # Update status to APPROVED
+    metadata["status"] = "APPROVED"
+    metadata["updated"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    try:
+        write_document_preamble(filepath, metadata)
+    except Exception as exc:
+        result["error"] = f"Failed to update document: {exc}"
+        return result
+
+    stage_board()
+    run_git(["commit", "-m", f"chore: auto-approve {doc_id} for delegation"])
+
+    result["success"] = True
+    result["new_status"] = "APPROVED"
+    result["message"] = (
+        f"Document {doc_id} auto-approved. "
+        f"Status changed from '{current_status}' to 'APPROVED'."
+    )
+    _log_auto_approval(doc_id, filepath, task_id, was_approved=True)
+    return result
+
+
 def main() -> None:
     if len(sys.argv) == 1 or sys.argv[1] in ["-h", "--help"]:
         print("Manage Status Board tasks.")

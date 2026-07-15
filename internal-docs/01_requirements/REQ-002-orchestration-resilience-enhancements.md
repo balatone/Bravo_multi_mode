@@ -2,9 +2,9 @@
 id: REQ-002
 title: Orchestration & Resilience Enhancements
 version: 1.0.0
-status: DRAFT
+status: APPROVED
 created: 2026-07-15 13:26:53
-updated: 2026-07-15 13:27:40
+updated: 2026-07-15 13:58:04
 related_docs: ["RETRO-001", "FEAT-001"]
 ---
 # Summary

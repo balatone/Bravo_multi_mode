@@ -2,9 +2,9 @@
 id: REQ-003
 title: Agent Standardization & Observability Framework
 version: 1.0.0
-status: DRAFT
+status: APPROVED
 created: 2026-07-15 13:26:59
-updated: 2026-07-15 13:27:48
+updated: 2026-07-15 14:12:32
 related_docs: ["RETRO-001", "FEAT-001"]
 ---
 # Summary
