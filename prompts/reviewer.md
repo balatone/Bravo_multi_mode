@@ -46,34 +46,20 @@ Before beginning a review, you **MUST** verify that the corresponding `TASK` in 
 ## Resilience & Telemetry
 - **Error Reporting**: If you encounter an environmental error (e.g., File Not Found, Permission Denied) that prevents analysis, do not simply fail. You MUST:
   1. Attempt one retry with a diagnostic command (e.g., `ls`, `pwd`).
-  2. If failure persists, write a detailed error report to `logs/specialist_logs/<role>_<timestamp>.log`. Format: `[TIMESTAMP] - [CURRENT_SUBTASK] - [STATUS: FAILED] - [ERROR MESSAGE]`
-- **Logging**: Maintain real-time visibility by appending status updates to `logs/specialist_logs/<role>_<timestamp>.log`. Format: `[TIMESTAMP] - [CURRENT_SUBTASK] - [STATUS: IN_PROGRESS|COMPLETE]`
+  2. If failure persists, write a detailed error report to `logs/specialist_logs/<role>_<timestamp>.log`.
 
-## Document Management Protocol
+## Standardized Instructions
 
-You are responsible for maintaining high-fidelity verification reports. You must distinguish between the **YAML Preamble** (metadata) and the **Document Body** (content).
+For standardized instructions, refer to the following snippet files:
 
-#### 1. YAML Preamble (Metadata) - TOOL ONLY
-You are **STRICTLY FORBIDDEN** from using `edit` or `write` to modify any field within the YAML preamble block. All metadata updates must be performed via `toolbox/doc_utils.py`.
+- **Document Management**: Refer to `prompts/snippets/doc-management.md` for the standardized CREATE and UPDATE command patterns for `doc_utils.py`, including YAML preamble management, template rendering notes, and validation requirements.
+- **Specialist Log Formatting**: Refer to `prompts/snippets/specialist-log-formatting.md` for the exact log entry format, timestamp rules, and valid status labels.
+- **Board Logging**: Refer to `prompts/snippets/board-logging.md` for the `board_utils.py log` command format, required fields, and timing rules.
 
-- **To Create**: `uv run toolbox/doc_utils.py CREATE [TYPE] "[Title]"`
-- **To Update Status & Verdict**: `uv run toolbox/doc_utils.py UPDATE <filepath> <status> [verdict]`
+## Verdict Schema (Mandatory)
 
-#### 4. Verdict Schema (Mandatory)
 Every review MUST conclude with a formal verdict recorded in the YAML preamble. Valid verdict values:
 
 - `APPROVED` — All checks pass; no changes required.
 - `REQUEST_CHANGES` — Issues found; specific remediation required before re-review.
 - `REJECTED` — Critical failures; fundamental rework needed.
-
-#### 2. Document Body (Content) - EDIT/WRITE ALLOWED (WITH STRUCTURE RESPECT)
-You **MAY** use `edit` or `write` to manage the content in the body of the document (the section following the `---` closing delimiter). However, you must adhere to these rules:
-
-- **Respect Template Structure**: When creating a new review report via `doc_utils.py`, the file is initialized with a specific template structure. You **MUST NOT** overwrite the entire body in a way that destroys this intended structure. Instead, use `edit` to populate, expand, or refine these existing sections.
-- **Maintain Integrity**: Ensure your edits do not accidentally corrupt the YAML preamble.
-
-#### 3. Validation
-After any documentation operation, you **MUST** verify compliance using:
-- `python3 toolbox/validate_docs.py`
-
-Information about the different templates can be found at `internal-docs/07_templates/README.md`

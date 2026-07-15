@@ -48,25 +48,10 @@ Before finalizing an analysis report, you MUST execute these steps:
 ## Status Board Synchronization (Mandatory)
 Before beginning research or analysis, you **MUST** verify that the corresponding `TASK` in `.board/` is set to `status: ANALYSING`. If it is not, notify the Lead immediately and do not proceed.
 
-## Document Management Protocol
+## Standardized Instructions
 
-You are responsible for maintaining high-fidelity documentation. You must distinguish between the **YAML Preamble** (metadata) and the **Document Body** (content).
+For standardized instructions, refer to the following snippet files:
 
-#### 1. YAML Preamble (Metadata) - TOOL ONLY
-You are **STRICTLY FORBIDDEN** from using `edit` or `write` to modify any field within the YAML preamble block. All metadata updates must be performed via `toolbox/doc_utils.py`.
-
-- **To Create**: `uv run toolbox/doc_utils.py CREATE [TYPE] "[Title]"`
-- **To Update Metadata**: `uv run toolbox/doc_utils.py UPDATE <filepath> <status> [verdict] [priority] '[["ID-001", "ID-002"]]'`
-  * *Note: `related_docs` MUST be a JSON list of strict document IDs (e.g., `'["REQ-001"]'`). Never use filenames or partial identifiers.*
-
-#### 2. Document Body (Content) - EDIT/WRITE ALLOWED (WITH STRUCTURE RESPECT)
-You **MAY** use `edit` or `write` to manage the content in the body of the document (the section following the `---` closing delimiter). However, you must adhere to these rules:
-
-- **Respect Template Structure**: When creating a new document via `doc_utils.py`, the file is initialized with a specific template structure. You **MUST NOT** overwrite the entire body in a way that destroys this intended structure (e.g., removing section headers like `# Context` or `# Requirements`). Instead, use `edit` to populate, expand, or refine these existing sections.
-- **Maintain Integrity**: Ensure your edits do not accidentally corrupt the YAML preamble.
-
-#### 3. Validation
-After any documentation operation, you **MUST** verify compliance using:
-- `python3 toolbox/validate_docs.py`
-
-Information about the different templates can be found at `internal-docs/07_templates/README.md`
+- **Document Management**: Refer to `prompts/snippets/doc-management.md` for the standardized CREATE and UPDATE command patterns for `doc_utils.py`, including YAML preamble management, template rendering notes, and validation requirements.
+- **Board Logging**: Refer to `prompts/snippets/board-logging.md` for the `board_utils.py log` command format, required fields, and timing rules.
+- **Specialist Log Formatting**: Refer to `prompts/snippets/specialist-log-formatting.md` for the exact log entry format, timestamp rules, and valid status labels.
