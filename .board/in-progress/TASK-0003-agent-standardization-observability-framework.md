@@ -4,7 +4,7 @@ title: "Agent Standardization & Observability Framework"
 version: 1.0.0
 status: PLANNING
 created: "2026-07-15 14:12:33"
-updated: "2026-07-15 17:57:05"
+updated: "2026-07-15 18:01:53"
 primary_doc: REQ-003
 related_docs: ["REQ-003"]
 ---
@@ -15,3 +15,4 @@ related_docs: ["REQ-003"]
 [2026-07-15 17:50:15] - [business-analyst] - Planning phase complete: Created PLAN-002 (master plan), FEAT-004 (prompt snippet library), FEAT-005 (specialist log utility), and FEAT-006 (compliance audit). All documents set to IN_REVIEW status.
 [2026-07-15 17:50:46] - [business-analyst] - Planning phase complete: PLAN-002, FEAT-004, FEAT-005, FEAT-006 created and set to IN_REVIEW.
 [2026-07-15 17:57:05] - [business-analyst] - Resolved SPIKE-002 open questions: (1) Snippets referenced by orchestrator in delegation instructions — subagents must read specified snippet files at runtime. (2) Examples included showing correct vs incorrect formatting to reduce agent errors.
+[2026-07-15 18:01:53] - [business-analyst] - Removed backward compatibility constraints from PLAN-002 and FEAT-004. Worker prompt directives will be replaced with snippet references in a single update cycle — no gradual adoption needed.
