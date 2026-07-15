@@ -125,6 +125,12 @@ def get_task_path(task_id: str) -> Path | None:
 def ensure_task_namespace(task_id: str) -> None:
     if not task_id.startswith("TASK-"):
         raise ValueError("Board tasks must use the TASK namespace (e.g. TASK-0001).")
+    # Enforce exactly 4 digits after "TASK-"
+    suffix = task_id[5:]
+    if not re.fullmatch(r"\d{4}", suffix):
+        raise ValueError(
+            f"Invalid task ID '{task_id}'. Must have exactly 4 digits (e.g. TASK-0001)."
+        )
 
 
 def parse_related_docs(raw: str | None) -> list[str] | None:
@@ -324,7 +330,7 @@ def main() -> None:
         print("Manage Status Board tasks.")
         print("\nUsage Patterns:")
         print(
-            "  create <id> <title> --primary-doc <REQ-or-BUG-ID> [--related-docs '[\"ID-001\"]']"
+            "  create <id> <title> --primary-doc <REQ-or-BUG-ID> [--related-docs '[\"REQ-0001\"]']"
         )
         print(
             "  transition <id> <STATUS> --actor <name> --message <msg> [--related-docs '[\"ID-001\"]']"
@@ -342,7 +348,7 @@ def main() -> None:
     subparsers = parser.add_subparsers(dest="command")
 
     create_p = subparsers.add_parser("create")
-    create_p.add_argument("id", help="Task ID (e.g., TASK-001)")
+    create_p.add_argument("id", help="Task ID (e.g., TASK-0001)")
     create_p.add_argument("title", help="Task title")
     create_p.add_argument(
         "--primary-doc", required=True, help="The corresponding REQ or BUG document ID"

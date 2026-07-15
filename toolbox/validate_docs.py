@@ -80,6 +80,14 @@ def validate_file(filepath):
                 f"Invalid status '{metadata['status']}' for {context_name}. Must be one of {allowed_statuses}"
             )
 
+    # 3b. Validate TASK ID format (must have exactly 4 digits)
+    if is_task and "id" in metadata:
+        task_id = str(metadata["id"])
+        if task_id.startswith("TASK-") and not re.fullmatch(r"TASK-\d{4}", task_id):
+            errors.append(
+                f"Invalid task ID '{task_id}'. Must match TASK-XXXX with exactly 4 digits (e.g. TASK-0001)."
+            )
+
     filename = os.path.basename(filepath)
     is_review_file = filename.startswith("REVIEW-") or filename == "REVIEW.md"
     is_review_template = is_review_file and filepath.endswith(
