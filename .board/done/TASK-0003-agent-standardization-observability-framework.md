@@ -4,7 +4,7 @@ title: "Agent Standardization & Observability Framework"
 version: 1.0.0
 status: DONE
 created: "2026-07-15 14:12:33"
-updated: "2026-07-15 20:40:32"
+updated: "2026-07-15 20:45:45"
 primary_doc: REQ-003
 related_docs: ["REQ-003", "FEAT-005"]
 ---
@@ -31,3 +31,4 @@ related_docs: ["REQ-003", "FEAT-005"]
 [2026-07-15 20:30:55] - [backend-engineer] - REVIEW-005 complete: CONDITIONAL_APPROVAL for PLAN-002. All 3 features (FEAT-004, FEAT-005, FEAT-006) implemented and tested (122 tests passing). Two medium/low findings identified: missing CLEAN command in specialist_log.py, inconsistent snippet references in backend-engineer/qwen_worker_specialist prompts. No blocking issues.
 [2026-07-15 20:38:16] - [backend-engineer] - REVIEW-005 updated and APPROVED. Finding 2 (snippet reference inconsistency) removed — user confirmed generic-worker.md IS the WORKER ARCHETYPE; backend-engineer/qwen_worker_specialist inherit via archetype chain, making explicit references redundant. Remaining issues: CLEAN command gap in specialist_log.py, validation logic duplication, return value inconsistency.
 [2026-07-15 20:40:32] - [backend-engineer] - BUGFIX-003 created via doc_utils.py: addresses REVIEW-005 findings (CLEAN command gap, validation logic duplication, return value inconsistency). Status set to IN_REVIEW. Plan includes shared module extraction (log_format.py), CLEAN implementation with configurable retention, and full test suite updates.
+[2026-07-15 20:45:45] - [backend-engineer] - REVIEW-005 and BUGFIX-003 updated: added Finding 4 (audit reports in tracked directory). Reports should go to logs/compliance_audit/ not internal-docs/05_reports/. Both documents reflect this change.
