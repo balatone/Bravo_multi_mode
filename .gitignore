@@ -39,3 +39,22 @@ luac.out
 *.x86_64
 *.hex
 
+# Rolecast environment configuration
+.env.rolecast
+
+# Busted test runner cache
+.busted
+.busted/
+
+# Luacov coverage reports
+luacov.report.out
+luacov.stats.out
+luacov_report.html
+
+# Specialist and general logs
+logs/specialist_logs/
+*.log
+
+# Python cache
+__pycache__/
+*.pyc

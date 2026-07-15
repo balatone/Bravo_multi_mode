@@ -2,10 +2,10 @@ local log = require("bravo++.log")
 
 -- **************************************************************
 -- Custom dataref commands for the Baron 58
--- 
+--
 -- **************************************************************
 
-if log.LOG_LEVEL == nil then 
+if log.LOG_LEVEL == nil then
     log.LOG_LEVEL = log.LOG_DEBUG
 end
 
@@ -38,12 +38,12 @@ function handle_rudder_trim_right()
     local new_value = current_value
     log.debug("Time since last call: " .. diff)
     if diff < rudder_trim_debounce_delay then
-        new_value = current_value + increment*boost_factor
+        new_value = current_value + increment * boost_factor
         log.debug("Boosting rudder trim right")
     else
-        new_value = current_value + increment        
+        new_value = current_value + increment
     end
-    if new_value <= rudder_trim_max then 
+    if new_value <= rudder_trim_max then
         rudder_trim_dataref[0] = new_value
     else
         rudder_trim_dataref[0] = rudder_trim_max
@@ -69,10 +69,10 @@ function handle_rudder_trim_left()
     local new_value = current_value
     log.debug("Time since last call: " .. diff)
     if diff < rudder_trim_debounce_delay then
-        new_value = current_value - increment*boost_factor
+        new_value = current_value - increment * boost_factor
         log.debug("Boosting rudder trim left")
     else
-        new_value = current_value - increment        
+        new_value = current_value - increment
     end
     if new_value >= rudder_trim_min then
         rudder_trim_dataref[0] = new_value -- This updates the dataref
@@ -106,10 +106,10 @@ function handle_left_cowl_up()
     local new_value = current_value
     log.debug("Time since last call: " .. diff)
     if diff < left_cowl_flap_debounce_delay then
-        new_value = current_value + increment*boost_factor
+        new_value = current_value + increment * boost_factor
         log.debug("Boosting left cowl up")
     else
-        new_value = current_value + increment        
+        new_value = current_value + increment
     end
     if new_value >= left_cowl_flap_min then
         left_cowl_flap_dataref[0] = new_value -- This updates the dataref
@@ -120,13 +120,7 @@ function handle_left_cowl_up()
     left_cowl_flap_last_click_time = current_time
 end
 
-create_command(
-    "FlyWithLua/Bravo++/b58/handle_left_cowl_up",
-    "Handle left cowl up",
-    "handle_left_cowl_up()",
-    "",
-    ""
-)
+create_command("FlyWithLua/Bravo++/b58/handle_left_cowl_up", "Handle left cowl up", "handle_left_cowl_up()", "", "")
 
 function handle_left_cowl_down()
     local current_time = os.clock()
@@ -138,10 +132,10 @@ function handle_left_cowl_down()
     local new_value = current_value
     log.debug("Time since last call: " .. diff)
     if diff < left_cowl_flap_debounce_delay then
-        new_value = current_value - increment*boost_factor
+        new_value = current_value - increment * boost_factor
         log.debug("Boosting left cowl down")
     else
-        new_value = current_value - increment        
+        new_value = current_value - increment
     end
     if new_value <= left_cowl_flap_max then
         left_cowl_flap_dataref[0] = new_value -- This updates the dataref
@@ -175,10 +169,10 @@ function handle_right_cowl_up()
     local new_value = current_value
     log.debug("Time since last call: " .. diff)
     if diff < right_cowl_flap_debounce_delay then
-        new_value = current_value + increment*boost_factor
+        new_value = current_value + increment * boost_factor
         log.debug("Boosting right cowl up")
     else
-        new_value = current_value + increment        
+        new_value = current_value + increment
     end
     if new_value >= right_cowl_flap_min then
         right_cowl_flap_dataref[1] = new_value -- This updates the dataref
@@ -189,13 +183,7 @@ function handle_right_cowl_up()
     right_cowl_flap_last_click_time = current_time
 end
 
-create_command(
-    "FlyWithLua/Bravo++/b58/handle_right_cowl_up",
-    "Handle right cowl up",
-    "handle_right_cowl_up()",
-    "",
-    ""
-)
+create_command("FlyWithLua/Bravo++/b58/handle_right_cowl_up", "Handle right cowl up", "handle_right_cowl_up()", "", "")
 
 function handle_right_cowl_down()
     local current_time = os.clock()
@@ -207,10 +195,10 @@ function handle_right_cowl_down()
     local new_value = current_value
     log.debug("Time since last call: " .. diff)
     if diff < right_cowl_flap_debounce_delay then
-        new_value = current_value - increment*boost_factor
+        new_value = current_value - increment * boost_factor
         log.debug("Boosting right cowl down")
     else
-        new_value = current_value - increment        
+        new_value = current_value - increment
     end
     if new_value <= right_cowl_flap_max then
         right_cowl_flap_dataref[1] = new_value -- This updates the dataref

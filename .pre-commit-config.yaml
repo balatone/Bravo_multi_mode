@@ -1,0 +1,46 @@
+# .pre-commit-config.yaml — Pre-commit hooks for Bravo++ project
+# Installed via: pip install pre-commit  (or uv add --dev pre-commit)
+# First-time setup: pre-commit install
+
+default_language_version:
+  python: python3
+
+repos:
+  # ── Python tooling (toolbox/) ────────────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.4
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        files: "toolbox/"
+      - id: ruff-format
+        files: "toolbox/"
+
+  # ── Lua tooling (FlyWithLua/Modules/bravo++/) ────────────────
+  - repo: https://github.com/JohnnyMorganz/StyLua
+    rev: v2.5.2
+    hooks:
+      - id: stylua
+        files: "FlyWithLua/"
+
+  # ── General repository hygiene ───────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      - id: detect-private-key
+
+  # ── Documentation validation ────────────────────────────────
+  - repo: local
+    hooks:
+      - id: validate-docs
+        name: Validate SDLC documents
+        entry: uv run python3 toolbox/validate_docs.py
+        language: system
+        pass_filenames: false
+        files: "internal-docs/"

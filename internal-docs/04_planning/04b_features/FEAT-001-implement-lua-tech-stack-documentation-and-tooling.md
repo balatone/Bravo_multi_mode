@@ -21,6 +21,7 @@ This feature delivers: corrected authoritative documentation, centralized lintin
 - Create `stylua.toml` at the repository root to enforce consistent code formatting rules project-wide.
 - Establish a `tests/` directory with initial busted spec files targeting `decoder.lua`.
 - Configure luacov for coverage reporting alongside the test suite.
+- Create `.pre-commit-config.yaml` with hooks for Python linting/formatting (ruff), Lua formatting (StyLua), general repo hygiene, and document validation.
 
 # Scope
 
@@ -34,6 +35,7 @@ This feature delivers: corrected authoritative documentation, centralized lintin
    - Implement initial busted spec file: `decoder_spec.lua`.
    - Verify test execution via `busted tests/`.
 5. **Code Coverage Integration**: Configure luacov (0.17.0) to instrument and report coverage for the new test suite, producing a summary of covered/uncovered lines in decoder.lua.
+6. **Python Pre-commit Hook Configuration**: Create `.pre-commit-config.yaml` with ruff (lint + format) for `toolbox/`, StyLua for Lua files, pre-commit-hooks for general hygiene, and a local hook running `validate_docs.py`.
 
 ## Out of Scope
 
@@ -390,6 +392,90 @@ cat .luacov.report.out
   - `.luacov.report.out` contains a human-readable summary showing covered/uncovered lines per file.
   - `decoder.lua` shows meaningful line coverage (>0% for tested functions, <100% for untested paths — confirming the tool works correctly).
 
+## Phase 6: Python Pre-commit Hook Configuration
+
+### Task 6.1 — Create `.pre-commit-config.yaml` at Repository Root
+
+Create a pre-commit configuration file that enforces code quality on every commit for both Python and Lua files. The hooks should run automatically before each `git commit`.
+
+**Configuration structure:**
+
+```yaml
+# .pre-commit-config.yaml — Pre-commit hooks for Bravo++ project
+# Installed via: pip install pre-commit  (or uv add --dev pre-commit)
+# First-time setup: pre-commit install
+
+default_language_version:
+  python: python3
+
+repos:
+  # ── Python tooling (toolbox/) ────────────────────────────────
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.4
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        files: "toolbox/"
+      - id: ruff-format
+        files: "toolbox/"
+
+  # ── Lua tooling (FlyWithLua/Modules/bravo++/) ────────────────
+  - repo: https://github.com/JohnnyMorganz/StyLua
+    rev: v2.5.2
+    hooks:
+      - id: stylua
+        files: "FlyWithLua/"
+
+  # ── General repository hygiene ───────────────────────────────
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-added-large-files
+        args: ["--maxkb=1024"]
+      - id: detect-private-key
+
+  # ── Documentation validation ────────────────────────────────
+  - repo: local
+    hooks:
+      - id: validate-docs
+        name: Validate SDLC documents
+        entry: uv run python3 toolbox/validate_docs.py
+        language: system
+        pass_filenames: false
+        files: "internal-docs/"
+```
+
+**Hook rationale:**
+
+| Hook | Purpose | Scope |
+|------|---------|-------|
+| `ruff` (lint) | Fast Python linting — catches unused imports, undefined names, style violations in `toolbox/` scripts | Python only (`toolbox/`) |
+| `ruff-format` | Auto-formats Python code using ruff's formatter (replaces black/isort for this project) | Python only (`toolbox/`) |
+| `stylua` | Formats all Lua files under `FlyWithLua/` to match `stylua.toml` rules | All `.lua` files in FlyWithLua tree |
+| `trailing-whitespace` | Strips trailing whitespace from all tracked files | All files |
+| `end-of-file-fixer` | Ensures every file ends with a newline | All files |
+| `check-yaml` | Validates YAML syntax (`.board/`, `.pre-commit-config.yaml`, etc.) | All `.yaml`/`.yml` files |
+| `check-added-large-files` | Prevents accidentally committing large binary files (>1MB) | All added files |
+| `detect-private-key` | Scans for hardcoded secrets/API keys (security hygiene) | All files |
+| `validate-docs` | Runs the project's own document validator (`toolbox/validate_docs.py`) to ensure YAML preambles, status lifecycles, and cross-references are valid | All `internal-docs/` documents |
+
+### Task 6.2 — Install and Verify Pre-commit Hooks
+
+- Run `pre-commit install` to register the hooks in `.git/hooks/pre-commit`.
+- Run `pre-commit run --all-files` to verify all existing files pass every hook without modification (or apply fixes).
+- Confirm that a test commit with intentional violations (e.g., trailing whitespace, invalid YAML) is caught and blocked.
+
+### Task 6.3 — Document Pre-commit Usage
+
+Add a brief section to `README.md` or create a `.pre-commit-hooks/CONTRIBUTING.md` note explaining:
+- How pre-commit works (runs automatically on `git commit`).
+- How to skip hooks when needed (`git commit --no-verify`, e.g., for initial setup commits).
+- How to run all hooks manually (`pre-commit run --all-files`).
+
 # Acceptance Criteria
 
 - [ ] **AC-1**: `docs/tech-stack.md` reflects PUC-Rio Lua 5.4.8 (not LuaJIT), luacheck 1.2.0, stylua 2.5.2, and all Linux-native paths (`/usr/bin/lua`, `/usr/bin/luac`, `/usr/bin/luacheck`, `/home/eb/.cargo/bin/stylua`).
@@ -400,6 +486,9 @@ cat .luacov.report.out
 - [ ] **AC-6**: Busted can execute the test suite successfully: `busted tests/` completes without errors.
 - [ ] **AC-7**: luacov configuration (`.luacov`) exists and produces coverage reports when run alongside the busted test suite.
 - [ ] **AC-8**: Coverage report shows non-trivial line coverage for `decoder.lua`, confirming instrumentation is working.
+- [ ] **AC-9**: `.pre-commit-config.yaml` exists at repository root with ruff (lint + format) for Python, StyLua for Lua, pre-commit-hooks for hygiene, and local validate_docs hook.
+- [ ] **AC-10**: `pre-commit install` registers hooks successfully; `pre-commit run --all-files` passes on all existing files.
+- [ ] **AC-11**: Pre-commit hooks correctly block commits with intentional violations (trailing whitespace, invalid YAML).
 
 # Definition of Done
 
@@ -409,6 +498,7 @@ cat .luacov.report.out
 - `stylua.toml` validated: existing codebase passes `--check` with zero formatting changes needed.
 - Test suite executes cleanly under busted with no runtime errors.
 - luacov coverage report generated and reviewed for correctness.
+- `.pre-commit-config.yaml` installed and verified: `pre-commit run --all-files` passes; hooks block intentional violations.
 - All new files committed to version control with descriptive commit messages.
 
 # Dependencies / Risks
@@ -427,7 +517,7 @@ cat .luacov.report.out
 
 # Implementation Notes
 
-- **Sequencing**: Tasks 1.x (documentation correction) should be completed first, as they are prerequisites for all downstream work per REQ-001's success criteria.
+- **Sequencing**: Tasks 1.x (documentation correction) should be completed first, as they are prerequisites for all downstream work per REQ-001's success criteria. Phase 6 (pre-commit hooks) can run in parallel with Phases 2–5 since it doesn't depend on Lua tooling being configured.
 - **Package path considerations**: Since the project uses FlyWithLua NG's custom `require` system rather than standard Lua package paths, test files may need a bootstrap that sets up `package.path` to point at `FlyWithLua/Modules/bravo++/`. Consider adding a `tests/init.lua` or using busted's configuration file (`busted.yml`) for this setup.
 - **Standalone decoder testing**: If the full decoder module cannot be loaded in isolation, create a minimal testable subset that exposes only the pure decoding functions (byte → event conversion) without hardware/XPLM dependencies. This is preferable to mocking the entire FlyWithLua host environment.
 - **luacov + busted integration**: The standard approach is `luacov busted <spec.lua>`, which instruments all files loaded during test execution and writes coverage stats afterward. Verify this works with the system-installed versions (busted 2.3.0, luacov 0.17.0).

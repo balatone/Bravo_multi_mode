@@ -2,10 +2,10 @@ local log = require("bravo++.log")
 
 -- **************************************************************
 -- Custom dataref commands for the Aerobask DA42 and DA62
--- 
+--
 -- **************************************************************
 
-if log.LOG_LEVEL == nil then 
+if log.LOG_LEVEL == nil then
     log.LOG_LEVEL = log.LOG_DEBUG
 end
 
@@ -38,12 +38,12 @@ function handle_rudder_trim_right()
     local new_value = current_value
     log.debug("Time since last call: " .. diff)
     if diff < rudder_trim_debounce_delay then
-        new_value = current_value + increment*boost_factor
+        new_value = current_value + increment * boost_factor
         log.debug("Boosting rudder trim right")
     else
-        new_value = current_value + increment        
+        new_value = current_value + increment
     end
-    if new_value <= rudder_trim_max then 
+    if new_value <= rudder_trim_max then
         rudder_trim_dataref[0] = new_value
     else
         rudder_trim_dataref[0] = rudder_trim_max
@@ -69,10 +69,10 @@ function handle_rudder_trim_left()
     local new_value = current_value
     log.debug("Time since last call: " .. diff)
     if diff < rudder_trim_debounce_delay then
-        new_value = current_value - increment*boost_factor
+        new_value = current_value - increment * boost_factor
         log.debug("Boosting rudder trim left")
     else
-        new_value = current_value - increment        
+        new_value = current_value - increment
     end
     if new_value >= rudder_trim_min then
         rudder_trim_dataref[0] = new_value -- This updates the dataref
