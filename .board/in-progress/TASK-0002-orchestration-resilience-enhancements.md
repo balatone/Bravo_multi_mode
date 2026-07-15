@@ -4,7 +4,7 @@ title: "Orchestration & Resilience Enhancements"
 version: 1.0.0
 status: REVIEWING
 created: "2026-07-15 13:58:06"
-updated: "2026-07-15 16:44:42"
+updated: "2026-07-15 16:45:50"
 primary_doc: REQ-002
 related_docs: ["REQ-002", "FEAT-002", "SPIKE-001"]
 ---
@@ -70,3 +70,4 @@ related_docs: ["REQ-002", "FEAT-002", "SPIKE-001"]
 [2026-07-15 16:43:53] - [stall-recovery] - RE_DELEGATION: task re-delegated from role:worker:backend-engineer to role:worker:frontend-engineer (cause: ERROR). Log: orchestrator_20260715_164353.log
 [2026-07-15 16:43:54] - [stall-recovery] - ESCALATION: no alternative agent available for role:worker:backend-engineer (cause: ERROR). Human intervention needed. Log: orchestrator_20260715_164354.log
 [2026-07-15 16:44:42] - [backend-engineer] - Implementing FEAT-003: Stall Detection and Recovery Protocol. Added max_turns_tracker(), unresponsiveness_monitor(), classify_stall(), execute_manual_resume(), execute_re_delegation(), and log_stall_event() to board_utils.py. 52 new unit tests in python_tests/test_stall_detection.py. All 74 tests passing.
+[2026-07-15 16:45:50] - [stall-recovery] - MANUAL_RESUME required: subagent role:worker:backend-engineer stalled (cause: MAX_TURNS_EXHAUSTED). Human intervention needed. Log: orchestrator_20260715_164550.log
