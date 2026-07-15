@@ -4,7 +4,7 @@ title: "Agent Standardization & Observability Framework"
 version: 1.0.0
 status: IMPLEMENTING
 created: "2026-07-15 14:12:33"
-updated: "2026-07-15 18:28:34"
+updated: "2026-07-15 18:34:13"
 primary_doc: REQ-003
 related_docs: ["REQ-003"]
 ---
@@ -20,3 +20,4 @@ related_docs: ["REQ-003"]
 [2026-07-15 18:19:53] - [business-analyst] - Documents approved and committed (3f19771): PLAN-002, FEAT-004, FEAT-005, FEAT-006 all set to APPROVED. Key decisions: (1) Workers do not create documents — doc-management.md snippet only for archetype/specialist prompts; workers reference board-logging.md and specialist-log-formatting.md with doc-creation directives removed entirely. (2) Single-cycle migration — no gradual adoption/backward compatibility needed. (3) Snippets referenced via explicit file reads in delegation instructions. (4) Formatting examples include both correct and incorrect cases to reduce agent errors.
 [2026-07-15 18:27:56] - [backend-engineer] - FEAT-004 Prompt Snippet Library Implementation complete. Created prompts/snippets/ with doc-management.md, board-logging.md, and specialist-log-formatting.md. Updated prompts/analyst.md, prompts/reviewer.md, prompts/worker/backend-engineer.md, prompts/worker/generic-worker.md, and prompts/worker/qwen_worker_specialist.md. All files pass validate_docs.py.
 [2026-07-15 18:28:34] - [team-lead] - FEAT-004 (Snippet Library) implemented and verified. Starting FEAT-005 (Specialist Log Utility).
+[2026-07-15 18:34:13] - [backend-engineer] - FEAT-005 specialist log utility implemented: toolbox/specialist_log.py with LOG, SHOW, and VALIDATE commands. 55 unit tests passing. Mirrors doc_utils.py API design pattern.
