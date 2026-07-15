@@ -4,7 +4,7 @@ title: "Orchestration & Resilience Enhancements"
 version: 1.0.0
 status: IMPLEMENTING
 created: "2026-07-15 13:58:06"
-updated: "2026-07-15 16:02:37"
+updated: "2026-07-15 16:05:54"
 primary_doc: REQ-002
 related_docs: ["REQ-002", "FEAT-002", "SPIKE-001"]
 ---
@@ -20,3 +20,4 @@ related_docs: ["REQ-002", "FEAT-002", "SPIKE-001"]
 [2026-07-15 15:49:47] - [business-analyst] - Test infrastructure note added to PLAN-001, FEAT-002, and FEAT-003. Python tests will live in new top-level python_tests/ directory (separate from Lua/Busted tests). Greenfield pytest setup.
 [2026-07-15 16:01:04] - [backend-engineer] - Implementing FEAT-002: auto_approve_delegation() function added to board_utils.py per SPIKE-001 Option A. 17 unit tests passing in python_tests/.
 [2026-07-15 16:02:37] - [backend-engineer] - FEAT-002 implementation complete: auto_approve_delegation() + resolve_document_path() + read_document_preamble() + write_document_preamble() + _log_auto_approval() added to board_utils.py. 17/17 unit tests passing in python_tests/test_board_utils_auto_approve.py. Verified: DRAFT->APPROVED transition, idempotent on already APPROVED, error on invalid doc_id, error on non-existent doc.
+[2026-07-15 16:05:54] - [backend-engineer] - FEAT-002 implementation complete. auto_approve_delegation() added to board_utils.py with helper functions (resolve_document_path, read/write_document_preamble, _log_auto_approval). 17/17 unit tests passing. Verified: DRAFT->APPROVED transition, idempotent on already APPROVED, error on invalid doc_id, error on non-existent doc. Log entries written to logs/specialist_logs/.
