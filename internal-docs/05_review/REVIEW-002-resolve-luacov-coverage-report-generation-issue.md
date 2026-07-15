@@ -60,11 +60,11 @@ This review covers the following areas:
 
 ## Minor Issues
 
-1. **Hardcoded paths in `_bootstrap.lua`**: The bootstrap uses an absolute path `/home/eb/git/Bravo_multi_mode/agentic-refactoring` for project root and module search paths. This will break on other machines. Consider using `package.path` relative resolution via `debug.getinfo(1, "s").source` or a relative approach from the `_bootstrap.lua` location.
+1. **`.luacov.stats.out` vs `luacov.stats.out` naming**: The BUGFIX-001 acceptance criteria mention `.luacov.stats.out`, but luacov writes to `luacov.stats.out` by default (no leading dot). The implementation is correct — this is a documentation inconsistency in the original bugfix spec.
 
-2. **`.luacov.stats.out` vs `luacov.stats.out` naming**: The BUGFIX-001 acceptance criteria mention `.luacov.stats.out`, but luacov writes to `luacov.stats.out` by default (no leading dot). The implementation is correct — this is a documentation inconsistency in the original bugfix spec.
+2. **`.luacov` config may be misleading**: The `.luacov` file defines `statsfile`, `summaryfile`, and `reportfile`, but the comment correctly notes that `luacov_utils.py` reads `luacov.stats.out` directly (the default luacov output path). This is not a bug, but the config may be confusing to future developers.
 
-3. **`.luacov` config may be misleading**: The `.luacov` file defines `statsfile`, `summaryfile`, and `reportfile`, but the comment correctly notes that `luacov_utils.py` reads `luacov.stats.out` directly (the default luacov output path). This is not a bug, but the config may be confusing to future developers.
+3. **Hardcoded paths in `_bootstrap.lua`** — *RESOLVED*: The bootstrap previously used an absolute path `/home/eb/git/Bravo_multi_mode/agentic-refactoring`. This has been fixed using `debug.getinfo(1).source:sub(2)` to resolve the project root relative to the bootstrap file's location, making it portable across developer machines.
 
 # Positive Findings
 
@@ -90,7 +90,6 @@ This review covers the following areas:
 
 # Risks / Follow-ups
 
-- **Hardcoded paths in `_bootstrap.lua`**: As noted above, the absolute path will break on other developer machines. This should be addressed before merging to a shared branch.
 - **Coverage gap in decoder.lua**: 7 executable lines remain uncovered (early returns in `copy_report`, `find_position`, and `detect_rotary_event_from_bytes`). These are defensive paths that may not need tests, but they could benefit from explicit edge-case test cases for completeness.
 - **`.luacov` config clarity**: The `.luacov` file's comment correctly states it is informational only (since `luacov_utils.py` reads the stats directly). Consider removing or renaming this to avoid confusion about whether luacov itself uses it.
 
