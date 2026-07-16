@@ -26,9 +26,3 @@ related_docs: ["REQ-004"]
 [2026-07-16 13:22:06] - [team-lead] - FEAT-007 implementation and review completed successfully. All 137 tests passing.
 [2026-07-16 13:26:10] - [reviewer] - Corrected review document: used doc_utils.py UPDATE to set status=APPROVED, verdict=APPROVED. validate_docs.py confirms all preambles well-formed and references valid.
 [2026-07-16 13:28:15] - [reviewer] - REVIEW-007 document committed (c43bbb2). All pre-commit hooks passed including SDLC validation.
-[2026-07-16 13:49:42] - [analyst] - RAD-004 analysis started: investigating LIST command for board_utils.py
-[2026-07-16 13:52:29] - [analyst] - RAD-004 analysis completed. Created RAD-004 + companion notes for board_utils.py LIST command investigation.
-[2026-07-16 14:25:08] - [business-analyst] - Release planning started for REQ-005 and REQ-006 (Tooling Efficiency & Observability)
-[2026-07-16 14:25:42] - [business-analyst] - Release plan completed for REQ-005 and REQ-006 (Tooling Efficiency & Observability) — PLAN-004 created with parallel implementation strategy
-[2026-07-16 14:37:08] - [business-analyst] - Updated PLAN-004 with FEAT-009 flag specifications: --active-only, --last-n <count>, mutual exclusivity constraint
-[2026-07-16 14:39:04] - [business-analyst] - Updated REQ-006 with flag specs (--active-only, --last-n); approved PLAN-004 and REQ-006; ready to commit
