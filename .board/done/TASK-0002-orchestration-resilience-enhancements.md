@@ -4,7 +4,7 @@ title: "Orchestration & Resilience Enhancements"
 version: 1.0.0
 status: DONE
 created: "2026-07-15 13:58:06"
-updated: "2026-07-16 12:58:44"
+updated: "2026-07-16 12:58:45"
 primary_doc: REQ-002
 related_docs: ["REQ-002", "FEAT-002", "SPIKE-001"]
 ---
@@ -173,3 +173,4 @@ related_docs: ["REQ-002", "FEAT-002", "SPIKE-001"]
 [2026-07-16 12:58:44] - [stall-recovery] - MANUAL_RESUME required: subagent role:worker:backend-engineer stalled (cause: MAX_TURNS_EXHAUSTED). Human intervention needed. Log: orchestrator_20260716_125844.log
 [2026-07-16 12:58:44] - [stall-recovery] - MANUAL_RESUME required: subagent role:worker:backend-engineer stalled (cause: UNRESPONSIVE_TIMEOUT). Human intervention needed. Log: orchestrator_20260716_125844.log
 [2026-07-16 12:58:44] - [stall-recovery] - MANUAL_RESUME required: subagent role:worker:backend-engineer stalled (cause: UNRESPONSIVE_TIMEOUT). Human intervention needed. Log: orchestrator_20260716_125844.log
+[2026-07-16 12:58:45] - [stall-recovery] - MANUAL_RESUME required: subagent role:worker:backend-engineer stalled (cause: MAX_TURNS_EXHAUSTED). Human intervention needed. Log: orchestrator_20260716_125845.log
