@@ -84,8 +84,8 @@ This belongs to the execution workflow and indicates where the work is in the de
 - `DESIGNING`
 - `PLANNING`
 - `IMPLEMENTING`
-- `TESTING`
 - `REVIEWING`
+- `TESTING`
 - `DONE`
 
 Do not use document status to represent task progress.
@@ -104,8 +104,8 @@ The board is organized into folders representing the current state of the task. 
 **Note on `DESIGNING`**: This is an optional interim status. There is no dedicated design worker; design work may be performed by the Analyst (as part of `ANALYSING`) or the Lead (as part of `PLANNING`). Use `DESIGNING` only if the Lead explicitly separates design as a distinct phase. In most cases, tasks should transition directly from `ANALYSING` to `PLANNING`.
 | `.board/in-progress/` | `PLANNING` | Lead is preparing or updating planning artifacts such as PLAN or FEAT. |
 | `.board/in-progress/` | `IMPLEMENTING` | Active coding and development phase. |
-| `.board/in-progress/` | `TESTING` | Verification, QA, or automated testing is in progress. |
 | `.board/in-progress/` | `REVIEWING` | Code review or peer validation is underway. |
+| `.board/in-progress/` | `TESTING` | Verification, QA, or automated testing is in progress. |
 | `.board/done/` | `DONE` | Task is merged to `main` and complete. |
 
 ### 2. Creation rule
@@ -159,7 +159,8 @@ Examples:
 - `ANALYSING` -> `PLANNING`
 - `PLANNING` -> `IMPLEMENTING`
 - `IMPLEMENTING` -> `REVIEWING`
-- `REVIEWING` -> `DONE`
+- `REVIEWING` -> `TESTING`
+- `TESTING` -> `DONE`
 
 ### 4. Supporting documents
 `RAD`, `SPIKE`, `PLAN`, `FEAT`, `REVIEW`, and `RETRO` are supporting artifacts.
