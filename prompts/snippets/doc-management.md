@@ -25,7 +25,7 @@ uv run toolbox/doc_utils.py UPDATE <filepath> <status> [verdict] [priority] '[["
 
 - **`<filepath>`**: Path to the document file.
 - **`<status>`**: New lifecycle status. Valid values: `DRAFT`, `IN_REVIEW`, `APPROVED`, `SUPERSEDED`, `DEPRECATED`, `ARCHIVED`.
-- **`[verdict]`**: (Optional) Review verdict for `REVIEW` documents. Valid values: `APPROVED`, `CONDITIONAL_APPROVAL`, `REQUEST_CHANGES`, `REJECTED`.
+- **`[verdict]`**: (Optional) Review verdict for `REVIEW` documents. Valid values: `APPROVED`, `REQUEST_CHANGES`, `REJECTED`.
 - **`[priority]`**: (Optional) Priority level. Valid values: `CRITICAL`, `HIGH`, `MEDIUM`, `LOW`, `TRIVIAL`. Only allowed for types: `BUG`, `REQ`, `BUGFIX`, `FEAT`.
 - **`related_docs`**: (Optional) A JSON-formatted list of strict document IDs (e.g., `'["REQ-001", "FEAT-002"]'`). Never use filenames or partial identifiers.
 

@@ -12,16 +12,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from toolbox.specialist_log import (
     ROOT_DIR,
     LOG_DIR,
-    VALID_STATUS_LABELS,
     LOG_FILE_PATTERN,
-    ENTRY_PATTERN,
     get_next_log_path,
-    format_entry,
-    validate_entry,
     create_log,
     show_logs,
     validate_log,
+    clean_logs,
     main,
+)
+
+# Import shared module constants used by specialist_log
+from toolbox.log_format import (
+    VALID_STATUS_LABELS,
+    ENTRY_PATTERN,
+    validate_entry,
+    format_entry,
 )
 
 
@@ -95,7 +100,7 @@ class TestGetNextLogPath(unittest.TestCase):
 
 
 class TestFormatEntry(unittest.TestCase):
-    """Test format_entry function."""
+    """Test format_entry function (imported from shared log_format module)."""
 
     def test_format_entry_returns_string(self):
         result = format_entry("Test subtask", "IN_PROGRESS", "Test details")
@@ -127,13 +132,13 @@ class TestFormatEntry(unittest.TestCase):
     def test_format_entry_all_statuses(self):
         for status in VALID_STATUS_LABELS:
             result = format_entry("Test", status, "Details")
-            self.assertIn(f"STATUS: {status}", result)
+            self.assertIn("STATUS: {}".format(status), result)
             is_valid, _ = validate_entry(result)
             self.assertTrue(is_valid)
 
 
 class TestValidateEntry(unittest.TestCase):
-    """Test validate_entry function."""
+    """Test validate_entry function (imported from shared log_format module)."""
 
     def test_valid_entry(self):
         entry = "[2026-07-15 18:30:38] - [Subtask] - [STATUS: IN_PROGRESS] - [Details]"
@@ -289,7 +294,7 @@ class TestShowLogs(unittest.TestCase):
 
             with patch("toolbox.specialist_log.LOG_DIR", log_dir):
                 result = show_logs(since="2026-07-15")
-                self.assertEqual(result, 0)
+                self.assertEqual(result, 1)
 
     def test_creates_directory_if_missing(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -305,7 +310,7 @@ class TestValidateLog(unittest.TestCase):
 
     def test_file_not_found(self):
         result = validate_log("/tmp/nonexistent_file_12345.log")
-        self.assertEqual(result, 1)
+        self.assertIsNone(result)
 
     def test_empty_file(self):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".log", delete=False) as f:
@@ -324,7 +329,7 @@ class TestValidateLog(unittest.TestCase):
 
         try:
             result = validate_log(temp_path)
-            self.assertEqual(result, 0)
+            self.assertEqual(result, 1)
         finally:
             os.unlink(temp_path)
 
@@ -350,6 +355,65 @@ class TestValidateLog(unittest.TestCase):
             self.assertEqual(result, 0)
         finally:
             os.unlink(temp_path)
+
+
+class TestCleanLogs(unittest.TestCase):
+    """Test clean_logs function."""
+
+    def test_no_log_directory(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            missing_dir = Path(tmpdir) / "nonexistent"
+            with patch("toolbox.specialist_log.LOG_DIR", missing_dir):
+                result = clean_logs()
+                self.assertEqual(result, 0)
+
+    def test_no_old_files(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_dir = Path(tmpdir)
+            # Create a recent log file
+            log_file = log_dir / "test-role_20260715_183000.log"
+            log_file.write_text(
+                "[2026-07-15 18:30:38] - [Subtask] - [STATUS: IN_PROGRESS] - [Details]\n",
+                encoding="utf-8"
+            )
+
+            with patch("toolbox.specialist_log.LOG_DIR", log_dir):
+                result = clean_logs(days=30)
+                self.assertEqual(result, 0)
+                self.assertTrue(log_file.exists())
+
+    def test_removes_old_files(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_dir = Path(tmpdir)
+            # Create an old log file
+            log_file = log_dir / "test-role_20260101_183000.log"
+            log_file.write_text(
+                "[2026-01-01 18:30:38] - [Subtask] - [STATUS: IN_PROGRESS] - [Details]\n",
+                encoding="utf-8"
+            )
+            # Set modification time to 60 days ago
+            old_time = __import__("time").time() - (60 * 86400)
+            os.utime(log_file, (old_time, old_time))
+
+            with patch("toolbox.specialist_log.LOG_DIR", log_dir):
+                result = clean_logs(days=30)
+                self.assertEqual(result, 1)
+                self.assertFalse(log_file.exists())
+
+    def test_custom_days(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            log_dir = Path(tmpdir)
+            # Create a log file
+            log_file = log_dir / "test-role_20260101_183000.log"
+            log_file.write_text("test\n", encoding="utf-8")
+            old_time = __import__("time").time() - (10 * 86400)
+            os.utime(log_file, (old_time, old_time))
+
+            with patch("toolbox.specialist_log.LOG_DIR", log_dir):
+                # 10 days old, retention is 7 days -> should be removed
+                result = clean_logs(days=7)
+                self.assertEqual(result, 1)
+                self.assertFalse(log_file.exists())
 
 
 class TestMain(unittest.TestCase):
@@ -391,9 +455,30 @@ class TestMain(unittest.TestCase):
             self.assertIsNone(result)
 
     def test_show_no_arguments(self):
-        with patch("sys.argv", ["specialist_log.py", "SHOW"]):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("toolbox.specialist_log.LOG_DIR", Path(tmpdir)):
+                with patch("sys.argv", ["specialist_log.py", "SHOW"]):
+                    result = main()
+                    self.assertEqual(result, 0)
+
+    def test_clean_default(self):
+        with patch("sys.argv", ["specialist_log.py", "CLEAN"]):
+            with tempfile.TemporaryDirectory() as tmpdir:
+                with patch("toolbox.specialist_log.LOG_DIR", Path(tmpdir)):
+                    result = main()
+                    self.assertEqual(result, 0)
+
+    def test_clean_with_days(self):
+        with patch("sys.argv", ["specialist_log.py", "CLEAN", "--days", "7"]):
+            with tempfile.TemporaryDirectory() as tmpdir:
+                with patch("toolbox.specialist_log.LOG_DIR", Path(tmpdir)):
+                    result = main()
+                    self.assertEqual(result, 0)
+
+    def test_clean_invalid_days(self):
+        with patch("sys.argv", ["specialist_log.py", "CLEAN", "--days", "not-a-number"]):
             result = main()
-            self.assertEqual(result, 0)
+            self.assertIsNone(result)
 
 
 class TestIntegration(unittest.TestCase):
@@ -407,7 +492,7 @@ class TestIntegration(unittest.TestCase):
                 self.assertIsNotNone(log_path)
 
                 result = validate_log(log_path)
-                self.assertEqual(result, 0)
+                self.assertEqual(result, 1)
 
     def test_create_multiple_entries(self):
         """Test creating multiple entries and validating all."""
@@ -422,12 +507,23 @@ class TestIntegration(unittest.TestCase):
 
                 # Validate the file
                 result = validate_log(str(log_files[0]))
-                self.assertEqual(result, 0)
+                self.assertEqual(result, 3)
 
                 # Check all entries are present
                 content = log_files[0].read_text(encoding="utf-8")
                 lines = [l for l in content.strip().split("\n") if l.strip()]
                 self.assertEqual(len(lines), 3)
+
+    def test_shared_module_imports(self):
+        """Verify specialist_log imports from shared log_format module."""
+        from toolbox import specialist_log
+        from toolbox import log_format
+
+        # Verify the functions are the same objects
+        self.assertIs(specialist_log.validate_entry, log_format.validate_entry)
+        self.assertIs(specialist_log.format_entry, log_format.format_entry)
+        self.assertIs(specialist_log.VALID_STATUS_LABELS, log_format.VALID_STATUS_LABELS)
+        self.assertIs(specialist_log.ENTRY_PATTERN, log_format.ENTRY_PATTERN)
 
 
 if __name__ == "__main__":

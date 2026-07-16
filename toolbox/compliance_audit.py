@@ -19,19 +19,22 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
-# Repository root
+# Repository root and log directories
 ROOT_DIR = Path(__file__).resolve().parent.parent
 LOG_DIR = ROOT_DIR / "logs" / "specialist_logs"
-REPORTS_DIR = ROOT_DIR / "internal-docs" / "05_reports"
+REPORTS_DIR = ROOT_DIR / "logs" / "compliance_audit"
+
+# Ensure parent directory is on path for imports when run as CLI
+sys.path.insert(0, str(ROOT_DIR))
+
+# Import shared validation logic from log_format module
+from toolbox.log_format import VALID_STATUS_LABELS  # noqa: E402
 
 # Regex pattern for role-based log file naming: <role>_<YYYYMMDD_HHMMSS>.log
 LOG_FILE_PATTERN = re.compile(r"^([a-z0-9_-]+)_\d{8}_\d{6}\.log$")
 
-# Valid status labels
-VALID_STATUS_LABELS = {"IN_PROGRESS", "COMPLETE", "FAILED"}
-
-# Regex pattern for validating log entry format
-# Uses [^\]]* to allow empty brackets (validated separately for non-empty content)
+# Permissive pattern for compliance audit: allows empty brackets (validated separately)
+# This enables distinct error keys (empty_subtask, empty_details) for remediation mapping
 ENTRY_PATTERN = re.compile(
     r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] - \[([^\]]*)\] - \[STATUS: (IN_PROGRESS|COMPLETE|FAILED)\] - \[([^\]]*)\]$"
 )
@@ -63,7 +66,8 @@ def extract_role(filename: str) -> str | None:
 def validate_entry(line: str) -> tuple[bool, str]:
     """Validate a log entry against the required format.
 
-    Returns (True, "") if compliant or (False, "issue_description") if not.
+    Returns (True, "") if compliant or (False, issue_type_key) if not.
+    Issue keys map to remediation guidance in REMEDIATION_GUIDANCE.
     """
     line = line.strip()
 
@@ -236,7 +240,7 @@ def _calc_compliance_rate(compliant: int, total: int) -> str:
     """Calculate compliance rate as a percentage string."""
     if total == 0:
         return "N/A (no entries)"
-    return f"{(compliant / total) * 100:.1f}%"
+    return "{:.1f}%".format((compliant / total) * 100)
 
 
 def generate_markdown_report(summary: dict[str, Any]) -> str:
@@ -249,7 +253,7 @@ def generate_markdown_report(summary: dict[str, Any]) -> str:
     lines = [
         "# Compliance Audit Report",
         "",
-        f"**Audit Date**: {timestamp}",
+        "**Audit Date**: {}".format(timestamp),
         "**Feature**: FEAT-006 - Compliance Audit & Validation Mechanism",
         "**Standard**: REQ-003 FR#2 - Specialist Log Format Standardization",
         "",
@@ -259,12 +263,12 @@ def generate_markdown_report(summary: dict[str, Any]) -> str:
         "",
         "| Metric | Value |",
         "|--------|-------|",
-        f"| Total log files audited | {summary['total_files']} |",
-        f"| Total entries scanned | {summary['total_entries']} |",
-        f"| Overall compliance rate | {overall_rate} |",
-        f"| Compliant files | {summary['compliant_files']} |",
-        f"| Non-compliant files | {summary['non_compliant_files']} |",
-        f"| Total violations | {summary['total_violations']} |",
+        "| Total log files audited | {} |".format(summary["total_files"]),
+        "| Total entries scanned | {} |".format(summary["total_entries"]),
+        "| Overall compliance rate | {} |".format(overall_rate),
+        "| Compliant files | {} |".format(summary["compliant_files"]),
+        "| Non-compliant files | {} |".format(summary["non_compliant_files"]),
+        "| Total violations | {} |".format(summary["total_violations"]),
         "",
         "---",
         "",
@@ -278,16 +282,16 @@ def generate_markdown_report(summary: dict[str, Any]) -> str:
         )
         lines.extend(
             [
-                f"### {role}",
+                "### {}".format(role),
                 "",
                 "| Metric | Value |",
                 "|--------|-------|",
-                f"| Files | {stats['total_files']} |",
-                f"| Total entries | {stats['total_entries']} |",
-                f"| Compliance rate | {role_rate} |",
-                f"| Compliant files | {stats['compliant_files']} |",
-                f"| Non-compliant files | {stats['non_compliant_files']} |",
-                f"| Violations | {stats['total_violations']} |",
+                "| Files | {} |".format(stats["total_files"]),
+                "| Total entries | {} |".format(stats["total_entries"]),
+                "| Compliance rate | {} |".format(role_rate),
+                "| Compliant files | {} |".format(stats["compliant_files"]),
+                "| Non-compliant files | {} |".format(stats["non_compliant_files"]),
+                "| Violations | {} |".format(stats["total_violations"]),
                 "",
             ]
         )
@@ -310,16 +314,18 @@ def generate_markdown_report(summary: dict[str, Any]) -> str:
         has_violations = True
         lines.extend(
             [
-                f"### {result['filename']}",
+                "### {}".format(result["filename"]),
                 "",
             ]
         )
         for violation in result["violations"]:
             lines.extend(
                 [
-                    f"- **Line {violation['line_number']}**: {violation['issue_description']}",
-                    f"  - Content: `{violation['content']}`",
-                    f"  - **Remediation**: {violation['remediation']}",
+                    "- **Line {}**: {}".format(
+                        violation["line_number"], violation["issue_description"]
+                    ),
+                    "  - Content: `{}`".format(violation["content"]),
+                    "  - **Remediation**: {}".format(violation["remediation"]),
                     "",
                 ]
             )
@@ -355,7 +361,7 @@ def generate_markdown_report(summary: dict[str, Any]) -> str:
             "",
             "## Trend Tracking",
             "",
-            "This report is stored in `internal-docs/05_reports/` for historical tracking.",
+            "This report is stored in `logs/compliance_audit/` for historical tracking.",
             "Compare compliance rates across consecutive audit runs to measure progress",
             "toward the >=95% compliance target defined in REQ-003.",
             "",
@@ -427,9 +433,9 @@ def save_report(report_content: str, report_format: str) -> Path:
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     if report_format == "json":
-        filename = f"compliance_audit_{timestamp}.json"
+        filename = "compliance_audit_{}.json".format(timestamp)
     else:
-        filename = f"compliance_audit_{timestamp}.md"
+        filename = "compliance_audit_{}.md".format(timestamp)
 
     report_path = REPORTS_DIR / filename
     report_path.write_text(report_content, encoding="utf-8")
@@ -446,9 +452,15 @@ def log_to_board(task_id: str, summary: dict[str, Any]) -> None:
     )
 
     log_message = (
-        f"Compliance audit complete: {overall_rate} of specialist logs compliant "
-        f"across all roles ({summary['compliant_files']}/{summary['total_files']} files, "
-        f"{summary['total_violations']} violations in {summary['total_entries']} entries)"
+        "Compliance audit complete: {} of specialist logs compliant "
+        "across all roles ({}/{} files, "
+        "{} violations in {} entries)".format(
+            overall_rate,
+            summary["compliant_files"],
+            summary["total_files"],
+            summary["total_violations"],
+            summary["total_entries"],
+        )
     )
 
     # Import board_utils for log_event
@@ -494,7 +506,7 @@ def run_audit(format: str = "markdown", task_id: str | None = None) -> dict[str,
         try:
             log_to_board(task_id, summary)
         except Exception as exc:
-            print(f"Warning: Failed to log to board: {exc}", file=sys.stderr)
+            print("Warning: Failed to log to board: {}".format(exc), file=sys.stderr)
 
     return {
         "summary": summary,
@@ -523,8 +535,8 @@ def main() -> None:
     args = parser.parse_args()
 
     print("Running compliance audit...")
-    print(f"Log directory: {LOG_DIR}")
-    print(f"Report format: {args.format}")
+    print("Log directory: {}".format(LOG_DIR))
+    print("Report format: {}".format(args.format))
     print()
 
     result = run_audit(format=args.format, task_id=args.task_id)
@@ -535,14 +547,14 @@ def main() -> None:
     )
 
     print("Audit complete.")
-    print(f"  Files audited: {summary['total_files']}")
-    print(f"  Total entries: {summary['total_entries']}")
-    print(f"  Compliance rate: {overall_rate}")
-    print(f"  Violations: {summary['total_violations']}")
-    print(f"  Report saved to: {result['report_path']}")
+    print("  Files audited: {}".format(summary["total_files"]))
+    print("  Total entries: {}".format(summary["total_entries"]))
+    print("  Compliance rate: {}".format(overall_rate))
+    print("  Violations: {}".format(summary["total_violations"]))
+    print("  Report saved to: {}".format(result["report_path"]))
 
     if args.task_id:
-        print(f"  Results logged to {args.task_id}")
+        print("  Results logged to {}".format(args.task_id))
 
 
 if __name__ == "__main__":

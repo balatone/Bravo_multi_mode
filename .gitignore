@@ -55,6 +55,10 @@ luacov_report.html
 logs/specialist_logs/
 *.log
 
+# Generated report directories (auto-generated, not tracked)
+logs/compliance_audit/
+logs/reports/
+
 # Python cache
 __pycache__/
 *.pyc

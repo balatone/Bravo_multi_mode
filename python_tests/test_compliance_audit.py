@@ -43,7 +43,7 @@ class TestConstants(unittest.TestCase):
         self.assertEqual(LOG_DIR, ROOT_DIR / "logs" / "specialist_logs")
 
     def test_reports_dir_defined(self):
-        self.assertEqual(REPORTS_DIR, ROOT_DIR / "internal-docs" / "05_reports")
+        self.assertEqual(REPORTS_DIR, ROOT_DIR / "logs" / "compliance_audit")
 
     def test_valid_status_labels(self):
         self.assertEqual(VALID_STATUS_LABELS, {"IN_PROGRESS", "COMPLETE", "FAILED"})
@@ -95,7 +95,7 @@ class TestExtractRole(unittest.TestCase):
 
 
 class TestValidateEntry(unittest.TestCase):
-    """Test validate_entry function."""
+    """Test validate_entry function (returns issue keys for remediation mapping)."""
 
     def test_valid_entry_in_progress(self):
         entry = "[2026-07-15 18:30:38] - [Subtask] - [STATUS: IN_PROGRESS] - [Details]"
@@ -514,6 +514,22 @@ class TestGenerateMarkdownReport(unittest.TestCase):
         self.assertIn("## Trend Tracking", report)
         self.assertIn(">=95%", report)
 
+    def test_report_trend_tracking_path(self):
+        """Verify trend tracking references the new logs/compliance_audit path."""
+        summary = {
+            "total_files": 1,
+            "total_entries": 1,
+            "compliant_entries": 1,
+            "total_violations": 0,
+            "compliant_files": 1,
+            "non_compliant_files": 0,
+            "per_role": {},
+            "file_results": [],
+        }
+        report = generate_markdown_report(summary)
+        self.assertIn("logs/compliance_audit/", report)
+        self.assertNotIn("internal-docs/05_reports/", report)
+
     def test_no_violations_message(self):
         summary = {
             "total_files": 1,
@@ -668,6 +684,56 @@ class TestRunAudit(unittest.TestCase):
         self.assertTrue(report_path.exists())
         content = report_path.read_text(encoding="utf-8")
         self.assertIn("Compliance Audit Report", content)
+
+    def test_audit_report_in_logs_dir(self):
+        """Verify reports are saved to logs/compliance_audit/ not internal-docs."""
+        result = run_audit(format="markdown")
+        report_path = Path(result["report_path"])
+        self.assertIn("logs/compliance_audit", str(report_path))
+
+
+class TestSharedModule(unittest.TestCase):
+    """Test that compliance_audit uses shared log_format module."""
+
+    def test_uses_shared_valid_status_labels(self):
+        from toolbox import log_format
+        from toolbox import compliance_audit
+
+        self.assertIs(compliance_audit.VALID_STATUS_LABELS, log_format.VALID_STATUS_LABELS)
+
+    def test_uses_shared_format_entry(self):
+        from toolbox import log_format
+        from toolbox import compliance_audit
+
+        self.assertIs(compliance_audit.format_entry, log_format.format_entry)
+
+    def test_compliance_audit_has_own_entry_pattern(self):
+        """Verify compliance_audit has its own permissive ENTRY_PATTERN
+        that allows empty brackets for distinct error key detection."""
+        from toolbox import log_format
+        from toolbox import compliance_audit
+
+        # They should be different - compliance_audit uses [^\\]]* (allows empty)
+        # while log_format uses [^\\]]+ (requires non-empty)
+        self.assertIsNot(
+            compliance_audit.ENTRY_PATTERN,
+            log_format.ENTRY_PATTERN,
+            "compliance_audit should have its own permissive ENTRY_PATTERN"
+        )
+
+        # Verify compliance_audit pattern allows empty brackets
+        self.assertIsNotNone(
+            compliance_audit.ENTRY_PATTERN.match(
+                "[2026-07-15 18:30:38] - [] - [STATUS: IN_PROGRESS] - []"
+            )
+        )
+
+        # Verify log_format pattern rejects empty brackets
+        self.assertIsNone(
+            log_format.ENTRY_PATTERN.match(
+                "[2026-07-15 18:30:38] - [] - [STATUS: IN_PROGRESS] - []"
+            )
+        )
 
 
 class TestIntegration(unittest.TestCase):

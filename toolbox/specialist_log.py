@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+import time
 from datetime import datetime
 from pathlib import Path
 
@@ -8,16 +9,14 @@ from pathlib import Path
 ROOT_DIR = Path(__file__).resolve().parent.parent
 LOG_DIR = ROOT_DIR / "logs" / "specialist_logs"
 
-# Valid status labels for log entries
-VALID_STATUS_LABELS = {"IN_PROGRESS", "COMPLETE", "FAILED"}
+# Ensure parent directory is on path for imports when run as CLI
+sys.path.insert(0, str(ROOT_DIR))
+
+# Import shared validation logic from log_format module
+from toolbox.log_format import VALID_STATUS_LABELS, validate_entry, format_entry  # noqa: E402
 
 # Regex pattern for role-based log file naming: <role>_<YYYYMMDD_HHMMSS>.log
 LOG_FILE_PATTERN = re.compile(r"^([a-z0-9_-]+)_\d{8}_\d{6}\.log$")
-
-# Regex pattern for validating log entry format
-ENTRY_PATTERN = re.compile(
-    r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] - \[([^\]]+)\] - \[STATUS: (IN_PROGRESS|COMPLETE|FAILED)\] - \[([^\]]+)\]$"
-)
 
 
 def get_next_log_path(role):
@@ -43,79 +42,25 @@ def get_next_log_path(role):
 
     # Create a new log file
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    new_filename = f"{role}_{timestamp}.log"
+    new_filename = "{}_{}.log".format(role, timestamp)
     new_path = LOG_DIR / new_filename
     new_path.touch()
     return new_path
-
-
-def format_entry(subtask, status, details):
-    """Formats a log entry in the standardized format.
-
-    Returns a string in the format:
-    [TIMESTAMP] - [SUBTASK] - [STATUS: STATUS_LABEL] - [DETAILS]
-    """
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    return f"[{timestamp}] - [{subtask}] - [STATUS: {status}] - [{details}]"
-
-
-def validate_entry(line):
-    """Validates a log entry against the required format.
-
-    Returns (True, "") if compliant or (False, "issue description") if not.
-    """
-    line = line.strip()
-
-    if not line:
-        return (False, "Empty line")
-
-    match = ENTRY_PATTERN.match(line)
-    if not match:
-        return (
-            False,
-            "Entry does not match required format: [TIMESTAMP] - [SUBTASK] - [STATUS: STATUS_LABEL] - [DETAILS]",
-        )
-
-    timestamp_str = match.group(1)
-    subtask = match.group(2)
-    status_label = match.group(3)
-    details = match.group(4)
-
-    # Validate timestamp is a real date/time
-    try:
-        datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
-    except ValueError:
-        return (False, f"Invalid timestamp value: {timestamp_str}")
-
-    # Validate subtask is non-empty
-    if not subtask.strip():
-        return (False, "SUBTASK field is empty")
-
-    # Validate status label
-    if status_label not in VALID_STATUS_LABELS:
-        return (
-            False,
-            f"Invalid status label: {status_label}. Must be one of: {VALID_STATUS_LABELS}",
-        )
-
-    # Validate details is non-empty
-    if not details.strip():
-        return (False, "DETAILS field is empty")
-
-    return (True, "")
 
 
 def create_log(role, subtask, status, details):
     """Creates a log entry by appending to the role's log file.
 
     Validates inputs, gets the log path, and appends the formatted entry.
-    Returns the file path on success, None on failure.
+    Returns the file path on success, None on failure with error printed to stdout.
     """
     # Validate status
     status_upper = status.upper() if status else None
     if status_upper not in VALID_STATUS_LABELS:
         print(
-            f"Error: Invalid status '{status}'. Must be one of: {VALID_STATUS_LABELS}"
+            "Error: Invalid status '{}'. Must be one of: {}".format(
+                status, VALID_STATUS_LABELS
+            )
         )
         return None
 
@@ -140,8 +85,8 @@ def create_log(role, subtask, status, details):
     with open(log_path, "a", encoding="utf-8") as f:
         f.write(entry + "\n")
 
-    print(f"Log entry created: {log_path}")
-    print(f"  {entry}")
+    print("Log entry created: {}".format(log_path))
+    print("  {}".format(entry))
     return str(log_path)
 
 
@@ -152,7 +97,7 @@ def show_logs(role=None, since=None):
         role: Optional role prefix to filter by.
         since: Optional date string (YYYY-MM-DD) to filter entries from that date forward.
 
-    Returns 0 on success, None on failure.
+    Returns the number of entries displayed on success, None on failure with error printed to stdout.
     """
     # Ensure log directory exists
     if not LOG_DIR.exists():
@@ -175,7 +120,7 @@ def show_logs(role=None, since=None):
 
     if not log_files:
         if role:
-            print(f"No log files found for role '{role}'.")
+            print("No log files found for role '{}'.".format(role))
         else:
             print("No log files found.")
         return 0
@@ -186,7 +131,7 @@ def show_logs(role=None, since=None):
         try:
             since_date = datetime.strptime(since, "%Y-%m-%d")
         except ValueError:
-            print(f"Error: Invalid date format '{since}'. Expected YYYY-MM-DD")
+            print("Error: Invalid date format '{}'. Expected YYYY-MM-DD".format(since))
             return None
 
     # Sort files by modification time (chronological)
@@ -199,7 +144,7 @@ def show_logs(role=None, since=None):
             with open(log_file, "r", encoding="utf-8") as f:
                 lines = f.readlines()
         except (IOError, OSError) as e:
-            print(f"Warning: Could not read {log_file}: {e}")
+            print("Warning: Could not read {}: {}".format(log_file, e))
             continue
 
         file_entries = 0
@@ -226,7 +171,7 @@ def show_logs(role=None, since=None):
                     # Cannot parse date from entry, skip
                     continue
 
-            print(f"[{log_file.name}] {line}")
+            print("[{}] {}".format(log_file.name, line))
             file_entries += 1
             total_entries += 1
 
@@ -237,34 +182,36 @@ def show_logs(role=None, since=None):
         print("No log entries found matching the specified filters.")
     else:
         print(
-            f"Total: {total_entries} entry/entries displayed across {len(log_files)} file(s)."
+            "Total: {} entry/entries displayed across {} file(s).".format(
+                total_entries, len(log_files)
+            )
         )
 
-    return 0
+    return total_entries
 
 
 def validate_log(filepath):
     """Validates all entries in a specified log file against the required format.
 
-    Returns 0 if compliant, 1 if violations found.
+    Returns the number of compliant entries on success, None on failure with error printed to stdout.
     Prints a summary report with line numbers and issues for non-compliant entries.
     """
     # Check if file exists
     if not os.path.exists(filepath):
-        print(f"Error: File '{filepath}' not found.")
-        return 1
+        print("Error: File '{}' not found.".format(filepath))
+        return None
 
     # Read all lines
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             lines = f.readlines()
     except (IOError, OSError) as e:
-        print(f"Error: Could not read file '{filepath}': {e}")
-        return 1
+        print("Error: Could not read file '{}': {}".format(filepath, e))
+        return None
 
     # Handle empty file
     if not lines or all(line.strip() == "" for line in lines):
-        print(f"Validation complete: {filepath}")
+        print("Validation complete: {}".format(filepath))
         print("  File is empty - no violations found.")
         print("  Status: COMPLIANT")
         return 0
@@ -288,23 +235,59 @@ def validate_log(filepath):
             violations.append((line_num, stripped, issue))
 
     # Print summary report
-    print(f"Validation complete: {filepath}")
-    print(f"  Total entries: {total_lines}")
-    print(f"  Compliant: {compliant_count}")
-    print(f"  Violations: {len(violations)}")
+    print("Validation complete: {}".format(filepath))
+    print("  Total entries: {}".format(total_lines))
+    print("  Compliant: {}".format(compliant_count))
+    print("  Violations: {}".format(len(violations)))
 
     if violations:
         print("\nViolation details:")
         for line_num, line, issue in violations:
-            print(f"  Line {line_num}: {issue}")
-            print(f"    Content: {line}")
+            print("  Line {}: {}".format(line_num, issue))
+            print("    Content: {}".format(line))
 
     if violations:
         print("\n  Status: NON-COMPLIANT")
-        return 1
+        return compliant_count
     else:
         print("\n  Status: COMPLIANT")
+        return compliant_count
+
+
+def clean_logs(days=30):
+    """Remove log files older than the specified number of days.
+
+    Args:
+        days: Retention period in days (default: 30).
+
+    Returns the number of files removed on success, None on failure with error printed to stdout.
+    """
+    if not LOG_DIR.exists():
+        print("Log directory does not exist. Nothing to clean.")
         return 0
+
+    cutoff_time = time.time() - (days * 86400)
+    removed_count = 0
+
+    for filename in os.listdir(LOG_DIR):
+        filepath = LOG_DIR / filename
+        if not filepath.is_file():
+            continue
+
+        if filepath.stat().st_mtime < cutoff_time:
+            try:
+                filepath.unlink()
+                print("Removed: {}".format(filepath))
+                removed_count += 1
+            except (IOError, OSError) as e:
+                print("Error: Could not remove {}: {}".format(filepath, e))
+
+    print(
+        "Clean complete: {} file(s) removed (retention: {} days).".format(
+            removed_count, days
+        )
+    )
+    return removed_count
 
 
 def main():
@@ -316,6 +299,7 @@ def main():
         )
         print("  python3 specialist_log.py SHOW [--role <role>] [--since YYYY-MM-DD]")
         print("  python3 specialist_log.py VALIDATE <logfile>")
+        print("  python3 specialist_log.py CLEAN [--days <days>]")
         return None
 
     cmd = sys.argv[1].upper()
@@ -344,7 +328,7 @@ def main():
                 details = args[i + 1]
                 i += 2
             else:
-                print(f"Error: Unknown argument '{args[i]}'")
+                print("Error: Unknown argument '{}'".format(args[i]))
                 return None
 
         if not role:
@@ -382,7 +366,7 @@ def main():
                 since = args[i + 1]
                 i += 2
             else:
-                print(f"Error: Unknown argument '{args[i]}'")
+                print("Error: Unknown argument '{}'".format(args[i]))
                 return None
 
         result = show_logs(role=role, since=since)
@@ -398,8 +382,30 @@ def main():
         result = validate_log(filepath)
         return result
 
+    elif cmd == "CLEAN":
+        # Parse arguments for CLEAN command
+        args = sys.argv[2:]
+
+        days = 30  # default retention period
+
+        i = 0
+        while i < len(args):
+            if args[i] == "--days" and i + 1 < len(args):
+                try:
+                    days = int(args[i + 1])
+                except ValueError:
+                    print("Error: --days must be an integer")
+                    return None
+                i += 2
+            else:
+                print("Error: Unknown argument '{}'".format(args[i]))
+                return None
+
+        result = clean_logs(days=days)
+        return result
+
     else:
-        print(f"Unknown command '{cmd}'. Use LOG, SHOW, or VALIDATE.")
+        print("Unknown command '{}'. Use LOG, SHOW, VALIDATE, or CLEAN.".format(cmd))
         return None
 
 
