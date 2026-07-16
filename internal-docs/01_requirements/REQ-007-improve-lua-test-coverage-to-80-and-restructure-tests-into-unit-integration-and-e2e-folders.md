@@ -2,9 +2,9 @@
 id: REQ-007
 title: Improve Lua Test Coverage to 80%+ and Restructure Tests into Unit, Integration, and E2E Folders
 version: 1.0.0
-status: DRAFT
+status: APPROVED
 created: 2026-07-16 17:45:54
-updated: 2026-07-16 17:45:54
+updated: 2026-07-16 18:38:07
 related_docs: []
 ---
 # Summary
