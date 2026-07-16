@@ -4,7 +4,7 @@ title: Project Board Dashboard (board_utils.py LIST)
 version: 1.0.0
 status: APPROVED
 created: 2026-07-16 13:40:00
-updated: 2026-07-16 13:37:35
+updated: 2026-07-16 14:39:00
 related_docs: []
 ---
 # Summary
@@ -20,9 +20,13 @@ The current method for assessing project status requires manual traversal of the
 ## In Scope
 
 - Addition of the `LIST` subcommand to `board_utils.py`.
-- Implementation of a directory crawler that scans `.board/` subdirectories.
+- Implementation of a directory crawler that scans `.board/` subdirectories (to-do/, in-progress/, done/).
 - Parsing of task files (e.g., `.md` files) to extract Task ID, Title, and Status.
-- Outputting a formatted ASCII table summarizing all tasks.
+- Outputting a formatted ASCII table summarizing all tasks sorted by pipeline stage.
+- Optional filtering flags:
+    - `--active-only`: Shows only TO-DO and IN-PROGRESS tasks; DONE excluded entirely.
+    - `--last-n <count>`: Shows all active tasks plus the N most recently completed (DONE) tasks from done/.
+    - Both flags are mutually exclusive; providing both produces a clear error message.
 
 ## Out of Scope
 
@@ -40,11 +44,21 @@ The current method for assessing project status requires manual traversal of the
 3. The output must be a single, consolidated table sorted by status (e.g., TO-DO -> IN-PROGRESS -> REVIEWING -> DONE).
 4. If no tasks are found, the command should return: "No active tasks found in .board/".
 
+## Flag-Based Filtering
+
+5. When `--active-only` is specified, only TO-DO and IN-PROGRESS tasks are displayed; all DONE tasks are excluded from output.
+6. When `--last-n <count>` is specified (where `<count>` is a positive integer), the output includes all active tasks (TO-DO + IN-PROGRESS) plus up to N most recently completed tasks from done/. If fewer than N completed tasks exist, all available are shown without error.
+7. The `--active-only` and `--last-n <count>` flags are mutually exclusive. Providing both must produce a clear error message explaining the conflict; in this case, fall back to full board output (all statuses).
+8. When neither flag is provided, the default behavior shows all tasks across all statuses (full board view).
+
 # Success Criteria / Acceptance Criteria
 
-- Running `python3 board_utils.py LIST` returns a table containing all existing tasks with correct status mapping.
+- Running `python3 board_utils.py LIST` returns a table containing all existing tasks with correct status mapping (full board default).
 - The output is readable and correctly handles varying numbers of tasks without breaking formatting.
 - Adding or moving a task file results in an immediate update to the `LIST` output.
+- `--active-only` flag shows only TO-DO and IN-PROGRESS tasks; returns "No active tasks found in .board/" when no active tasks exist.
+- `--last-n <count>` flag correctly limits completed tasks shown while including all active tasks; handles fewer than N available without error.
+- Providing both flags produces a clear conflict error message rather than undefined behavior.
 
 # Constraints / Guardrails / Dependencies
 

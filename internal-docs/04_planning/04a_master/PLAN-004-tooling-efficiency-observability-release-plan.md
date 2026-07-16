@@ -4,7 +4,7 @@ title: Tooling Efficiency & Observability Release Plan
 version: 1.0.0
 status: APPROVED
 created: 2026-07-16 14:25:14
-updated: 2026-07-16 14:26:18
+updated: 2026-07-16 14:39:02
 related_docs: ["REQ-005", "REQ-006"]
 ---
 # Release Summary
@@ -28,7 +28,26 @@ Deliver two lightweight CLI utility enhancements that improve agent operational 
 
 1. **FEAT-008** — Semantic Metadata Extraction (`doc_utils.py SHOW`): Implements the `SHOW <filepath>` subcommand to parse and display YAML preamble fields (ID, Title, Status, Verdict, Related Docs) from documentation files. Lightweight parser targeting only the block-delimited preamble; no external dependencies added.
 
-2. **FEAT-009** — Project Board Dashboard (`board_utils.py LIST`): Implements the `LIST` subcommand to scan all `.board/` subdirectories (to-do/, in-progress/, done/) and output a formatted ASCII table summarizing every task with its ID, Title, and Status sorted by pipeline stage.
+2. **FEAT-009** — Project Board Dashboard (`board_utils.py LIST`): Implements the `LIST` subcommand to scan all `.board/` subdirectories (to-do/, in-progress/, done/) and output a formatted ASCII table summarizing every task with its ID, Title, and Status sorted by pipeline stage. Supports optional flags for filtered views: `--active-only` shows only TO-DO and IN-PROGRESS tasks; `--last-n <count>` appends the N most recently completed (DONE) tasks to an active view. Default behavior (no flags) shows all tasks across all statuses.
+
+## FEAT-009 CLI Usage Specification
+
+```bash
+python3 board_utils.py LIST                          # Full board — all tasks across all statuses (default)
+python3 board_utils.py LIST --active-only            # Active only — TO-DO and IN-PROGRESS tasks only
+python3 board_utils.py LIST --last-n 5               # Active + last 5 completed tasks
+```
+
+| Flag | Behavior | Output Composition |
+|------|----------|-------------------|
+| *(none)* | Full board view | All tasks from to-do/, in-progress/, and done/ sorted by pipeline stage |
+| `--active-only` | Filtered active view | Only TO-DO and IN-PROGRESS tasks; DONE excluded entirely |
+| `--last-n <count>` | Active + recent completions | All active tasks (TO-DO, IN-PROGRESS) plus the N most recently completed tasks from done/ |
+
+**Notes:**
+- When `--active-only` is used and no active tasks exist, output: "No active tasks found in .board/"
+- When `--last-n <count>` is used with fewer than `<count>` completed tasks, all available are shown (no error).
+- The full board view remains the default for completeness but is acknowledged as less practical for day-to-day use.
 
 # Sequencing / Dependencies
 
@@ -52,14 +71,14 @@ Dependencies:
 # Milestones
 
 1. **Milestone 1**: `doc_utils.py SHOW` command implemented — parses YAML preamble, outputs key-value pairs for ID/Title/Status/Verdict/Related Docs; handles missing fields gracefully; returns clear error when no YAML preamble is found.
-2. **Milestone 2**: `board_utils.py LIST` command implemented — scans all `.board/` subdirectories, extracts task metadata, outputs sorted ASCII table with status-based ordering (TO-DO -> IN-PROGRESS -> REVIEWING -> DONE).
-3. **Milestone 3**: Both commands tested against representative data; edge cases verified (no YAML preamble, empty board, varying field counts); full test suite passes.
+2. **Milestone 2**: `board_utils.py LIST` command implemented — scans all `.board/` subdirectories, extracts task metadata, outputs sorted ASCII table with status-based ordering; supports `--active-only` (TO-DO + IN-PROGRESS only) and `--last-n <count>` (active + N most recent DONE tasks); default full-board view preserved.
+3. **Milestone 3**: Both commands tested against representative data; edge cases verified (no YAML preamble, empty board, varying field counts, `--active-only` with no active tasks, `--last-n` with fewer than N completed); full test suite passes.
 
 # Risks / Constraints
 
 - **doc_utils.py SHOW — Preamble Format Variability**: Documentation files may have inconsistent YAML field ordering or missing optional fields. Mitigation: Parser reads all key-value pairs within the `---` delimiters; missing fields simply do not appear in output (no crash).
 - **board_utils.py LIST — Table Formatting with Dynamic Data**: The ASCII table must handle varying numbers of tasks without breaking column alignment. Mitigation: Use Python's string formatting with dynamic width calculation based on maximum field length across all rows.
-- **Scope Creep Risk**: Both features have clearly defined out-of-scope items (AI summarization, interactive management, web dashboards). Strict adherence to scope required — no feature creep beyond the specified subcommands.
+- **board_utils.py LIST — Flag Interaction Complexity**: `--active-only` and `--last-n` are mutually exclusive modes (not combinable). Mitigation: If both flags are provided, show a clear error message explaining the conflict; default to full board if neither is specified.
 - **Performance Constraint (FEAT-009)**: The board scanner must remain performant as task count grows. Mitigation: Simple directory listing with lightweight file parsing; no recursive deep scans of nested structures.
 
 # Success Criteria
@@ -71,9 +90,11 @@ Dependencies:
 - Content after the second `---` delimiter is never read or output.
 
 **For FEAT-009 (`board_utils.py LIST`):**
-- Running `python3 board_utils.py LIST` returns a formatted ASCII table containing all tasks with correct Task ID, Title, and Status.
+- Running `python3 board_utils.py LIST` returns a formatted ASCII table containing all tasks with correct Task ID, Title, and Status (full board default).
 - Tasks are sorted by pipeline stage (TO-DO -> IN-PROGRESS -> REVIEWING -> DONE).
-- Empty board returns: "No active tasks found in .board/".
+- `--active-only` flag shows only TO-DO and IN-PROGRESS tasks; returns "No active tasks found in .board/" when none exist.
+- `--last-n <count>` flag shows all active tasks plus the N most recently completed (DONE) tasks; gracefully handles fewer than N available.
+- Both flags are mutually exclusive — providing both produces a clear error message.
 - Adding or moving task files results in an immediate update to the LIST output without code changes.
 
 # Revision Notes
