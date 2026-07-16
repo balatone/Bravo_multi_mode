@@ -243,3 +243,4 @@ related_docs: ["REQ-002", "FEAT-002", "SPIKE-001"]
 [2026-07-16 15:11:39] - [stall-recovery] - MANUAL_RESUME required: subagent role:worker:backend-engineer stalled (cause: MAX_TURNS_EXHAUSTED). Human intervention needed. Log: orchestrator_20260716_151139.log
 [2026-07-16 15:11:40] - [stall-recovery] - MANUAL_RESUME required: subagent role:worker:backend-engineer stalled (cause: UNRESPONSIVE_TIMEOUT). Human intervention needed. Log: orchestrator_20260716_151140.log
 [2026-07-16 15:11:40] - [stall-recovery] - MANUAL_RESUME required: subagent role:worker:backend-engineer stalled (cause: UNRESPONSIVE_TIMEOUT). Human intervention needed. Log: orchestrator_20260716_151140.log
+[2026-07-16 15:11:40] - [stall-recovery] - MANUAL_RESUME required: subagent role:worker:backend-engineer stalled (cause: MAX_TURNS_EXHAUSTED). Human intervention needed. Log: orchestrator_20260716_151140.log
