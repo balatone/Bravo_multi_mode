@@ -72,7 +72,10 @@ instructions: |
   7. Wait for the reviewer to complete.
 
   8. Extract the verdict from the new REVIEW document:
-       uv run toolbox/doc_utils.py show <review-id> --field verdict
+       ```bash
+       python3 toolbox/doc_utils.py SHOW <filepath>
+       ```
+     (Read the printed `verdict:` field from the output.)
 
   9. Report back to the execution cycle with:
        - The verdict value

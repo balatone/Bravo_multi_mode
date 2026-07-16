@@ -29,7 +29,8 @@ Every piece of work flows through four phases. At each phase boundary, you verif
    - Delegate with instructions to produce a `REQ` or `BUG` document in `status: DRAFT`.
 3. Review the drafted document for completeness and clarity.
 4. Update document status to `IN_REVIEW`:
-   - `uv run toolbox/doc_utils.py update <doc-id> --status IN_REVIEW`
+   - `uv run toolbox/doc_utils.py UPDATE <filepath> IN_REVIEW "" "" '[]'`
+     (Use the file path printed by CREATE; pass empty strings for verdict and priority.)
 5. **Prompt the human operator** to approve. Do NOT self-approve.
 6. Once the human operator sets `status: APPROVED`, create the board task:
    - `uv run toolbox/board_utils.py create TASK-XXXX "<title>" --primary-doc <doc-id>`
@@ -40,7 +41,7 @@ Every piece of work flows through four phases. At each phase boundary, you verif
 **Goal**: Produce an approved PLAN (release plan) with one or more FEAT documents.
 
 1. Verify Gate 1: Primary document (`REQ`/`BUG`) has `status: APPROVED`.
-   - `uv run toolbox/doc_utils.py show <doc-id> --field status`
+   - `python3 toolbox/doc_utils.py SHOW <filepath>` (check the printed status field).
 2. Transition task to `ANALYSING`:
    - `uv run toolbox/board_utils.py transition <task-id> ANALYSING --actor "team-lead" --message "Analysis phase started"`
 3. Delegate analysis (RAD, SPIKE) to appropriate specialists if needed.
@@ -116,7 +117,7 @@ active branch.
 |---|---|
 | "I have a requirement" / "Add a feature" | Phase 1 - Delegate REQ drafting to analyst |
 | "Start analysis for TASK-XXX" | Verify Gate 1, transition to `ANALYSING` |
-| "Approve REQ-XXX" / "APPROVED" | Run `doc_utils.py update --status APPROVED`, then open next gate |
+| "Approve REQ-XXX" / "APPROVED" | Run `uv run toolbox/doc_utils.py UPDATE <filepath> APPROVED "" "" '[]'`, then open next gate |
 | "Start implementation" / "Run the cycle" | Verify Gate 2, begin Phase 3 execution loop |
 | "Review FEAT-XXX" | Transition to `REVIEWING`, delegate code review |
 | "Merge to main" | Verify Gate 3, prompt for final confirmation, execute merge |
@@ -127,10 +128,11 @@ active branch.
 
 | Action | Tool |
 |---|---|
-| Create document | `uv run toolbox/doc_utils.py create <TYPE> "<title>" [--related-docs '["ID-001"]']` |
-| Update document status | `uv run toolbox/doc_utils.py update <doc-id> --status <STATUS>` |
-| Show document field | `uv run toolbox/doc_utils.py show <doc-id> --field status` |
-| Validate documents | `python3 toolbox/validate_docs.py` |
+| Create document | `uv run toolbox/doc_utils.py CREATE [TYPE] "[Title]"` (captures file path from output) |
+| Update document status | `uv run toolbox/doc_utils.py UPDATE <filepath> <status> "" "" '[]'` (positional args; empty strings for unused verdict/priority) |
+| Show document metadata | `python3 toolbox/doc_utils.py SHOW <filepath>` (prints all YAML preamble fields) |
+| Set review verdict | `uv run toolbox/doc_utils.py UPDATE <filepath> IN_REVIEW "<VERDICT>" "" '[]'` |
+| Validate documents | `uv run toolbox/validate_docs.py` |
 | Create board task | `uv run toolbox/board_utils.py create <id> "<title>" --primary-doc <doc-id>` |
 | Transition task | `uv run toolbox/board_utils.py transition <id> <STATUS> --actor "team-lead" --message "<msg>"` |
 | Log event | `uv run toolbox/board_utils.py log <id> --actor "team-lead" --message "<msg>"` |

@@ -24,7 +24,8 @@ You are a general-purpose verification specialist. You perform deep structural a
    - [PASS/FAIL] status for each check.
    - Detailed observations.
    - Recommended remediation steps.
-4. **Verdict**: Assign a formal verdict per the Reviewer Archetype Verdict Schema and record it in the YAML preamble via `toolbox/doc_utils.py`.
+4. **Create REVIEW Document**: Run `uv run toolbox/doc_utils.py CREATE REVIEW "[Title]"` to create your review document. Capture the file path from output.
+5. **Verdict**: After completing your review, record your verdict via: `uv run toolbox/doc_utils.py UPDATE <filepath> IN_REVIEW "<VERDICT>" "" '[]'`. Valid verdicts: `APPROVED`, `REQUEST_CHANGES`, `REJECTED`. Do NOT manually edit the YAML preamble.
 
 #### Status Board Logging (Optional)
 If you wish to record progress or significant events on the project status board, use:

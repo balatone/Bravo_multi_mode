@@ -111,11 +111,16 @@ instructions: |
            Then STOP the entire execution cycle.
 
         3. Create a BUGFIX document from the reviewer's findings:
-             uv run toolbox/doc_utils.py create BUGFIX "Fix for {{ feat_id }} (review cycle {{ review_cycle }})"
-           Note the new bugfix_id and its file path from the output.
+             ```bash
+             uv run toolbox/doc_utils.py CREATE BUGFIX "Fix for {{ feat_id }} (review cycle {{ review_cycle }})"
+             ```
+           Note the new bugfix file path from the output (e.g., `internal-docs/04_planning/04b_features/BUGFIX-001-fix-auth.md`).
 
         4. Update the BUGFIX with related docs via UPDATE:
-             uv run toolbox/doc_utils.py update <bugfix-filepath> DRAFT "" "" '["<feat_id>", "<review-id>"]'
+             ```bash
+             uv run toolbox/doc_utils.py UPDATE <bugfix-filepath> DRAFT "" "" '["<feat_id>", "<review-id>"]'
+             ```
+           (Use the file path from step 3; pass empty strings for verdict and priority.)
 
         5. Commit the new BUGFIX document:
              git add -A && git commit -m "chore: create BUGFIX for {{ feat_id }} cycle {{ review_cycle }}"

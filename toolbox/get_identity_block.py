@@ -29,20 +29,31 @@ These files define your mission, strict constraints, and operational protocols. 
     block2 = """
 ## Standardized Instructions
 
-For standardized instructions, refer to the following snippet files:
+### Document Management (Tool-First)
+When creating documents: `uv run toolbox/doc_utils.py CREATE [TYPE] "[Title]"` — the tool handles IDs, filenames, directories, YAML preambles, and templates automatically. Do NOT write these manually.
+When updating metadata: `uv run toolbox/doc_utils.py UPDATE <filepath> <status> "<verdict>" "" '[]'` (positional args; empty strings for unused fields).
+To view metadata: `python3 toolbox/doc_utils.py SHOW <filepath>`.
+Full reference: `prompts/snippets/doc-management.md`.
 
-- **Document Management**: Refer to `prompts/snippets/doc-management.md` for the standardized CREATE and UPDATE command patterns for `doc_utils.py`, including YAML preamble management, template rendering notes, and validation requirements.
-- **Specialist Log Formatting**: Refer to `prompts/snippets/specialist-log-formatting.md` for the exact log entry format, timestamp rules, and valid status labels.
-- **Board Logging**: Refer to `prompts/snippets/board-logging.md` for the `board_utils.py log` command format, required fields, and timing rules.
+### Specialist Log Formatting
+Refer to `prompts/snippets/specialist-log-formatting.md` for the exact log entry format, timestamp rules, and valid status labels.
+
+### Board Logging
+Refer to `prompts/snippets/board-logging.md` for the `board_utils.py log` command format, required fields, and timing rules.
 """
     if archetype == "worker":
         block2 = """
 ## Standardized Instructions
 
-For standardized instructions, refer to the following snippet files:
+### Document Management (Tool-First)
+If instructed to create a document: `uv run toolbox/doc_utils.py CREATE [TYPE] "[Title]"`. Do NOT write YAML preambles or filenames manually — the tool handles everything.
+Full reference: `prompts/snippets/doc-management.md`.
 
-- **Specialist Log Formatting**: Refer to `prompts/snippets/specialist-log-formatting.md` for the exact log entry format, timestamp rules, and valid status labels.
-- **Board Logging**: Refer to `prompts/snippets/board-logging.md` for the `board_utils.py log` command format, required fields, and timing rules.
+### Specialist Log Formatting
+Refer to `prompts/snippets/specialist-log-formatting.md` for the exact log entry format, timestamp rules, and valid status labels.
+
+### Board Logging
+Refer to `prompts/snippets/board-logging.md` for the `board_utils.py log` command format, required fields, and timing rules.
 """
 
     block = f"""

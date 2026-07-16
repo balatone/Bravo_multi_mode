@@ -28,7 +28,7 @@ This recipe automates the implementation and review cycle for a given Feature Pl
     *   **Transition Task**: Use `toolbox/board_utils.py transition <TASK-ID> DONE --actor "Orchestrator" --message "Implementation approved and completed."` to move the task to `DONE`.
     *   The loop is complete.
 2. **If Verdict is `REQUEST_CHANGES`**:
-    *   **Create BUGFIX**: Create a new `BUGFIX` document using `toolbox/doc_utils.py CREATE BUGFIX "[Title describing changes]"` based on the reviewer's feedback. Note the ID of the newly created `BUGFIX` document.
+    *   **Create BUGFIX**: Run `uv run toolbox/doc_utils.py CREATE BUGFIX "[Title describing changes]"` based on the reviewer's feedback. Capture the file path from output (e.g., `internal-docs/04_planning/04b_features/BUGFIX-001-fix-auth.md`).
     *   **Transition Task**: Use `toolbox/board_utils.py transition <TASK-ID> IMPLEMENTING --actor "Orchestrator" --message "Review requested changes. Implementing BUGFIX-<ID>." --related-docs '["<BUGFIX-ID>"]'` to move the task back to `IMPLEMENTING`.
     *   **Repeat**: Return to **Phase 2: Implementation**, but instruct the worker to address both `<FEAT-ID>` and the new `<BUGFIX-ID>`.
 

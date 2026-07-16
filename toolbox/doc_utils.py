@@ -311,10 +311,70 @@ def update_document(filepath, status, verdict=None, priority=None, related_docs=
     return filepath
 
 
+def show_preamble(filepath):
+    """
+    Extracts and displays the YAML preamble metadata from a documentation file.
+    Uses regex-based parsing to avoid adding new dependencies.
+    Returns a dict of key-value pairs, or None if no valid preamble is found.
+    """
+    if not os.path.exists(filepath):
+        print(f"Error: File {filepath} not found.")
+        return None
+
+    content = Path(filepath).read_text(encoding="utf-8")
+
+    # Regex to find the YAML preamble block between the first two --- delimiters
+    preamble_match = re.search(r"^---\s*\n(.*?)\n---", content, re.DOTALL)
+    if not preamble_match:
+        print("Error: No YAML preamble detected.")
+        return None
+
+    preamble_text = preamble_match.group(1)
+    metadata = {}
+
+    for line in preamble_text.splitlines():
+        line = line.strip()
+        if not line or ":" not in line:
+            continue
+        key, value = line.split(":", 1)
+        key = key.strip()
+        value = value.strip()
+        # Remove surrounding quotes if present
+        if (value.startswith('"') and value.endswith('"')) or (
+            value.startswith("'") and value.endswith("'")
+        ):
+            value = value[1:-1]
+        metadata[key] = value
+
+    if not metadata:
+        print("Error: No YAML preamble detected.")
+        return None
+
+    return metadata
+
+
+def display_preamble(metadata):
+    """
+    Displays the metadata in a clean, human-readable key-value format.
+    """
+    if not metadata:
+        return
+
+    # Determine the longest key for alignment
+    max_key_len = max(len(k) for k in metadata.keys()) if metadata else 0
+
+    print("Document Metadata:")
+    print("-" * (max_key_len + 3 + 20))
+    for key, value in metadata.items():
+        print(f"  {key:<{max_key_len}}: {value}")
+    print("-" * (max_key_len + 3 + 20))
+
+
 if __name__ == "__main__":
     # Usage:
     # python3 doc_utils.py CREATE [TYPE] "[Title]"
     # python3 doc_utils.py UPDATE <filepath> <status> [verdict] [priority] [related_docs]
+    # python3 doc_utils.py SHOW <filepath>
     if len(sys.argv) >= 3:
         cmd = sys.argv[1].upper()
         if cmd == "CREATE":
@@ -332,11 +392,17 @@ if __name__ == "__main__":
                 update_document(path, stat, ver, pri, rel)
             else:
                 print("Error: UPDATE requires <filepath> and <status>")
+        elif cmd == "SHOW":
+            filepath = sys.argv[2]
+            metadata = show_preamble(filepath)
+            if metadata is not None:
+                display_preamble(metadata)
         else:
-            print(f"Unknown command '{cmd}'. Use CREATE or UPDATE.")
+            print(f"Unknown command '{cmd}'. Use CREATE, UPDATE, or SHOW.")
     else:
         print("Usage:")
         print('  python3 doc_utils.py CREATE [TYPE] "[Title]"')
         print(
             "  python3 doc_utils.py UPDATE <filepath> <status> [verdict] [priority] [related_docs]"
         )
+        print("  python3 doc_utils.py SHOW <filepath>")

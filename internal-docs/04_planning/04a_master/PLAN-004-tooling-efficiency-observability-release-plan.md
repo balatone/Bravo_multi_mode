@@ -5,7 +5,7 @@ version: 1.0.0
 status: APPROVED
 created: 2026-07-16 14:25:14
 updated: 2026-07-16 14:39:02
-related_docs: ["REQ-005", "REQ-006"]
+related_docs: ["REQ-005", "REQ-006", "FEAT-008", "FEAT-009"]
 ---
 # Release Summary
 
@@ -26,9 +26,9 @@ Deliver two lightweight CLI utility enhancements that improve agent operational 
 
 # Features Included
 
-1. **FEAT-008** — Semantic Metadata Extraction (`doc_utils.py SHOW`): Implements the `SHOW <filepath>` subcommand to parse and display YAML preamble fields (ID, Title, Status, Verdict, Related Docs) from documentation files. Lightweight parser targeting only the block-delimited preamble; no external dependencies added.
+1. **FEAT-008** — Semantic Metadata Extraction (`doc_utils.py SHOW`): Implements the `SHOW <filepath>` subcommand to parse and display YAML preamble fields (ID, Title, Status, Verdict, Related Docs) from documentation files. Lightweight parser targeting only the block-delimited preamble; no external dependencies added. [Feature Document](../04b_features/FEAT-008-semantic-metadata-extraction-for-documentation.md)
 
-2. **FEAT-009** — Project Board Dashboard (`board_utils.py LIST`): Implements the `LIST` subcommand to scan all `.board/` subdirectories (to-do/, in-progress/, done/) and output a formatted ASCII table summarizing every task with its ID, Title, and Status sorted by pipeline stage. Supports optional flags for filtered views: `--active-only` shows only TO-DO and IN-PROGRESS tasks; `--last-n <count>` appends the N most recently completed (DONE) tasks to an active view. Default behavior (no flags) shows all tasks across all statuses.
+2. **FEAT-009** — Project Board Dashboard (`board_utils.py LIST`): Implements the `LIST` subcommand to scan all `.board/` subdirectories (to-do/, in-progress/, done/) and output a formatted ASCII table summarizing every task with its ID, Title, and Status sorted by pipeline stage. Supports optional flags for filtered views: `--active-only` shows only TO-DO and IN-PROGRESS tasks; `--last-n <count>` appends the N most recently completed (DONE) tasks to an active view. Default behavior (no flags) shows all tasks across all statuses. [Feature Document](../04b_features/FEAT-009-project-board-dashboard.md)
 
 ## FEAT-009 CLI Usage Specification
 
