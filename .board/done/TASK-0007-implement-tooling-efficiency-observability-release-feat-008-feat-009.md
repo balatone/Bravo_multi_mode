@@ -5,8 +5,8 @@ version: 1.0.0
 status: DONE
 created: "2026-07-16 14:40:47"
 updated: "2026-07-16 15:19:16"
-primary_doc: "internal-docs/04_planning/04a_master/PLAN-004-tooling-efficiency-observability-release-plan.md"
-related_docs: ["internal-docs/04_planning/04a_master/PLAN-004-tooling-efficiency-observability-release-plan.md"]
+primary_doc: "PLAN-004"
+related_docs: ["PLAN-004"]
 ---
 
 # Activity Log
@@ -22,10 +22,5 @@ related_docs: ["internal-docs/04_planning/04a_master/PLAN-004-tooling-efficiency
 [2026-07-16 14:51:10] - [team-lead] - FEAT-008 implementation complete and verified with 13 passing tests. Moving to review.
 [2026-07-16 15:00:48] - [analyst] - Feature planning started: FEAT-008 and FEAT-009 created for PLAN-004 release cycle
 [2026-07-16 15:03:11] - [analyst] - Feature documents created and linked: FEAT-008 (Semantic Metadata Extraction) and FEAT-009 (Project Board Dashboard). PLAN-004 updated with cross-references.
-[2026-07-16 15:04:32] - [team-lead] - FEAT-008 review complete. Starting implementation of FEAT-009 (Project Board Dashboard).
-[2026-07-16 15:05:25] - [backend-engineer] - FEAT-009 implementation started - implementing LIST subcommand for project board dashboard
-[2026-07-16 15:12:29] - [backend-engineer] - FEAT-009 implementation complete - LIST subcommand with active-only, last-n filters, mutual exclusivity, dynamic column width ASCII table formatting, and 32 unit tests
-[2026-07-16 15:14:32] - [team-lead] - FEAT-009 implementation complete and verified with 32 passing tests. Moving to review.
-[2026-07-16 15:17:08] - [reviewer] - Formal code review started for FEAT-008 (doc_utils.py SHOW) and FEAT-009 (board_utils.py LIST)
-[2026-07-16 15:18:15] - [reviewer] - Formal code review completed for FEAT-008 and FEAT-009. Verdict: APPROVED with 3 minor issues noted.
-[2026-07-16 15:19:16] - [team-lead] - FEAT-008 and FEAT-009 implementation reviewed and APPROVED (REVIEW-008). Release cycle complete.
+[2026-07-16 15:17:00] - [reviewer] - Review started for TASK-0007 implementation.
+[2026-07-16 15:18:30] - [reviewer] - Review completed for FEAT-008 and FEAT-009. Verdict: APPROVED.
