@@ -25,6 +25,187 @@ FOLDERS = {
 
 VALID_STATUSES = set(FOLDERS.keys())
 
+# Status ordering for sorting tasks (TO-DO -> IN-PROGRESS stages -> DONE)
+STATUS_ORDER = {
+    "TO-DO": 0,
+    "ANALYSING": 1,
+    "DESIGNING": 2,
+    "PLANNING": 3,
+    "IMPLEMENTING": 4,
+    "TESTING": 5,
+    "REVIEWING": 6,
+    "IN-PROGRESS": 3,
+    "DONE": 7,
+}
+
+
+# ──────────────────────────────────────────────────────────────
+# LIST Command (FEAT-009: Project Board Dashboard)
+# ──────────────────────────────────────────────────────────────
+
+
+def _get_dir_status(dir_name: str) -> str:
+    """Map a directory name to its canonical status label."""
+    dir_lower = dir_name.lower().replace("_", "-")
+    if dir_lower == "to-do" or dir_lower == "todo":
+        return "TO-DO"
+    if dir_lower == "in-progress" or dir_lower == "inprogress":
+        return "IN-PROGRESS"
+    if dir_lower == "reviewing" or dir_lower == "review":
+        return "REVIEWING"
+    if dir_lower == "done":
+        return "DONE"
+    return dir_name.upper()
+
+
+def collect_tasks(
+    board_dir: Path | None = None,
+    active_only: bool = False,
+    last_n: int | None = None,
+) -> list[dict[str, str]]:
+    """
+    Scan all subdirectories within .board/ and collect task metadata.
+
+    Args:
+        board_dir: Board directory path. Defaults to BOARD_DIR.
+        active_only: If True, return only TO-DO and IN-PROGRESS tasks.
+        last_n: If set, include all active tasks plus up to N most
+                recently completed (DONE) tasks.
+
+    Returns:
+        List of dicts with keys: id, title, status, path.
+    """
+    target = board_dir if board_dir is not None else BOARD_DIR
+    if not target.exists():
+        return []
+
+    tasks: list[dict[str, str]] = []
+    active_tasks: list[dict[str, str]] = []
+    done_tasks: list[dict[str, str]] = []
+
+    for md_file in target.rglob("*.md"):
+        if md_file.name == "status_board_protocol.md":
+            continue
+        rel_parts = md_file.relative_to(target).parts
+        if len(rel_parts) != 2:
+            continue
+
+        dir_name = rel_parts[0]
+        status = _get_dir_status(dir_name)
+
+        try:
+            task_data = load_task(md_file)
+            metadata = task_data["metadata"]
+            task_id = metadata.get("id", md_file.stem)
+            title = metadata.get("title", md_file.stem)
+        except Exception:
+            # Fallback to filename extraction
+            match = re.match(r"(TASK-\d+)-(.+)\.md", md_file.stem)
+            if match:
+                task_id = match.group(1)
+                title = match.group(2).replace("-", " ").title()
+            else:
+                task_id = md_file.stem
+                title = md_file.stem
+
+        task_info = {
+            "id": task_id,
+            "title": title,
+            "status": status,
+            "path": str(md_file),
+        }
+        tasks.append(task_info)
+
+        if status in (
+            "TO-DO",
+            "IN-PROGRESS",
+            "ANALYSING",
+            "DESIGNING",
+            "PLANNING",
+            "IMPLEMENTING",
+            "TESTING",
+            "REVIEWING",
+        ):
+            active_tasks.append(task_info)
+        elif status == "DONE":
+            done_tasks.append(task_info)
+
+    # Sort active tasks by status order
+    active_tasks.sort(key=lambda t: STATUS_ORDER.get(t["status"], 99))
+
+    # Sort done tasks by file modification time (most recent first)
+    done_tasks.sort(key=lambda t: Path(t["path"]).stat().st_mtime, reverse=True)
+
+    # Apply filters
+    if active_only:
+        return active_tasks
+    elif last_n is not None:
+        return active_tasks + done_tasks[:last_n]
+    else:
+        # Full board: all tasks sorted by status order
+        all_sorted = sorted(tasks, key=lambda t: STATUS_ORDER.get(t["status"], 99))
+        return all_sorted
+
+
+def format_table(rows: list[dict[str, str]]) -> str:
+    """
+    Format task data as an aligned ASCII table.
+
+    Args:
+        rows: List of dicts with keys: id, title, status.
+
+    Returns:
+        Formatted ASCII table string.
+    """
+    if not rows:
+        return "No active tasks found in .board/"
+
+    headers = ["TASK ID", "TITLE", "STATUS"]
+    header_widths = [max(len(h), 8) for h in headers]
+
+    # Calculate dynamic column widths
+    for row in rows:
+        header_widths[0] = max(header_widths[0], len(row["id"]))
+        header_widths[1] = max(header_widths[1], len(row["title"]))
+        header_widths[2] = max(header_widths[2], len(row["status"]))
+
+    # Build format string
+    fmt = " | ".join(f"{{:<{w}}}" for w in header_widths)
+    sep = "-+-".join("-" * w for w in header_widths)
+
+    lines = [
+        fmt.format(*headers),
+        sep,
+    ]
+    for row in rows:
+        lines.append(fmt.format(row["id"], row["title"], row["status"]))
+
+    return "\n".join(lines)
+
+
+def list_board(
+    active_only: bool = False,
+    last_n: int | None = None,
+) -> None:
+    """
+    Display a consolidated ASCII table dashboard of all tasks.
+
+    Args:
+        active_only: Show only TO-DO and IN-PROGRESS tasks.
+        last_n: Show all active tasks plus N most recent DONE tasks.
+    """
+    if active_only and last_n is not None:
+        print(
+            "Error: --active-only and --last-n are mutually exclusive. "
+            "Please use only one of these flags.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    tasks = collect_tasks(active_only=active_only, last_n=last_n)
+    output = format_table(tasks)
+    print(output)
+
 
 # ──────────────────────────────────────────────────────────────
 # Stall Detection and Recovery Protocol (FEAT-003)
@@ -945,6 +1126,9 @@ def main() -> None:
             "  update <id> [--title <new_title>] [--primary-doc <new_doc_id>] [--related-docs '[\"ID-001\"]']"
         )
         print(
+            "  list [--active-only] [--last-n <count>]  (dashboard view of all tasks)"
+        )
+        print(
             "\nUse 'uv run scripts/board_utils.py <command> --help' for detailed command information."
         )
         return
@@ -991,6 +1175,19 @@ def main() -> None:
         help='JSON list of related document IDs, e.g. ["REQ-005", "REVIEW-010"]',
     )
 
+    list_p = subparsers.add_parser("list", help="List all board tasks as a table")
+    list_p.add_argument(
+        "--active-only",
+        action="store_true",
+        help="Show only TO-DO and IN-PROGRESS tasks",
+    )
+    list_p.add_argument(
+        "--last-n",
+        type=int,
+        default=None,
+        help="Show active tasks plus N most recent DONE tasks",
+    )
+
     args = parser.parse_args()
 
     try:
@@ -1004,6 +1201,8 @@ def main() -> None:
             log_event(args.id, args.actor, args.message)
         elif args.command == "update":
             update_task(args.id, args.title, args.primary_doc, args.related_docs)
+        elif args.command == "list":
+            list_board(active_only=args.active_only, last_n=args.last_n)
         else:
             parser.print_help()
     except (RuntimeError, ValueError, yaml.YAMLError) as exc:
