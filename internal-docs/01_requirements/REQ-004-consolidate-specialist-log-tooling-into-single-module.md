@@ -2,12 +2,11 @@
 id: REQ-004
 title: Consolidate Specialist Log Tooling into Single Module
 version: 1.0.0
-status: DRAFT
+status: APPROVED
 created: 2026-07-16 11:30:22
-updated: 2026-07-16 11:30:22
+updated: 2026-07-16 11:46:00
 related_docs: ["REQ-003", "FEAT-005", "FEAT-006", "BUGFIX-003"]
 ---
-
 # Summary
 
 Consolidate the three-module specialist log tooling (`specialist_log.py`, `compliance_audit.py`, `log_format.py`) into a single module (`toolbox/specialist_log.py`), eliminating unnecessary cross-module dependencies and reducing the toolbox to one cohesive utility per concern. This follows the established pattern of `doc_utils.py`, which keeps all constants, validation logic, CLI commands, and formatting functions in one file.
