@@ -8,22 +8,239 @@ from pathlib import Path
 # Repository root and log directory locations
 ROOT_DIR = Path(__file__).resolve().parent.parent
 LOG_DIR = ROOT_DIR / "logs" / "specialist_logs"
+REPORTS_DIR = ROOT_DIR / "logs" / "compliance_audit"
 
 # Ensure parent directory is on path for imports when run as CLI
 sys.path.insert(0, str(ROOT_DIR))
 
-# Import shared validation logic from log_format module
-from toolbox.log_format import VALID_STATUS_LABELS, validate_entry, format_entry  # noqa: E402
+# ---------------------------------------------------------------------------
+# Module-level constants (inlined from log_format.py)
+# ---------------------------------------------------------------------------
 
-# Regex pattern for role-based log file naming: <role>_<YYYYMMDD_HHMMSS>.log
-LOG_FILE_PATTERN = re.compile(r"^([a-z0-9_-]+)_\d{8}_\d{6}\.log$")
+# Regex pattern for validating log entry format (permissive variant with [^\]]*)
+# Allows empty brackets so secondary checks can produce distinct error keys
+ENTRY_PATTERN = re.compile(
+    r"^\[(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2})\] - \[([^\]]*)\] - \[STATUS: (IN_PROGRESS|COMPLETE|FAILED)\] - \[([^\]]*)\]$"
+)
+
+# Valid status labels for log entries
+VALID_STATUS_LABELS = {"IN_PROGRESS", "COMPLETE", "FAILED"}
+
+# Regex pattern for role-based log file naming: <YYYYMMDD_HHMMSS>_<role>.log
+LOG_FILE_PATTERN = re.compile(r"^\d{8}_\d{6}_([a-z0-9_-]+)\.log$")
+
+
+# ---------------------------------------------------------------------------
+# Validation functions (inlined from log_format.py)
+# ---------------------------------------------------------------------------
+
+
+def validate_entry(line):
+    """Validate a log entry against the required format.
+
+    Args:
+        line: The log entry string to validate.
+
+    Returns:
+        Tuple of (bool, str): (True, "") if compliant,
+        (False, issue_description) if not.
+    """
+    line = line.strip()
+
+    if not line:
+        return (False, "Empty line")
+
+    match = ENTRY_PATTERN.match(line)
+    if not match:
+        return (
+            False,
+            "Entry does not match required format: [TIMESTAMP] - [SUBTASK] - [STATUS: STATUS_LABEL] - [DETAILS]",
+        )
+
+    timestamp_str = match.group(1)
+    subtask = match.group(2)
+    status_label = match.group(3)
+    details = match.group(4)
+
+    # Validate timestamp is a real date/time
+    try:
+        datetime.strptime(timestamp_str, "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        return (False, "Invalid timestamp value: {}".format(timestamp_str))
+
+    # Validate subtask is non-empty
+    if not subtask.strip():
+        return (False, "SUBTASK field is empty")
+
+    # Validate status label
+    if status_label not in VALID_STATUS_LABELS:
+        return (
+            False,
+            "Invalid status label: {}. Must be one of: {}".format(
+                status_label, VALID_STATUS_LABELS
+            ),
+        )
+
+    # Validate details is non-empty
+    if not details.strip():
+        return (False, "DETAILS field is empty")
+
+    return (True, "")
+
+
+def format_entry(subtask, status, details):
+    """Format a log entry in the standardized format.
+
+    Args:
+        subtask: Description of the current subtask.
+        status: Status label (IN_PROGRESS, COMPLETE, or FAILED).
+        details: Brief description of progress or findings.
+
+    Returns:
+        Formatted string in the format:
+        [TIMESTAMP] - [SUBTASK] - [STATUS: STATUS_LABEL] - [DETAILS]
+    """
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return "[{}] - [{}] - [STATUS: {}] - [{}]".format(
+        timestamp, subtask, status, details
+    )
+
+
+# ---------------------------------------------------------------------------
+# Diagnostic utilities (folded from compliance_audit.py)
+# ---------------------------------------------------------------------------
+
+
+def _calc_compliance_rate(compliant, total):
+    """Calculate compliance rate as a percentage string."""
+    if total == 0:
+        return "N/A (no entries)"
+    return "{:.1f}%".format((compliant / total) * 100)
+
+
+def _get_issue_description(issue_type):
+    """Human-readable description of an issue type."""
+    descriptions = {
+        "empty_line": "Empty line found",
+        "format_mismatch": "Entry does not match required format: [TIMESTAMP] - [SUBTASK] - [STATUS: STATUS_LABEL] - [DETAILS]",
+        "invalid_timestamp": "Invalid timestamp value",
+        "empty_subtask": "SUBTASK field is empty",
+        "invalid_status": "Invalid status label (must be IN_PROGRESS, COMPLETE, or FAILED)",
+        "empty_details": "DETAILS field is empty",
+        "filename_pattern": "Filename does not match pattern: <YYYYMMDD_HHMMSS>_<role>.log",
+    }
+    return descriptions.get(issue_type, issue_type)
+
+
+def extract_role(filename):
+    """Extract the role name from a log filename.
+
+    Parses <YYYYMMDD_HHMMSS>_<role>.log format.
+    Returns the role name if the filename matches the expected pattern,
+    or None if the pattern does not match.
+    """
+    match = LOG_FILE_PATTERN.match(filename)
+    if match:
+        return match.group(1)
+    return None
+
+
+def validate_file(filepath):
+    """Validate all entries in a log file.
+
+    Returns a dict with file validation results including violations
+    with line numbers and issue descriptions.
+    """
+    result = {
+        "filepath": str(filepath),
+        "filename": filepath.name,
+        "role": extract_role(filepath.name),
+        "total_entries": 0,
+        "compliant_entries": 0,
+        "violations": [],
+    }
+
+    if not filepath.exists():
+        return result
+
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            lines = f.readlines()
+    except (IOError, OSError):
+        return result
+
+    if not lines or all(line.strip() == "" for line in lines):
+        return result
+
+    for line_num, line in enumerate(lines, 1):
+        stripped = line.strip()
+        if not stripped:
+            continue
+
+        result["total_entries"] += 1
+        is_valid, issue = validate_entry(stripped)
+
+        if is_valid:
+            result["compliant_entries"] += 1
+        else:
+            result["violations"].append(
+                {
+                    "line_number": line_num,
+                    "content": stripped,
+                    "issue_type": _classify_issue(issue),
+                    "issue_description": issue,
+                    "remediation": REMEDIATION_GUIDANCE.get(
+                        _classify_issue(issue),
+                        "Review entry format and correct manually.",
+                    ),
+                }
+            )
+
+    return result
+
+
+# Remediation guidance mapped by issue type
+REMEDIATION_GUIDANCE = {
+    "empty_line": "Remove empty lines from log files or ensure all lines contain valid entries.",
+    "format_mismatch": "Use specialist_log.py LOG command instead of manual file writes. Refer to prompts/snippets/specialist-log-formatting.md for correct format: [TIMESTAMP] - [SUBTASK] - [STATUS: STATUS_LABEL] - [DETAILS]",
+    "invalid_timestamp": "Ensure timestamp includes complete seconds component (not xx placeholders). Use specialist_log.py LOG command which auto-generates valid timestamps.",
+    "empty_subtask": "Provide a non-empty SUBTASK field. Use specialist_log.py LOG --subtask <description>.",
+    "invalid_status": "STATUS must be one of: IN_PROGRESS, COMPLETE, FAILED. Use specialist_log.py LOG --status <STATUS>.",
+    "empty_details": "Provide non-empty DETAILS field. Use specialist_log.py LOG --details <description>.",
+    "filename_pattern": "Log files must follow pattern: <YYYYMMDD_HHMMSS>_<role>.log. Use specialist_log.py LOG --role <role> to create properly named files.",
+}
+
+
+def _classify_issue(issue_description):
+    """Map a human-readable issue description to an issue type key.
+
+    Used by validate_file to produce issue_type keys for remediation mapping.
+    """
+    if "Empty line" in issue_description:
+        return "empty_line"
+    elif "required format" in issue_description:
+        return "format_mismatch"
+    elif "timestamp" in issue_description.lower():
+        return "invalid_timestamp"
+    elif "SUBTASK" in issue_description:
+        return "empty_subtask"
+    elif "status label" in issue_description.lower():
+        return "invalid_status"
+    elif "DETAILS" in issue_description:
+        return "empty_details"
+    return "format_mismatch"
+
+
+# ---------------------------------------------------------------------------
+# CLI command functions
+# ---------------------------------------------------------------------------
 
 
 def get_next_log_path(role):
     """Returns the path for a role's current log file, creating it if needed.
 
-    Checks for existing log files matching the role prefix. If none exist,
-    creates a new one with <role>_<YYYYMMDD_HHMMSS>.log naming convention.
+    Checks for existing log files matching the role suffix. If none exist,
+    creates a new one with <YYYYMMDD_HHMMSS>_<role>.log naming convention.
     Returns the most recent existing file or the newly created file path.
     """
     # Ensure log directory exists
@@ -42,7 +259,7 @@ def get_next_log_path(role):
 
     # Create a new log file
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    new_filename = "{}_{}.log".format(role, timestamp)
+    new_filename = "{}_{}.log".format(timestamp, role)
     new_path = LOG_DIR / new_filename
     new_path.touch()
     return new_path
@@ -94,7 +311,7 @@ def show_logs(role=None, since=None):
     """Lists log files with optional role and date filtering.
 
     Args:
-        role: Optional role prefix to filter by.
+        role: Optional role suffix to filter by.
         since: Optional date string (YYYY-MM-DD) to filter entries from that date forward.
 
     Returns the number of entries displayed on success, None on failure with error printed to stdout.
@@ -110,7 +327,7 @@ def show_logs(role=None, since=None):
     for filename in os.listdir(LOG_DIR):
         filepath = LOG_DIR / filename
 
-        # Filter by role if specified
+        # Filter by role if specified (role is at end of filename)
         if role:
             match = LOG_FILE_PATTERN.match(filename)
             if not match or match.group(1) != role:
