@@ -4,7 +4,7 @@ title: "Orchestration & Resilience Enhancements"
 version: 1.0.0
 status: DONE
 created: "2026-07-15 13:58:06"
-updated: "2026-07-16 15:11:43"
+updated: "2026-07-16 15:13:39"
 primary_doc: REQ-002
 related_docs: ["REQ-002", "FEAT-002", "SPIKE-001"]
 ---
@@ -254,3 +254,4 @@ related_docs: ["REQ-002", "FEAT-002", "SPIKE-001"]
 [2026-07-16 15:11:42] - [stall-recovery] - MANUAL_RESUME required: subagent role:worker:backend-engineer stalled (cause: UNRESPONSIVE_TIMEOUT). Human intervention needed. Log: orchestrator_20260716_151142.log
 [2026-07-16 15:11:42] - [stall-recovery] - RE_DELEGATION: task re-delegated from role:worker:backend-engineer to role:worker:frontend-engineer (cause: ERROR). Log: orchestrator_20260716_151142.log
 [2026-07-16 15:11:43] - [stall-recovery] - ESCALATION: no alternative agent available for role:worker:backend-engineer (cause: ERROR). Human intervention needed. Log: orchestrator_20260716_151143.log
+[2026-07-16 15:13:39] - [stall-recovery] - MANUAL_RESUME required: subagent role:worker:backend-engineer stalled (cause: MAX_TURNS_EXHAUSTED). Human intervention needed. Log: orchestrator_20260716_151339.log
