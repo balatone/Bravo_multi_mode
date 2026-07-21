@@ -1,9 +1,4 @@
-import json
-import os
-import re
 import sys
-import tempfile
-from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -18,10 +13,6 @@ from toolbox.board_utils import (
     read_document_preamble,
     write_document_preamble,
     _log_auto_approval,
-    DOC_TYPE_MAP,
-    REPO_ROOT,
-    stage_board,
-    run_git,
 )
 
 

@@ -8,11 +8,9 @@ Tests cover:
 - Edge cases: missing directories, malformed files, empty board
 """
 
-import os
 import sys
-import tempfile
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 import pytest
 

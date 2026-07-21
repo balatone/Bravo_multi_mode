@@ -316,6 +316,14 @@ def show_logs(role=None, since=None):
 
     Returns the number of entries displayed on success, None on failure with error printed to stdout.
     """
+    # Validate 'since' parameter early — before any directory checks
+    if since:
+        try:
+            datetime.strptime(since, "%Y-%m-%d")
+        except ValueError:
+            print("Error: Invalid date format '{}'. Expected YYYY-MM-DD".format(since))
+            return None
+
     # Ensure log directory exists
     if not LOG_DIR.exists():
         LOG_DIR.mkdir(parents=True, exist_ok=True)
@@ -342,14 +350,8 @@ def show_logs(role=None, since=None):
             print("No log files found.")
         return 0
 
-    # Parse since date if provided
-    since_date = None
-    if since:
-        try:
-            since_date = datetime.strptime(since, "%Y-%m-%d")
-        except ValueError:
-            print("Error: Invalid date format '{}'. Expected YYYY-MM-DD".format(since))
-            return None
+    # Parse since date if provided (validation already done above)
+    since_date = datetime.strptime(since, "%Y-%m-%d") if since else None
 
     # Sort files by modification time (chronological)
     log_files.sort(key=lambda p: p.stat().st_mtime)

@@ -1,11 +1,9 @@
-import json
 import os
 import sys
 import tempfile
 import unittest
-from datetime import datetime
 from pathlib import Path
-from unittest.mock import patch, MagicMock, mock_open
+from unittest.mock import patch, MagicMock
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -513,7 +511,7 @@ class TestCreateLog(unittest.TestCase):
                 self.assertEqual(len(log_files), 1)
 
                 content = log_files[0].read_text(encoding="utf-8")
-                lines = [l for l in content.strip().split("\n") if l.strip()]
+                lines = [line for line in content.strip().split("\n") if line.strip()]
                 self.assertEqual(len(lines), 2)
 
     def test_new_file_naming_convention(self):
@@ -1024,7 +1022,7 @@ class TestIntegration(unittest.TestCase):
 
                 # Check all entries are present
                 content = log_files[0].read_text(encoding="utf-8")
-                lines = [l for l in content.strip().split("\n") if l.strip()]
+                lines = [line for line in content.strip().split("\n") if line.strip()]
                 self.assertEqual(len(lines), 3)
 
     def test_validate_file_integration(self):

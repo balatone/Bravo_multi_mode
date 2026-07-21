@@ -11,7 +11,6 @@ Tests cover:
 """
 
 import sys
-import tempfile
 from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch, MagicMock
