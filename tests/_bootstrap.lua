@@ -9,7 +9,10 @@
 -- These mocks replace os.clock() to enable deterministic debounce/dedup testing.
 
 -- Load luacov for coverage instrumentation
-require("luacov")
+local status, err = pcall(require, "luacov")
+if not status then
+    -- luacov not found, which is fine for standard test runs
+end
 
 -- Resolve project root relative to this bootstrap file's location.
 -- debug.getinfo(1).source returns "@/path/to/file.lua" for file-loaded chunks.
