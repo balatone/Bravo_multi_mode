@@ -1,6 +1,6 @@
 ---
 id: BUGFIX-005
-title: Fix FEAT-011 Coverage Gaps in util.lua and log.lua --related-docs ["FEAT-011"]
+title: Fix FEAT-011 Coverage Gaps in util.lua and log.lua
 version: 1.0.0
 status: DRAFT
 created: 2026-07-22 07:45:04
