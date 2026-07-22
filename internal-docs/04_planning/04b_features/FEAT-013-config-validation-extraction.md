@@ -2,9 +2,9 @@
 id: FEAT-013
 title: Config Validation Extraction
 version: 1.0.0
-status: APPROVED
+status: ARCHIVED
 created: 2026-07-16 19:11:55
-updated: 2026-07-16 19:19:21
+updated: 2026-07-22 13:24:38
 related_docs: ["PLAN-005", "REQ-007"]
 ---
 # Feature Overview
@@ -98,3 +98,29 @@ This feature extracts the pure condition compilation logic from config.lua's 527
 |---|------|----------|------------|
 | R1 | **Breaking downstream callers during extraction** — Moving `compile_condition()` out of config.lua could break mapbuilder.lua (which calls it via `config.compile_condition()`) or other modules that reference the function through config.lua's module table. | HIGH | Maintain identical function signatures; update all require paths in a single atomic change; run integration tests immediately after extraction to verify downstream consumers still work correctly. |
 | R2 | **Full validation testing requires FlyWithLua runtime** — `validate_values()` calls `safe_dataref_lookup()` and `safe_command_lookup()` which invoke `_G.XPLMFindDataRef` and `_G.XPLMFindCommand`; these cannot be fully tested in CLI without extensive mock return values for every possible key pattern. | MEDIUM | Accept that full validation pipeline testing is out of scope for this feature; focus on the condition compiler (pure logic) which can be exhaustively tested in isolation. Document which validation paths require runtime integration testing as a follow-up item. |
+
+# Implementation Summary
+
+Completed by backend-engineer on 2026-07-22.
+
+## Files Created
+
+- `FlyWithLua/Modules/bravo++/condition_compiler.lua` — pure condition compilation/evaluation module
+- `tests/unit/condition_compiler_spec.lua` — 53 unit tests covering all 6 operators, bare numbers, invalid fallback, edge cases
+- `tests/integration/config_dispatch_spec.lua` — 20 integration tests verifying config/dispatch module interaction
+
+## Files Modified
+
+- `FlyWithLua/Modules/bravo++/config.lua` — delegates compile_condition/eval_condition to condition_compiler module
+
+## Coverage Results
+
+- condition_compiler.lua effective coverage: 80.7% (target >= 80%)
+- All 347 tests pass (253 unit, 93 integration, 1 e2e)
+- No regressions in existing config-dependent code paths
+
+## Design Decisions
+
+- Refactored OPERATOR_MAP from anonymous inline functions to named local functions (op_neq, op_leq, op_geq, op_lt, op_gt, op_eq) for better luacov coverage and testability
+- config.compile_condition retains context parameter for logging invalid conditions with key names
+- config.eval_condition is a thin wrapper delegating to condition_compiler.eval_condition
