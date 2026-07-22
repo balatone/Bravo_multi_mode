@@ -2,9 +2,9 @@
 id: TASK-0008
 title: "Improve Lua Test Coverage to 80%+ and Restructure Tests into Unit, Integration, and E2E Folders"
 version: 1.0.0
-status: REVIEWING
+status: DONE
 created: "2026-07-16 18:38:12"
-updated: "2026-07-22 10:53:34"
+updated: "2026-07-22 10:58:27"
 primary_doc: REQ-007
 related_docs: ["REQ-007", "SPIKE-003", "PLAN-005"]
 ---
@@ -44,3 +44,4 @@ related_docs: ["REQ-007", "SPIKE-003", "PLAN-005"]
 [2026-07-22 10:09:50] - [team-lead] - FEAT-012 implementation complete. Moving to review phase.
 [2026-07-22 10:36:06] - [backend-engineer] - Completed: Implemented FEAT-012 Dispatch Refactoring & Testing
 [2026-07-22 10:53:34] - [code-reviewer] - Completed: Code review for FEAT-012 implementation — Verdict: APPROVED. All 72 tests pass; effective coverage at 91.6%.
+[2026-07-22 10:58:27] - [team-lead] - FEAT-012 implementation reviewed and approved. Task completed.
