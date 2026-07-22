@@ -66,7 +66,8 @@ function util.create_table(value_string)
         log.error(
             "Error: "
                 .. tostring(value_string)
-                .. " is not a valid comma-separated value. Make sure the values only contain alpha-numeric and non-special characters. If you want a blank value, use one or more spaces."
+                .. " is not a valid comma-separated value."
+                .. " Use only alpha-numeric characters or spaces for blank values."
         )
         return value_table
     end
