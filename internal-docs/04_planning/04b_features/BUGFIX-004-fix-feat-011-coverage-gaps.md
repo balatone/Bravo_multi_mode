@@ -2,9 +2,9 @@
 id: BUGFIX-004
 title: fix-feat-011-coverage-gaps
 version: 1.0.0
-status: DRAFT
+status: APPROVED
 created: 2026-07-22 07:42:25
-updated: 2026-07-22 07:42:37
+updated: 2026-07-22 07:53:51
 related_docs: ["FEAT-011"]
 ---
 # Summary
