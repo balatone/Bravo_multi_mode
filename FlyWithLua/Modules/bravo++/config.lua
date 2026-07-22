@@ -5,6 +5,7 @@
 
 local util = require("bravo++.util")
 local log = require("bravo++.log")
+local condition_compiler = require("bravo++.condition_compiler")
 
 local config = {}
 
@@ -29,38 +30,18 @@ local annunciator_labels = {
     "DOOR",
 }
 
---- Ordered operator list: multi-char operators first so they are checked before single-char prefixes.
-local OPERATOR_ORDER = { "!=", "<=", ">=", "<", ">", "=" }
-
---- Operator registry: maps operator strings to comparison functions.
-local OPERATOR_MAP = {
-    ["!="] = function(v, t)
-        return v ~= t
-    end,
-    ["<="] = function(v, t)
-        return v <= t
-    end,
-    [">="] = function(v, t)
-        return v >= t
-    end,
-    ["<"] = function(v, t)
-        return v < t
-    end,
-    [">"] = function(v, t)
-        return v > t
-    end,
-    ["="] = function(v, t)
-        return v == t
-    end,
-}
-
 -----------------------------------------------------
 --- Internal Helpers
 -----------------------------------------------------
 
 --- Validates a condition string during config parsing.
+--- Uses inline operator check (mirrors condition_compiler logic).
 local function is_valid_condition(cond_str)
     local s = tostring(cond_str):gsub("%s", "")
+    if s == "" then
+        return false
+    end
+    local OPERATOR_ORDER = { "!=", "<=", ">=", "<", ">", "=" }
     for _, op in ipairs(OPERATOR_ORDER) do
         if s:sub(1, #op) == op then
             local threshold = tonumber(s:sub(#op + 1))
@@ -78,49 +59,28 @@ end
 --- Compiles a condition string into a callable table during initialization.
 --- `context` is an optional string (e.g. config key name) included in error/warning logs.
 --- Returns { op = function, threshold = number } or a fail-safe that always returns false.
+---
+--- Delegates pure compilation to condition_compiler and adds context-aware
+--- logging for invalid conditions.
 local function compile_condition(cond_str, context)
-    local s = tostring(cond_str):gsub("%s", "")
-
-    -- Try operator+threshold forms using the ordered list (multi-char before single-char)
-    for _, op in ipairs(OPERATOR_ORDER) do
-        if s:sub(1, #op) == op then
-            local threshold = tonumber(s:sub(#op + 1))
-            if threshold then
-                return { op = OPERATOR_MAP[op], threshold = threshold }
-            end
+    -- Check validity first to determine if we need to log a warning
+    if not is_valid_condition(cond_str) then
+        local msg = "Invalid LED condition '" .. tostring(cond_str) .. "'"
+        if context then
+            msg = msg .. " (key: " .. context .. ")"
         end
+        msg = msg .. ", defaulting to always OFF."
+        log.warning(msg)
     end
-
-    -- Bare number → equality check
-    local bare = tonumber(s)
-    if bare then
-        return {
-            op = function(v, t)
-                return v == t
-            end,
-            threshold = bare,
-        }
-    end
-
-    -- Invalid condition: fail-safe that always returns false
-    local msg = "Invalid LED condition '" .. tostring(cond_str) .. "'"
-    if context then
-        msg = msg .. " (key: " .. context .. ")"
-    end
-    msg = msg .. ", defaulting to always OFF."
-    log.warning(msg)
-    return {
-        op = function()
-            return false
-        end,
-        threshold = 0,
-    }
+    return condition_compiler.compile_condition(cond_str)
 end
 
 --- Returns true when the compiled condition is satisfied (LED should be ON).
 --- `compiled_cond` is a table with { op = function, threshold = number }.
+---
+--- Delegates to the pure condition_compiler module.
 local function eval_condition(val, compiled_cond)
-    return compiled_cond.op(val, compiled_cond.threshold)
+    return condition_compiler.eval_condition(compiled_cond, val)
 end
 
 -----------------------------------------------------
@@ -179,7 +139,7 @@ function config.validate_keys(nav_bindings, context)
     add_key("MODES") -- Mark 'MODES' as a valid key to prevent it from being flagged as 'invalid' if it exists.
 
     -- **Step 2: Check for _SELECTOR_LABELS for each declared mode**
-    -- This loop will only execute if 'modes' contains actual mode names (i.e., 'MODES' was properly defined).
+    -- This loop will only execute if 'modes' contains actual mode names (i.e. 'MODES' was properly defined).
     if #modes > 0 then
         for _, mode in ipairs(modes) do
             local selector_label_key = mode .. "_SELECTOR_LABELS"
