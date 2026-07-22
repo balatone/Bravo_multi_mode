@@ -2,9 +2,9 @@
 id: TASK-0008
 title: "Improve Lua Test Coverage to 80%+ and Restructure Tests into Unit, Integration, and E2E Folders"
 version: 1.0.0
-status: DONE
+status: IMPLEMENTING
 created: "2026-07-16 18:38:12"
-updated: "2026-07-22 09:37:00"
+updated: "2026-07-22 09:41:38"
 primary_doc: REQ-007
 related_docs: ["REQ-007", "SPIKE-003", "PLAN-005"]
 ---
@@ -38,3 +38,4 @@ related_docs: ["REQ-007", "SPIKE-003", "PLAN-005"]
 [2026-07-22 07:56:33] - [team-lead] - Pre-delegation for BUGFIX: Remediate FEAT-011 coverage gaps
 [2026-07-22 08:23:15] - [test-engineer] - Completed: Implemented BUGFIX-004 coverage remediation.
 [2026-07-22 09:37:00] - [Lead] - Requirement for log.lua coverage adjusted to >= 80%. Current coverage is 84.4%, meeting the new threshold.
+[2026-07-22 09:41:38] - [Lead] - Reopening task to implement remaining features of the test infrastructure reorganization.
