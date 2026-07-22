@@ -1,36 +1,39 @@
 local log = {}
 local logMsg = logMsg
 
-local constants = require("bravo++.config.constants")
-log.LOG_DEBUG = constants.LOG_DEBUG
-log.LOG_INFO = constants.LOG_INFO
-log.LOG_WARNING = constants.LOG_WARNING
-log.LOG_ERROR = constants.LOG_ERROR
-log.NO_LOG = constants.NO_LOG
+log.LOG_DEBUG = 4
+log.LOG_INFO = 3
+log.LOG_WARNING = 2
+log.LOG_ERROR = 1
+log.NO_LOG = 0
 
 log.LOG_LEVEL = log.LOG_DEBUG
 
+local function get_formatted_message(level, message)
+    return string.format("%.3f [BRAVO++ %s]: %s", os.clock(), level, message)
+end
+
 function log.debug(message)
     if log.LOG_LEVEL >= log.LOG_DEBUG then
-        logMsg(string.format("%.3f [BRAVO++ %s]: %s", os.clock(), "DEBUG", message))
+        logMsg(get_formatted_message("DEBUG", message))
     end
 end
 
 function log.info(message)
     if log.LOG_LEVEL >= log.LOG_INFO then
-        logMsg(string.format("%.3f [BRAVO++ %s]: %s", os.clock(), "INFO", message))
+        logMsg(get_formatted_message("INFO", message))
     end
 end
 
 function log.warning(message)
     if log.LOG_LEVEL >= log.LOG_WARNING then
-        logMsg(string.format("%.3f [BRAVO++ %s]: %s", os.clock(), "WARN", message))
+        logMsg(get_formatted_message("WARN", message))
     end
 end
 
 function log.error(message)
     if log.LOG_LEVEL >= log.LOG_ERROR then
-        logMsg(string.format("%.3f [BRAVO++ %s]: %s", os.clock(), "ERROR", message))
+        logMsg(get_formatted_message("ERROR", message))
     end
 end
 
