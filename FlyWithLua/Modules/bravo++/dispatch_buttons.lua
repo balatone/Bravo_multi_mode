@@ -98,6 +98,7 @@ function buttons.resolve_button_command(state, button_name)
             cmd = state.button_map_actions[state.current_mode][state.current_selection][button_name]
         elseif
             state.current_switch_mode == "up"
+            and util.is_table(state.button_map_actions[state.current_mode][state.current_selection][button_name]["UP"])
             and util.is_string(
                 state.button_map_actions[state.current_mode][state.current_selection][button_name]["UP"]["ON_CLICK"]
             )
@@ -105,6 +106,9 @@ function buttons.resolve_button_command(state, button_name)
             cmd = state.button_map_actions[state.current_mode][state.current_selection][button_name]["UP"]
         elseif
             state.current_switch_mode == "down"
+            and util.is_table(
+                state.button_map_actions[state.current_mode][state.current_selection][button_name]["DOWN"]
+            )
             and util.is_string(
                 state.button_map_actions[state.current_mode][state.current_selection][button_name]["DOWN"]["ON_CLICK"]
             )

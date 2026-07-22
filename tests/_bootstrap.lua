@@ -48,6 +48,8 @@ _G.XPLMFindDataRef = function(...) return nil end
 local modules_path = project_root .. "FlyWithLua/Modules"
 package.path = modules_path .. "/?.lua;" .. package.path
 package.path = modules_path .. "/?/init.lua;" .. package.path
+-- Also support nested module paths: require("bravo++.dispatch") -> bravo++/dispatch.lua
+package.path = modules_path .. "/bravo++/?.lua;" .. package.path
 
 -- Add tests/ directory to package path for shim modules (e.g. bit.lua)
 package.path = tests_path .. "?.lua;" .. package.path

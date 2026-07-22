@@ -509,9 +509,16 @@ end
 --- Called when the floating window is closed.  *ctx* may contain a
 --- `hid_close` callback and a device handle (`bravo`).
 function M.on_close(ctx)
-    if ctx.hid_close_fn and ctx.bravo then
+    if ctx and ctx.hid_close_fn and ctx.bravo then
         ctx.hid_close_fn(ctx.bravo)
     end
 end
+
+-- ---------------------------------------------------------------------------
+-- Test exports (only accessible when module is loaded in test context)
+-- ---------------------------------------------------------------------------
+M._wrap_text_for_width = wrap_text_for_width
+M._get_scaled_wrapped_text = get_scaled_wrapped_text
+M._strip_padding = strip_padding
 
 return M

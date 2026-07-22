@@ -305,4 +305,45 @@ function dispatch.get_arrow_color()
     return state.arrow_color
 end
 
+-- ============================================================
+-- Test-only accessor for E2E/integration tests
+-- ============================================================
+
+function dispatch._get_internal_state()
+    return state
+end
+
+function dispatch.set_switch_mode(m)
+    state.current_switch_mode = m
+end
+
+--- Reset all internal state to defaults. Use for testing isolation.
+function dispatch.reset()
+    state.button_map_actions = {}
+    state.button_is_switch_map = {}
+    state.twist_knob_map_actions = {}
+    state.rocker_switch_led_states = {}
+    state.current_mode = nil
+    state.current_selection = nil
+    state.current_cf_mode = "outer"
+    state.current_switch_mode = "up"
+    state.mode_select = false
+    state.trim_last_click_time = 0
+    state.trim_dataref = nil
+    state.trim_increment = 0.01
+    state.trim_boost_factor = 3
+    state.trim_boost_window = 0.2
+    state.command_state = {}
+    state.arrow_color = 0xFF00FF00
+    state.long_click_threshold = 0.5
+    state.continuous_press_threshold = 1.0
+    state.current_selection_label = ""
+    state.selection_map_labels = nil
+    state.button_map_labels = nil
+    state.modes = nil
+    state.default_selections = nil
+    state.default_button_labels = nil
+    state.nav_bindings = nil
+end
+
 return dispatch
