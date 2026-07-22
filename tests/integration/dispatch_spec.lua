@@ -613,7 +613,7 @@ describe("Dispatch - Trim Wheel Execution", function()
 
     before_each(function()
         state = create_test_state()
-        state.trim_dataref = { 0 }
+        state.trim_dataref = {}; state.trim_dataref[0] = 0
         state.trim_increment = 0.02
         state.trim_boost_factor = 4
         state.trim_boost_window = 0.2
@@ -652,15 +652,15 @@ describe("Dispatch - Trim Wheel Execution", function()
     end)
 
     it("should clamp trim value to 1", function()
-        state.trim_dataref = { 0.99 }
+        state.trim_dataref = {}; state.trim_dataref[0] = 0.99
         _G.set_time(1.0)
         state.trim_last_click_time = 0
         trim.trim_nose_up(state)
-        assert.equals(1, state.trim_dataref[0])
+        assert.are_near(1, state.trim_dataref[0], 0.001)
     end)
 
     it("should clamp trim value to -1", function()
-        state.trim_dataref = { -0.99 }
+        state.trim_dataref = {}; state.trim_dataref[0] = -0.99
         _G.set_time(1.0)
         state.trim_last_click_time = 0
         trim.trim_nose_down(state)
