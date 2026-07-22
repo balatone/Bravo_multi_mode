@@ -11,7 +11,6 @@
     has been extracted into sub-modules for testability.
 ]]
 
-local util = require("bravo++.util")
 local log = require("bravo++.log")
 
 -- Import sub-modules

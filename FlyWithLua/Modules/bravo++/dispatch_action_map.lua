@@ -65,8 +65,8 @@ function action_map.build_button_action_map(state, nav_bindings, ctx)
                         local bindings = util.create_table(nav_bindings[full_key])
 
                         if bindings[1] then
-                            state.button_map_actions[modes[i]][btn][up_down[l]] = state.button_map_actions[modes[i]][btn][up_down[l]]
-                                or {}
+                            local map = state.button_map_actions[modes[i]][btn][up_down[l]]
+                            state.button_map_actions[modes[i]][btn][up_down[l]] = map or {}
                             state.button_map_actions[modes[i]][btn][up_down[l]]["ON_CLICK"] = bindings[1]
                             log.info("Adding " .. full_key .. " = " .. bindings[1] .. " for ON_CLICK")
 
@@ -113,8 +113,8 @@ function action_map.build_button_action_map(state, nav_bindings, ctx)
                         bindings = util.create_table(nav_bindings[full_key])
 
                         if bindings[1] then
-                            state.button_map_actions[modes[i]][sel][btn][up_down[l]] = state.button_map_actions[modes[i]][sel][btn][up_down[l]]
-                                or {}
+                            local map = state.button_map_actions[modes[i]][sel][btn][up_down[l]]
+                            state.button_map_actions[modes[i]][sel][btn][up_down[l]] = map or {}
                             state.button_map_actions[modes[i]][sel][btn][up_down[l]]["ON_CLICK"] = bindings[1]
                             log.info("Adding " .. full_key .. " = " .. bindings[1] .. " for ON_CLICK")
 

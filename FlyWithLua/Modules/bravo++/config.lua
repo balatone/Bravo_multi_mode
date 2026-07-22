@@ -313,7 +313,9 @@ function config.validate_values(nav_bindings, context)
                 table.insert(invalid_value_entries, {
                     key = key,
                     value = value_string,
-                    reason = "Invalid number of parameters for LED. Expected 2 or 3 (DataRef, Number[, Number]), but found "
+                    reason = "Invalid number of parameters for LED. "
+                        .. "Expected 2 or 3 (DataRef, Number[, Number]), "
+                        .. "but found "
                         .. #binding_parameters
                         .. ".",
                 })
@@ -349,7 +351,9 @@ function config.validate_values(nav_bindings, context)
                         table.insert(invalid_value_entries, {
                             key = key,
                             value = value_string,
-                            reason = "Invalid number of parameters for this LED. Expected exactly 2 (DataRef, Number), but found "
+                            reason = "Invalid number of parameters for this LED. "
+                                .. "Expected exactly 2 (DataRef, Number), "
+                                .. "but found "
                                 .. #binding_parameters
                                 .. ".",
                         })
@@ -368,7 +372,8 @@ function config.validate_values(nav_bindings, context)
                             table.insert(invalid_value_entries, {
                                 key = key,
                                 value = value_string,
-                                reason = "DataRef is not an array, but an index parameter was provided. Only 2 parameters allowed.",
+                                reason = "DataRef is not an array, but an index parameter was provided. "
+                                    .. "Only 2 parameters allowed.",
                             })
                         elseif index_param == nil then
                             table.insert(invalid_value_entries, {
@@ -388,7 +393,8 @@ function config.validate_values(nav_bindings, context)
                             table.insert(invalid_value_entries, {
                                 key = key,
                                 value = value_string,
-                                reason = "DataRef is an array but no index was provided. An index parameter is required.",
+                                reason = "DataRef is an array but no index was provided. "
+                                    .. "An index parameter is required.",
                             })
                         end
                     end
@@ -429,7 +435,8 @@ function config.validate_values(nav_bindings, context)
                             .. command_name[i]
                             .. "' (will be created later)."
                     )
-                elseif not util.safe_command_lookup(command_name[i]) then -- Check if the command exists using XPLMFindCommand
+                elseif not util.safe_command_lookup(command_name[i]) then
+                    -- Check if the command exists using XPLMFindCommand
                     table.insert(invalid_value_entries, {
                         key = key,
                         value = value_string,
