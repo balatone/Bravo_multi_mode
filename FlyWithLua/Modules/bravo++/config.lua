@@ -35,25 +35,9 @@ local annunciator_labels = {
 -----------------------------------------------------
 
 --- Validates a condition string during config parsing.
---- Uses inline operator check (mirrors condition_compiler logic).
+--- Delegates to condition_compiler.is_valid to avoid duplicated logic.
 local function is_valid_condition(cond_str)
-    local s = tostring(cond_str):gsub("%s", "")
-    if s == "" then
-        return false
-    end
-    local OPERATOR_ORDER = { "!=", "<=", ">=", "<", ">", "=" }
-    for _, op in ipairs(OPERATOR_ORDER) do
-        if s:sub(1, #op) == op then
-            local threshold = tonumber(s:sub(#op + 1))
-            if threshold then
-                return true
-            end
-        end
-    end
-    if tonumber(s) then
-        return true
-    end
-    return false
+    return condition_compiler.is_valid(cond_str)
 end
 
 --- Compiles a condition string into a callable table during initialization.

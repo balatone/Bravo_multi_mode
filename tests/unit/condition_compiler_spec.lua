@@ -310,6 +310,65 @@ describe("ConditionCompiler - eval_condition()", function()
 end)
 
 -- ============================================================
+-- is_valid() - Validation Tests
+-- ============================================================
+describe("ConditionCompiler - is_valid()", function()
+    it("should return true for valid operator+threshold conditions", function()
+        assert.is_true(cc.is_valid(">0"))
+        assert.is_true(cc.is_valid(">=5"))
+        assert.is_true(cc.is_valid("<10"))
+        assert.is_true(cc.is_valid("<=3"))
+        assert.is_true(cc.is_valid("!=1"))
+        assert.is_true(cc.is_valid("=0"))
+    end)
+
+    it("should return true for bare numbers", function()
+        assert.is_true(cc.is_valid("5"))
+        assert.is_true(cc.is_valid("0"))
+        assert.is_true(cc.is_valid("-3"))
+        assert.is_true(cc.is_valid("2.5"))
+    end)
+
+    it("should return true for operator with negative threshold", function()
+        assert.is_true(cc.is_valid(">-5"))
+        assert.is_true(cc.is_valid(">=-10"))
+    end)
+
+    it("should return false for empty string", function()
+        assert.is_false(cc.is_valid(""))
+    end)
+
+    it("should return false for whitespace-only string", function()
+        assert.is_false(cc.is_valid("   "))
+    end)
+
+    it("should return false for operator without number", function()
+        assert.is_false(cc.is_valid(">"))
+        assert.is_false(cc.is_valid("<="))
+        assert.is_false(cc.is_valid("!="))
+    end)
+
+    it("should return false for operator with non-number", function()
+        assert.is_false(cc.is_valid(">abc"))
+        assert.is_false(cc.is_valid("<=xyz"))
+    end)
+
+    it("should return false for invalid strings", function()
+        assert.is_false(cc.is_valid("invalid"))
+        assert.is_false(cc.is_valid("hello world"))
+        assert.is_false(cc.is_valid("@#$"))
+    end)
+
+    it("should handle nil input", function()
+        assert.is_false(cc.is_valid(nil))
+    end)
+
+    it("should handle numeric input by converting to string", function()
+        assert.is_true(cc.is_valid(42))
+    end)
+end)
+
+-- ============================================================
 -- Integration: compile + eval round-trip
 -- ============================================================
 describe("ConditionCompiler - Round-trip compile + eval", function()

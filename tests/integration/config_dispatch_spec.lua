@@ -242,6 +242,92 @@ describe("End-to-End: config condition pipeline", function()
 end)
 
 -- ============================================================
+-- config.read_preferences() - Integration Tests
+-- ============================================================
+describe("Config - read_preferences() integration", function()
+    it("should return false when preferences file does not exist", function()
+        local prefs = {}
+        local result = config.read_preferences("/nonexistent/path/preferences.cfg", prefs)
+        assert.is_false(result)
+        assert.equals(0, #prefs)
+    end)
+
+    it("should parse key=value pairs from preferences file", function()
+        local prefs = {}
+        local tmp_file = os.tmpname()
+        local f = io.open(tmp_file, "w")
+        assert.is_not_nil(f)
+        f:write("# This is a comment\n")
+        f:write("TRIM_INCREMENT=0.05\n")
+        f:write('CUSTOM_LABEL="My Label"\n')
+        f:write("EMPTY_VAL=\n")
+        f:write("  SPACED_KEY  =  spaced_value  \n")
+        f:close()
+
+        local result = config.read_preferences(tmp_file, prefs)
+        assert.is_true(result)
+        assert.equals("0.05", prefs["TRIM_INCREMENT"])
+        assert.equals("My Label", prefs["CUSTOM_LABEL"])
+        assert.equals("", prefs["EMPTY_VAL"])
+        assert.equals("spaced_value", prefs["SPACED_KEY"])
+
+        os.remove(tmp_file)
+    end)
+
+    it("should skip comment lines and blank lines", function()
+        local prefs = {}
+        local tmp_file = os.tmpname()
+        local f = io.open(tmp_file, "w")
+        assert.is_not_nil(f)
+        f:write("# comment line\n")
+        f:write("\n")
+        f:write("  # indented comment\n")
+        f:write("VALID_KEY=some_value\n")
+        f:close()
+
+        local result = config.read_preferences(tmp_file, prefs)
+        assert.is_true(result)
+        assert.equals("some_value", prefs["VALID_KEY"])
+        assert.is_nil(prefs["comment line"])
+        assert.is_nil(prefs["indented comment"])
+
+        os.remove(tmp_file)
+    end)
+
+    it("should skip lines without equals sign", function()
+        local prefs = {}
+        local tmp_file = os.tmpname()
+        local f = io.open(tmp_file, "w")
+        assert.is_not_nil(f)
+        f:write("NO_EQUALS_HERE\n")
+        f:write("GOOD_KEY=good_value\n")
+        f:close()
+
+        local result = config.read_preferences(tmp_file, prefs)
+        assert.is_true(result)
+        assert.equals("good_value", prefs["GOOD_KEY"])
+        assert.is_nil(prefs["NO_EQUALS_HERE"])
+
+        os.remove(tmp_file)
+    end)
+
+    it("should handle empty preferences file", function()
+        local prefs = {}
+        local tmp_file = os.tmpname()
+        local f = io.open(tmp_file, "w")
+        assert.is_not_nil(f)
+        f:write("")
+        f:close()
+
+        local result = config.read_preferences(tmp_file, prefs)
+        assert.is_true(result)
+        assert.equals(0, #prefs)
+
+        os.remove(tmp_file)
+    end)
+end)
+
+-- ============================================================
 -- Module independence verification
 -- ============================================================
 describe("Module independence", function()

@@ -95,4 +95,33 @@ function M.eval_condition(compiled_predicate, value)
     return compiled_predicate.op(value, compiled_predicate.threshold)
 end
 
+--- Checks whether a condition string is valid (not the always-false fallback).
+--- A valid condition is either an operator+threshold (e.g. ">0", "!=1") or a bare number.
+---
+--- @param condition_string string  Condition string to validate
+--- @return boolean  true if the condition is valid, false otherwise
+function M.is_valid(condition_string)
+    local s = tostring(condition_string):gsub("%s", "")
+    if s == "" then
+        return false
+    end
+
+    -- Try operator+threshold forms using the ordered list (multi-char before single-char)
+    for _, op in ipairs(OPERATOR_ORDER) do
+        if s:sub(1, #op) == op then
+            local threshold = tonumber(s:sub(#op + 1))
+            if threshold then
+                return true
+            end
+        end
+    end
+
+    -- Bare number is also valid
+    if tonumber(s) then
+        return true
+    end
+
+    return false
+end
+
 return M
