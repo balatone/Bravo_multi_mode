@@ -199,6 +199,76 @@ describe("Util - create_table()", function()
         assert.equals("", result[2])
         assert.equals("c", result[3])
     end)
+
+    it("should call log.error for non-string non-nil input (error branch)", function()
+        -- Exercise the error-handling branch with a non-string input
+        -- (e.g., a number or table) which triggers the type validation
+        local result = util.create_table(123)
+        assert.is_table(result)
+        assert.equals(0, #result)
+    end)
+
+    it("should call log.error for table input (error branch)", function()
+        local result = util.create_table({})
+        assert.is_table(result)
+        assert.equals(0, #result)
+    end)
+end)
+
+-- ============================================================
+-- is_dataref_magic_table()
+-- ============================================================
+describe("Util - is_dataref_magic_table()", function()
+    it("should return false for non-table input (nil)", function()
+        assert.is_false(util.is_dataref_magic_table(nil))
+    end)
+
+    it("should return false for non-table input (string)", function()
+        assert.is_false(util.is_dataref_magic_table("not a table"))
+    end)
+
+    it("should return false for non-table input (number)", function()
+        assert.is_false(util.is_dataref_magic_table(42))
+    end)
+
+    it("should return false for table without reftype field", function()
+        assert.is_false(util.is_dataref_magic_table({}))
+    end)
+
+    it("should return false for table with non-number reftype", function()
+        assert.is_false(util.is_dataref_magic_table({ reftype = "string" }))
+    end)
+
+    it("should return true for table with numeric reftype", function()
+        assert.is_true(util.is_dataref_magic_table({ reftype = 8 }))
+    end)
+
+    it("should return true for table with zero reftype", function()
+        assert.is_true(util.is_dataref_magic_table({ reftype = 0 }))
+    end)
+end)
+
+-- ============================================================
+-- is_dataref_array()
+-- ============================================================
+describe("Util - is_dataref_array()", function()
+    it("should return true for array type reftype=8", function()
+        assert.is_true(util.is_dataref_array({ reftype = 8 }))
+    end)
+
+    it("should return true for array type reftype=16", function()
+        assert.is_true(util.is_dataref_array({ reftype = 16 }))
+    end)
+
+    it("should return false for non-array reftype", function()
+        assert.is_false(util.is_dataref_array({ reftype = 1 }))
+    end)
+
+    it("should return false for empty table", function()
+        assert.is_false(util.is_dataref_array({}))
+    end)
+
+
 end)
 
 -- ============================================================

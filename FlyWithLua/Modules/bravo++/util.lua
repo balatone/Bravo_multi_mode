@@ -62,18 +62,19 @@ function util.create_table(value_string)
         return value_table
     end
 
-    local gmatch_result = string.gmatch(value_string .. ",", "([^,]*),")
-    if gmatch_result then
-        for raw_value in gmatch_result do
-            value_table[idx] = util.trim(raw_value)
-            idx = idx + 1
-        end
-    else
+    if type(value_string) ~= "string" then
         log.error(
             "Error: "
-                .. value_string
+                .. tostring(value_string)
                 .. " is not a valid comma-separated value. Make sure the values only contain alpha-numeric and non-special characters. If you want a blank value, use one or more spaces."
         )
+        return value_table
+    end
+
+    local gmatch_result = string.gmatch(value_string .. ",", "([^,]*),")
+    for raw_value in gmatch_result do
+        value_table[idx] = util.trim(raw_value)
+        idx = idx + 1
     end
     return value_table
 end
