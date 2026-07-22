@@ -1,6 +1,6 @@
 ---
-id: REVIEW-012
-title: Consolidated Review of FEAT-011 High-Purity Module Tests
+id: REVIEW-010
+title: Review of FEAT-011 High-Purity Module Tests
 version: 1.2.0
 status: DRAFT
 created: 2026-07-22 07:22:29
@@ -183,4 +183,4 @@ Lines 11-12: `get_formatted_message()` helper function body — not directly tes
 | AC5 | All tests follow `<module_name>_spec.lua` convention | PASS |
 | AC6 | All 142 tests pass independently | PASS |
 
-**Related documents:** FEAT-011, REQ-007, SPIKE-003, PLAN-005, REVIEW-010, REVIEW-011 (superseded by this consolidated document).
+**Related documents:** FEAT-011, REQ-007, SPIKE-003, PLAN-005.
