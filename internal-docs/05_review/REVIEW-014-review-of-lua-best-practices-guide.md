@@ -45,12 +45,11 @@ The guide passes the majority of review criteria with high marks. All seven requ
 
 ## Major Issues
 
-1. **Bitwise Library API Ambiguity** — The guide uses `bitwise.bor()` and `bitwise.lshift()` in the LED/HID Communication section (Phase 3 buffer-to-HID conversion). FlyWithLua runs Lua 5.4, which provides bitwise operations via the standard library module named `bit32` (not `bitwise`). In Lua 5.4, the correct syntax is:
+1. **Bitwise Library API Incorrect in Guide (Confirmed)** — The guide uses `bitwise.bor()` and `bitwise.lshift()` at line 275 (LED/HID Communication → Phase 3). However, the actual Bravo++ codebase imports bitwise operations via:
    ```lua
-   local bit = require("bit")  -- Lua 5.4 built-in 'bit' module
-   bit.bor(data[bank], bit.lshift(1, bit - 1))
+   local bit = require("bit")  -- decoder.lua, line 4
    ```
-   The guide should clarify which bitwise library API FlyWithLua actually exposes and update the example code accordingly. This is a **technical accuracy issue** that could mislead developers implementing HID report assembly.
+   And uses `bit.bor()`, `bit.lshift()`, `bit.band()`, `bit.bxor()` throughout (e.g., `decoder.lua` lines 69–148). FlyWithLua packages its own `bit` module — it is **not** named `bitwise`. The guide's example code at line 275 will produce a runtime error (`attempt to index global 'bitwise' (a nil value)`) if followed verbatim. This must be corrected from `bitwise.bor()` → `bit.bor()` and `bitwise.lshift()` → `bit.lshift()`.
 
 2. **Forward Declaration Pattern Inconsistency** — The Scoping section shows two different patterns for global callbacks: (a) forward-declared `local` variables assigned to anonymous functions, and (b) module-level exports via `M.init()`. While both are valid approaches, the guide should explicitly state when each pattern is appropriate. Forward declarations are needed only for FlyWithLua string-callback entrypoints that must be globally named; all other code should use the module export pattern (`local M = {} ... return M`).
 
