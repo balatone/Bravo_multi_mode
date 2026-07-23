@@ -2,7 +2,7 @@
 id: FEAT-015
 title: Lua Best Practices Guide
 version: 1.0.0
-status: DRAFT
+status: APPROVED
 created: 2026-07-23 12:39:06
 updated: 2026-07-23 12:39:58
 related_docs: ["REQ-008"]
