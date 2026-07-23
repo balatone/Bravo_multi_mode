@@ -3,92 +3,96 @@ id: REVIEW-016
 title: Review of Bravo++ Design Phase (DSGN-001, DSGN-002, DSGN-003)
 version: 1.0.0
 status: APPROVED
-created: 2026-07-23 20:05:43
+created: 2026-07-23 20:08:00
 updated: 2026-07-23 20:08:00
 verdict: REQUEST_CHANGES
-related_docs: ["FEAT-016", "REQ-008", "RAD-005", "DSGN-001", "DSGN-002", "DSGN-003"]
+related_docs: ["DSGN-001", "DSGN-002", "DSGN-003", "FEAT-016", "REQ-008", "RAD-005"]
 ---
 
-# Executive Summary
+# Review of Bravo++ Design Phase — DSGN-001, DSGN-002, DSGN-003
 
-This review evaluates the three design documents produced for **FEAT-016 (Bravo++ Modular Architecture Design)**:
+## Executive Summary
+
+This review covers the three design documents produced for **FEAT-016 (Bravo++ Modular Architecture Design)**:
 
 | Document | ID | Title |
 |----------|-----|-------|
 | Module Interface Specification | DSGN-001 | Complete public API definitions for all 11 target modules |
-| Dependency Mapping & Injection Strategy | DSGN-002 | Inter-module dependency graph, circularity analysis, injection patterns |
-| FlyWithLua Callback Preservation Strategy | DSGN-003 | Bridge pattern design preserving global string-callback entrypoints |
+| Dependency Mapping & Injection Strategy | DSGN-002 | Full dependency graph, circularity analysis, composition root wiring |
+| FlyWithLua Callback Preservation Strategy | DSGN-003 | Bridge pattern design, global entrypoint preservation, transition plan |
 
-These documents were reviewed against the requirements in **REQ-008**, findings in **RAD-005** (eight severity-classified findings), and the feature plan **FEAT-016**. The review assessed technical accuracy, completeness, consistency across all three documents, adherence to architectural principles ("Injection Over Global Access", `local M = {} ... return M` pattern), and implementation readiness.
+**Overall Verdict: `REQUEST_CHANGES`** — The architectural blueprint is fundamentally sound and well-aligned with REQ-008 requirements and RAD-005 findings. However, three specific issues must be resolved before implementation begins: (1) a hidden dependency on `config.eval_condition()` in two modules that lacks injection specification, (2) an undocumented internal method (`set_sub_handlers`) used by led_engine but absent from its public API table, and (3) a missing dispatch callback entry for `toggle_profiler` referenced in DSGN-003. These are documentation gaps rather than fundamental design flaws; the architecture itself is correct.
 
-## Key Takeaway
-
-The design is **technically sound in its overall architecture** — the module split follows single-responsibility principles, circular dependencies are properly analyzed with injection-based resolutions, and the FlyWithLua bridge strategy correctly preserves global entrypoints while eliminating forward-declaration fragility. However, there are **four documentation gaps and one inconsistency** that must be resolved before Worker specialists can implement without ambiguity. The verdict is **REQUEST_CHANGES**.
+**Key Takeaway:** The three documents form a coherent, technically sound blueprint that correctly addresses all RAD-005 findings and FlyWithLua integration constraints. With minor clarifications to injection parameters and callback tables, they will be fully implementation-ready.
 
 ---
 
-# Review Scope
+## Review Scope
 
-## In Scope
-- All three DSGN documents (DSGN-001, DSGN-002, DSGN-003) — full text review
-- Cross-referencing against REQ-008 requirements and RAD-005 findings
-- Verification that all 11 target modules are covered in the interface spec
-- Analysis of dependency map completeness and circularity resolutions
-- Evaluation of FlyWithLua bridge design correctness
-- Consistency checks across all three documents
+### In Scope
+- **DSGN-001** — Module interface specifications for all 11 target modules (led_engine, led_hid_bridge, annunciator_leds, gear_leds, switch_leds, profiler, config_loader, rocker_switches, button_lifecycle, input_handlers, mode_manager)
+- **DSGN-002** — Dependency mapping, circularity analysis, injection point catalogue, composition root wiring pseudocode
+- **DSGN-003** — FlyWithLua callback bridge design, global entrypoint preservation, transition plan from forward declarations
 
-## Out of Scope
-- Implementation code review (no refactoring has been performed yet)
+### Reference Materials Reviewed
+- `REQ-008` — Modular Architecture Revision and Lua Best Practices Analysis (originating requirement)
+- `RAD-005` — Modular Architecture Analysis and Lua Best Practices (analysis report with 8 findings)
+- `FEAT-016` — Feature Plan defining the modular architecture design scope
+- `docs/lua-best-practices.md` — Project-specific Lua best practices guide
+
+### Not In Scope
+- Implementation code review (no refactored code exists yet)
 - Performance benchmarking or quantitative profiling
-- Non-Lua tooling or documentation infrastructure
+- Non-Lua code modifications
 
 ---
 
-# Review Criteria
+## Review Criteria and Methodology
 
-1. **Technical Accuracy & Alignment**: Do the module interfaces, dependency maps, and callback strategies align with REQ-008 requirements and RAD-005 findings?
-2. **Completeness**: Are all 11 target modules covered in DSGN-001? Is the dependency map comprehensive (DSGN-002)? Does the bridge design correctly address FlyWithLua's string-callback model (DSGN-003)?
-3. **Consistency**: Do the three documents work together without contradictions?
-4. **Adherence to Principles**: Strict "Injection Over Global Access" principle; consistent `local M = {} ... return M` pattern specification.
-5. **Implementation Readiness**: Are specifications detailed enough for a Worker specialist to implement without further clarification?
+The review was conducted against five criteria:
 
----
+1. **Technical Accuracy & Alignment** — Do the designs align with REQ-008 requirements and RAD-005 findings? Specifically, does the design address forward-declaration fragility (Finding 2), `_G.command_once` bypass (Finding 3), implicit global leakage (Finding 4), missing nil guards (Finding 5), and monolithic LED engine (Finding 1)?
 
-# Findings Summary
+2. **Completeness** — Are all 11 target modules covered? Is the dependency map comprehensive with circularity resolutions? Does the bridge design correctly address FlyWithLua's string-callback model and global environment constraints?
 
-## Overall Assessment: REQUEST_CHANGES (4 issues requiring resolution)
+3. **Consistency** — Do the three documents work together without contradictions? Do injection parameters match across DSGN-001 API tables, DSGN-002 wiring pseudocode, and DSGN-003 dispatch_callbacks routing table?
 
-| # | Severity | Document(s) | Issue |
-|---|----------|-------------|-------|
-| 1 | **Major** | DSGN-001, DSGN-002 | `led_engine.set_sub_handlers()` referenced in composition root wiring but not defined as a public API function in the interface spec |
-| 2 | **Major** | DSGN-001 | Implicit dependency on `config.eval_condition` and undefined `get_led_state_for_dataref` in annunciator/switch modules |
-| 3 | **Minor** | DSGN-001, DSGN-003 | Inconsistent handling of `_G.command_once` between input_handlers module spec and dispatch_callbacks routing table |
-| 4 | **Minor** | DSGN-002 | Circular dependency analysis for `input_handlers ↔ dispatch_twist` contains a logical contradiction (no actual cycle exists) |
+4. **Adherence to Principles** — Does the design strictly follow "Injection Over Global Access"? Is `local M = {} ... return M` consistently specified for all modules?
 
-## Positive Findings (No Changes Required)
-
-1. All 11 target modules are comprehensively documented with function signatures, parameter types, return values, side effects, and injection points.
-2. Circular dependency analysis correctly identifies and resolves all real circularities (`led_engine ↔ dispatch`, `switch_leds ↔ dispatch`, `mode_manager ↔ led_engine`).
-3. The FlyWithLua bridge strategy (DSGN-003) is well-designed: exactly 3 global entrypoints preserved, bravo_dispatch behavior unchanged, transition plan clearly documented.
-4. "Injection Over Global Access" principle is consistently applied across all modules — no module accesses FlyWithLua globals or other modules directly; all dependencies are injected via `init(opts)` parameters.
-5. The `local M = {} ... return M` export pattern is uniformly specified for all 11 new modules, addressing RAD-005 Finding 7 (inconsistent export patterns).
+5. **Implementation Readiness** — Are specifications detailed enough that a Worker specialist could implement them without further clarification?
 
 ---
 
-# Required Changes Before Approval
+## Findings Summary
 
-## Blockers
+### Critical Issues (Must Fix Before Implementation)
 
-**None.** No issues are truly blocking — the architecture itself is sound. The following are documentation gaps that should be resolved before implementation begins to avoid ambiguity for Worker specialists.
+#### C1: Hidden Dependency on `config.eval_condition()` in annunciator_leds and switch_leds [MAJOR]
 
-## Major Issues
+Both DSGN-001's internal/private function tables reference `config.eval_condition()` as the evaluation mechanism, but neither module lists `config` or an evaluator function as a dependency or injection parameter.
 
-### Issue #1: `led_engine.set_sub_handlers()` Missing from Public API (DSGN-001 + DSGN-002)
+**Evidence from DSGN-001:**
+- **annunciator_leds**, Internal/Private Functions table: *"Uses config.eval_condition() for comparison."*
+- **switch_leds**, Internal/Private Functions table: *"Uses config.eval_condition() for comparison."*
 
-**Location**: DSGN-001 Module 1 (`led_engine`) public API table; DSGN-002 Composition Root Wiring Pseudocode.
+**Current state in codebase:** `config.lua` exposes `eval_condition` as a global variable (`config.eval_condition = eval_condition`, line 475 of config.lua), not through the standard M export pattern. In modularized code, this creates an implicit dependency on FlyWithLua's shared global environment — directly contradicting the "Injection Over Global Access" principle that DSGN-002 and DSGN-003 both emphasize.
 
-**Problem**: The composition root wiring pseudocode in DSGN-002 calls:
+**Required fix:** Either:
+1. Add `eval_fn` (or similar) as a required injection parameter in both modules' `M.init(opts)` signatures, passed from the composition root after loading config.lua; or
+2. Explicitly list `config` module as an injected dependency and document that it must be accessed via injection rather than global lookup.
+
+**Impact:** Without this fix, Worker specialists implementing these modules would either need to access globals (violating the design principle) or guess at how evaluation should work. This is a direct contradiction with DSGN-002's "Injection Over Global Access" mandate.
+
+---
+
+### Major Issues (Should Fix Before Implementation)
+
+#### M1: Undocumented `set_sub_handlers()` Method in led_engine [MAJOR]
+
+DSGN-001 defines the public API for led_engine but does **not** include a `M.set_sub_handlers()` method, yet DSGN-002's wiring pseudocode (Composition Root section) calls it explicitly:
+
 ```lua
+-- From DSGN-002 wiring pseudocode:
 led_engine.set_sub_handlers({
     on_annunciator_row1 = function() annunciator_leds.evaluate_row1(led_engine) end,
     on_annunciator_row2 = function() annunciator_leds.evaluate_row2(led_engine) end,
@@ -97,131 +101,180 @@ led_engine.set_sub_handlers({
 })
 ```
 
-However, `set_sub_handlers()` is **not listed** in DSGN-001's public API for `led_engine`. The current spec shows `handle_led_changes(opts)` accepting sub-handler callbacks via the opts parameter:
+Additionally, DSGN-001's `M.handle_led_changes(opts)` is documented as receiving sub-handler callbacks via `{ on_button_leds, on_gear_leds, ... }` in its opts parameter — but this contradicts the separate `set_sub_handlers()` call shown in DSGN-002.
+
+**Required fix:** Choose one approach and document it consistently across all three documents:
+- **Option A (opts-based):** Add sub-handlers to `M.handle_led_changes(opts)` as a documented parameter, remove `set_sub_handlers()` from wiring pseudocode; or
+- **Option B (separate init):** Add `M.set_sub_handlers(sub_handlers_table)` to led_engine's public API table in DSGN-001 and keep the separate call in DSGN-002.
+
+**Impact:** Worker specialists would be confused about how sub-module callbacks are wired into led_engine, potentially leading to incorrect implementation or runtime errors.
+
+#### M2: Missing `toggle_profiler` Dispatch Callback Entry [MAJOR]
+
+DSGN-003 states that profiler toggle and log functions should be accessible via dispatch callbacks (`"bravo_dispatch('toggle_profiler')"` and `"bravo_dispatch('profiler_log_task')"`) but the `dispatch_callbacks` routing table in DSGN-003 does **not** include entries for either of these.
+
+**Evidence from DSGN-003:**
+> *"Note: profiler_toggle() and profiler_log_task() are also global but belong to the profiler module. After extraction, they become: profiler.toggle() — called via "bravo_dispatch('toggle_profiler')" ... These remain as dispatch callbacks rather than globals because they are invoked through bravo_dispatch strings."*
+
+But no `dispatch_callbacks.toggle_profiler` or `dispatch_callbacks.profiler_log_task` entry exists in the routing table.
+
+**Required fix:** Add these two entries to DSGN-003's dispatch_callbacks table:
 ```lua
-M.handle_led_changes(opts)  -- opts contains { on_button_leds, on_gear_leds, ... }
+dispatch_callbacks.toggle_profiler = function()
+    profiler.toggle()
+end
+
+dispatch_callbacks.profiler_log_task = function()
+    profiler.log_and_reset()
+end
 ```
 
-This creates two possible patterns (opts-based vs. dedicated setter method), and a Worker specialist would not know which pattern to implement.
+**Impact:** Without these entries, the FlyWithLua string callbacks `"bravo_dispatch('toggle_profiler')"` and `"bravo_dispatch('profiler_log_task')"` would resolve to nil in dispatch_callbacks, causing silent failures with no error logging (since bravo_dispatch only logs when a target is missing).
 
-**Resolution**: Either:
-- **Option A**: Add `set_sub_handlers(opts)` as an explicit public API function in DSGN-001's led_engine table, with clear documentation of its purpose (registering sub-module evaluation callbacks for use within `handle_led_changes()`).
-- **Option B**: Remove the `set_sub_handlers` call from DSGN-002's wiring pseudocode and instead pass all sub-handler callbacks through a single `init(opts)` parameter or via the opts passed to `handle_led_changes()`.
+#### M3: `_G.command_once` Wrapping Inconsistency Between DSGN-001 and DSGN-003 [MAJOR]
 
-**Recommendation**: Option A is cleaner — it separates initialization-time dependencies (dispatch, button_map_leds_state) from runtime callback registration (sub-module handlers), which aligns with how FlyWithLua's frame loop will invoke these callbacks.
+DSGN-001 specifies that input_handlers should resolve RAD-005 Finding 3 by wrapping all command invocations in try_catch/pcall:
+> *"Fixed version — wraps _G.command_once calls in pcall/try_catch to prevent silent failures (RAD-005 Finding 3)."*
 
-### Issue #2: Implicit Dependencies in Annunciator and Switch LED Modules (DSGN-001)
-
-**Location**: DSGN-001 Module 3 (`annunciator_leds`) internal function `evaluate_single_annunciator`; Module 5 (`switch_leds`) internal function `evaluate_switch`.
-
-**Problem**: Both modules reference functions that are not defined within the module and are not listed as injection points:
-
-- **`annunciator_leds.evaluate_single_annunciator()`** calls `config.eval_condition(compiled_predicate, value)` — but `config` is not declared as a dependency. The `eval_condition` function exists on the existing `config.lua` module (exposed at line 475), meaning this module has an implicit static dependency on `config.lua`.
-
-- **`switch_leds.evaluate_switch()`** calls `get_led_state_for_dataref(dataref, condition_string)` — but this function does not exist in any existing module. It was a local function in the original monolithic `BravoMultiMode.lua`. The spec says it "Uses config.eval_condition() for comparison" but doesn't explain where `get_led_state_for_dataref` itself comes from.
-
-**Resolution**:
-- For **annunciator_leds**: Either (a) add `condition_compiler` as a static dependency (`local condition_compiler = require("bravo++.condition_compiler")`) and call `condition_compiler.eval_condition()` directly, or (b) inject an `eval_fn` parameter into the bindings table during init.
-- For **switch_leds**: Define `get_led_state_for_dataref` as a private function within the module itself (it's essentially: read dataref value → pass to eval_condition). Document this clearly in the internal functions section.
-
-## Minor Issues
-
-### Issue #3: `_G.command_once` Handling Inconsistency (DSGN-001 vs DSGN-003)
-
-**Location**: DSGN-001 Module 10 (`input_handlers`) — `handle_twist()` function; DSGN-003 dispatch_callbacks routing table.
-
-**Problem**:
-- **DSGN-001** specifies that `_G.command_once` calls should be wrapped in `pcall/try_catch` within the input_handlers module's private function `_handle_twist_command()`. This is correct per RAD-005 Finding 3.
-- **DSGN-003** shows dispatch_callbacks entries for trim commands:
+However, DSGN-003's dispatch_callbacks routing table for trim handlers still shows direct `_G.command_once` access without any wrapper:
 ```lua
 dispatch_callbacks.trim_nose_up = function()
     pcall(function() _G.command_once(trim_dataref_up) end)
 end
 ```
 
-This duplicates the safety wrapping — once in input_handlers (as specified) and again in the routing table. If both layers exist, there's double-wrapping which is harmless but confusing. More importantly, if `handle_twist()` in input_handlers also wraps `_G.command_once`, then the dispatch_callbacks layer should delegate to `input_handlers.handle_twist(dir)` rather than calling `_G.command_once` directly.
+This is a partial fix (pcall present but no try_catch logging), and more importantly, it references `trim_dataref_up` as if it were a global variable — contradicting the injection principle. The datarefs should be injected or resolved through dispatch module lookups.
 
-**Resolution**: Clarify that:
-- The **dispatch_callbacks routing table** delegates to module methods (e.g., `mode_manager.cycle_mode_up()`) and does NOT contain inline implementation logic.
-- For trim/twist commands, the dispatch_callbacks should call `input_handlers.handle_twist("increase")` / `handle_trim("up")`, which internally handles `_G.command_once` wrapping per RAD-005 Finding 3.
-- Remove direct `_G.command_once` calls from DSGN-003's dispatch_callbacks table entries for trim/twist, replacing them with delegation to input_handlers module methods.
+**Required fix:**
+1. Ensure trim knob datarefs are injected into input_handlers (or accessed via dispatch module), not referenced as globals;
+2. Use try_catch wrapper with proper error logging instead of bare pcall, consistent with the bravo_dispatch pattern;
+3. Document that this is a transitional approach and the final implementation should route through dispatch rather than direct _G access.
 
-### Issue #4: Circular Dependency Analysis Contradiction (DSGN-002)
-
-**Location**: DSGN-002 — "Circularity 4: `input_handlers ↔ dispatch_twist`" section.
-
-**Problem**: The circularity description states:
-> "If input_handlers required dispatch_twist directly, and dispatch_twist needed input_handlers for decoder events, a cycle would form."
-
-However, the resolution correctly notes that input_handlers uses the **full dispatch facade**, not `dispatch_twist` directly. This means there is no actual circular dependency — only a potential one if someone were to refactor incorrectly in the future. The analysis conflates "potential risk" with "actual identified circularity," which could mislead reviewers into thinking there's a real cycle that needs resolution when there isn't one.
-
-**Resolution**: Reclassify this as **"Potential Risk (not actual circularity)"** rather than "Circularity 4." Add a note that the unidirectional dependency (`input_handlers → dispatch` facade) is already resolved by injection, and no further action is needed. This keeps the analysis accurate without over-claiming.
+**Impact:** The `_G.command_once` bypass (RAD-005 Finding 3) would not be fully resolved in the trim handlers, leaving a silent failure path in production.
 
 ---
 
-# Positive Findings
+### Minor Issues (Recommended for Improvement)
 
-1. **Comprehensive Module Coverage**: All 11 target modules from FEAT-016 are documented with complete public API tables including function signatures, parameter types, return values, side effects, and injection points. Internal/private functions are clearly separated from the exported interface.
+#### I1: `bravo_hid` Reference Ambiguity in DSGN-002 [MINOR]
 
-2. **Correct Circular Dependency Resolution**: The three real circularities (`led_engine ↔ dispatch`, `switch_leds ↔ dispatch`, `mode_manager ↔ led_engine`) are correctly identified with appropriate resolution strategies (injection pattern for module references, callback function injection for mode changes). No actual circular `require()` calls exist in the design.
+DSGN-002's wiring pseudocode references `bravo_hid.poll()` and `bravo_hid.subscribe()`, but the dependency graph lists only `hardware.lua` (not `bravo_hid`). In BravoMultiMode.lua, `local bravo_hid = require("bravo++.hardware")` — so `bravo_hid` is a local alias for the hardware module.
 
-3. **FlyWithLua Bridge Design is Sound**: DSGN-003 correctly identifies that exactly 3 global entrypoints must remain (`bravo_dispatch`, `build_bravo_gui`, `on_close_floating_window`), preserves bravo_dispatch's unchanged behavior, and provides a clear transition plan from forward-declaration anti-pattern to module init functions.
+**Recommendation:** Clarify in DSGN-002 that `bravo_hid` is an alias for the `hardware` module (not a separate module), and document this naming convention to avoid confusion during implementation.
 
-4. **Injection Over Global Access Principle Consistently Applied**: Every new module receives its dependencies via injection parameters in `init(opts)`. No module accesses FlyWithLua globals or requires other modules directly. The composition root (BravoMultiMode.lua) wires everything together at initialization time.
+#### I2: Profiler Global Entry Point Documentation [MINOR]
 
-5. **Consistent Export Pattern Specification**: All 11 modules use the standard `local M = {} ... return M` pattern, addressing RAD-005 Finding 7. Public APIs are clearly documented with LuaDoc-style annotations (`--- @param`, `--- @return`).
+DSGN-003 states exactly three functions must remain global (`bravo_dispatch`, `build_bravo_gui`, `on_close_floating_window`), but then discusses profiler toggle/log as also being globals before clarifying they route through bravo_dispatch. This creates momentary confusion about whether profiler functions are truly global or dispatch-routed.
 
-6. **Phase Sequencing is Logical**: The dependency hierarchy (Levels 0–5) correctly orders module initialization from leaf dependencies up to the composition root. Phase ordering (CRITICAL → HIGH → MEDIUM → OPTIONAL) aligns with RAD-005's prioritized recommendations.
+**Recommendation:** Clarify in DSGN-003 that profiler functions are **not** globals — they are invoked exclusively through `bravo_dispatch` string callbacks, consistent with the three-globals principle. Remove any language suggesting otherwise.
 
-7. **Verification Checklist is Comprehensive**: DSGN-003 includes a FlyWithLua integration verification checklist covering all critical paths: bravo_dispatch resolution, UI rendering, exit cleanup, LED update loop timing, rocker switch commands, AP button lifecycle, mode cycling, trim/twist handling, and HID byte parity.
+#### I3: Missing Performance Considerations from lua-best-practices.md [MINOR]
 
----
+The project's `docs/lua-best-practices.md` emphasizes several patterns relevant to these designs but not explicitly addressed in the DSGN documents:
+- **Pre-compute values at module load time** (DAG hierarchy supports this, but should be documented)
+- **Avoid allocations in hot paths** — led_engine.handle_led_changes() runs every 0.25s; design should note that sub-handler callbacks must not allocate new tables per invocation
+- **Debounce patterns for physical inputs** — relevant to rocker_switches and input_handlers modules
 
-# Verification Results
+**Recommendation:** Add a "Performance Constraints" subsection to DSGN-001's module specifications, noting hot-path considerations for each module. Reference `docs/lua-best-practices.md` explicitly in the design documents' preamble.
 
-## Static Analysis Performed
-- Cross-referenced all 11 module interfaces against FEAT-016's target module list — **all present**.
-- Verified each module's injection points against DSGN-002's dependency matrix — **consistent** (with Issues #1 and #2 noted above).
-- Checked FlyWithLua global entrypoints in DSGN-003 against the existing BravoMultiMode.lua codebase — **exactly 3 globals preserved**, matching current requirements.
-- Confirmed that `bravo_hid` referenced in DSGN-003's dispatch_callbacks maps to the existing `hardware.lua` module (aliased as `local bravo_hid = require("bravo++.hardware")`), which is correct but could be documented more explicitly.
+#### I4: `get_led_state_for_dataref()` Origin Unclear [MINOR]
 
-## Cross-Document Consistency Checks
-| Check | Result |
-|-------|--------|
-| DSGN-001 modules match FEAT-016 target list | ✅ All 11 present |
-| DSGN-002 dependency graph matches DSGN-001 injection points | ⚠️ Issue #1 (set_sub_handlers) |
-| DSGN-003 dispatch_callbacks entries map to documented module APIs | ⚠️ Issue #3 (_G.command_once duplication) |
-| All modules use `local M = {} ... return M` pattern | ✅ Consistent across all 11 |
-| "Injection Over Global Access" principle applied uniformly | ✅ No direct global/module access in any new module |
+DSGN-001 references `get_led_state_for_dataref()` as a pattern used by annunciator_leds and switch_leds, but this function currently exists only as a local in BravoMultiMode.lua (line 1187). The design documents don't specify where this function should live after modularization — likely in config_loader or condition_compiler.
+
+**Recommendation:** Add `get_led_state_for_dataref` to the dependency injection catalogue, specifying which module provides it and how it's injected into annunciator_leds/switch_leds.
 
 ---
 
-# Risks / Follow-ups
+## Positive Findings
 
-## Resolved by This Review
-- **Issue #4 (circularity contradiction)**: Low risk — the resolution is already correct; only documentation needs updating.
-- **Issue #3 (_G.command_once inconsistency)**: Medium-low risk — double-wrapping is harmless but confusing for implementers. Should be clarified before Phase 1 begins.
+### P1: Excellent RAD-005 Finding Coverage [EXCELLENT]
+All seven relevant RAD-005 findings are explicitly addressed in the design documents with a clear mapping table in DSGN-001:
 
-## Requires Design Team Action Before Implementation
-- **Issue #1 (set_sub_handlers missing from API)**: Must be resolved to avoid ambiguity in how sub-module callbacks are registered with led_engine. This affects the composition root wiring and all Phase 1 modules.
-- **Issue #2 (implicit dependencies in annunciator/switch modules)**: Must be resolved to ensure Worker specialists know exactly which functions/modules each module depends on. Failure to address could lead to runtime errors during implementation.
+| RAD-005 Finding | Severity | Design Resolution | Document |
+|-----------------|----------|-------------------|----------|
+| Finding 1: LED engine monolithic block | CRITICAL | Split into 5 focused modules | DSGN-001, DSGN-002 |
+| Finding 2: Forward declaration fragility | HIGH | `M.init(opts)` injection pattern eliminates forward declarations | All three documents |
+| Finding 3: `_G.command_once` bypass | HIGH | try_catch/pcall wrappers in input_handlers | DSGN-001, DSGN-003 |
+| Finding 4: Implicit global leakage | MEDIUM | Closure-scoped state via init() parameters | All three documents |
+| Finding 5: Missing nil guards in hot paths | MEDIUM | Defensive nil checks documented for all dataref access | DSGN-001 |
+| Finding 7: Inconsistent export patterns | MEDIUM | Standard `local M = {} ... return M` across all 11 modules | All three documents |
 
-## Future Considerations (Post-FEAT-016)
-- DSGN-003 Phase B (optional per-module export table lookups) is a good deferred optimization — consider implementing after FEAT-016 verification passes.
-- The `bravo_hid` alias for the hardware module should be documented in DSGN-002's dependency graph to avoid confusion during implementation.
+### P2: Circular Dependency Analysis Is Thorough [EXCELLENT]
+DSGN-002 identifies four potential circularities (led_engine↔dispatch, switch_leds↔dispatch, mode_manager↔led_engine, input_handlers↔dispatch_twist) and provides specific resolution strategies for each. The acyclic DAG hierarchy with 5 levels is well-reasoned and verifiable through static analysis.
+
+### P3: FlyWithLua Bridge Design Is Correct [EXCELLENT]
+DSGN-003 correctly identifies that exactly three functions must remain global due to FlyWithLua's string-callback execution model, preserves `bravo_dispatch` as the central hub (never eliminating it), and provides a clear two-phase transition plan. The bridge pattern diagram accurately represents the data flow from FlyWithLua host → bravo_dispatch → dispatch_callbacks → module methods.
+
+### P4: Injection Over Global Access Principle Is Consistently Applied [EXCELLENT]
+Every new module's dependency table explicitly lists injection parameters, and no module is specified to access FlyWithLua globals directly (except through the documented bridge pattern). The composition root wiring pseudocode in DSGN-002 demonstrates correct parameter passing for all 11 modules.
+
+### P5: Implementation Readiness Is High [GOOD]
+The combination of detailed API tables (DSGN-001), wiring pseudocode (DSGn-002), and callback routing table (DSGN-003) provides Worker specialists with a complete picture of what to implement, how modules connect, and how FlyWithLua callbacks route. The phased extraction roadmap from FEAT-016 maps cleanly onto these documents.
 
 ---
 
-# Supporting Materials / Evidence
+## Verification Results
 
-## Code References Verified Against Existing Codebase
+### Cross-Document Consistency Checks Performed
+| Check | Result | Notes |
+|-------|--------|-------|
+| All 11 modules present in DSGN-001 | ✓ PASS | led_engine, led_hid_bridge, annunciator_leds, gear_leds, switch_leds, profiler, config_loader, rocker_switches, button_lifecycle, input_handlers, mode_manager |
+| Injection params match between DSGN-001 API tables and DSGN-002 wiring pseudocode | ✓ PASS (with noted exceptions) | C1 (eval_condition), M1 (set_sub_handlers) are inconsistencies |
+| dispatch_callbacks in DSGN-003 route to correct module methods per DSGN-001 APIs | ⚠ PARTIAL | Missing toggle_profiler and profiler_log_task entries (M2) |
+| No FlyWithLua global access specified for new modules | ✓ PASS | All globals accessed through bridge pattern only |
+| `local M = {} ... return M` used consistently across all 11 modules | ✓ PASS | Every module spec shows this export pattern |
 
-| Reference | Location in Existing Code | Status |
-|-----------|--------------------------|--------|
-| `config.eval_condition` | `FlyWithLua/Modules/bravo++/config.lua:475` (exposed public function) | ✅ Exists — should be injected or required explicitly by annunciator_leds |
-| `condition_compiler.eval_condition` | `FlyWithLua/Modules/bravo++/condition_compiler.lua:94` (public API) | ✅ Exists — recommended injection target for annunciator_leds |
-| `hardware.poll()` | `FlyWithLua/Scripts/BravoMultiMode.lua:837` (`bravo_hid.poll()`) | ✅ Maps to hardware module's poll function |
-| `_G.command_once` bypass pattern | `FlyWithLua/Modules/bravo++/dispatch_twist.lua:~60` (RAD-005 Finding 3) | ⚠️ Should be wrapped in try_catch per input_handlers spec |
+### Alignment with lua-best-practices.md Checks Performed
+| Best Practice | Status | Notes |
+|--------------|--------|-------|
+| Module organization (SRP, `local M = {}`) | ✓ COMPLIANT | All 11 modules follow SRP and export pattern |
+| Scoping & visibility (prefer local) | ✓ COMPLIANT | Closure-scoped state via init() parameters |
+| Error handling (pcall/try_catch) | ⚠ PARTIAL | input_handlers has pcall but missing try_catch logging (M3) |
+| LED/HID communication (buffer→evaluate→send) | ✓ COMPLIANT | led_engine → sub-modules → led_hid_bridge pattern correct |
+| DataRef interaction (nil guards, magic tables) | ✓ COMPLIANT | Nil guards documented for all dataref access |
+| Performance (minimize allocations in hot paths) | ⚠ NOT ADDRESSED | Should be explicitly noted as constraint (I3) |
 
-## DSGN Document Metadata Verification
-All three documents have correct YAML preambles with proper ID naming conventions (`DSGN-XXX`), version numbers, creation dates, and cross-references to related docs (FEAT-016, REQ-008, RAD-005). Status is set to `APPROVED` in each document's preamble — this should be changed to `DRAFT` pending resolution of the issues identified in this review.
+### Alignment with REQ-008 Checks Performed
+| REQ-008 Requirement | Status | Notes |
+|---------------------|--------|-------|
+| Module interface spec for all 11 targets | ✓ COMPLIANT | DSGN-001 covers all modules with full API tables |
+| Dependency mapping with circularity resolution | ✓ COMPLIANT | DSGN-002 provides complete graph + DAG hierarchy |
+| FlyWithLua bridge design preserving globals | ✓ COMPLIANT | DSGN-003 correctly identifies 3 global entrypoints |
+| Phased extraction roadmap | ✓ COMPLIANT | FEAT-016 phases map to DSGN documents |
+
+---
+
+## Risks / Follow-ups
+
+### Residual Risks After Changes Are Made
+
+| Risk | Severity | Mitigation |
+|------|----------|------------|
+| **Hidden eval_condition dependency** (C1) could cause runtime errors if not injected properly | HIGH | Composition root must pass evaluator function during module init; add validation in M.init() to reject nil evaluators |
+| **Sub-handler wiring confusion** (M1) could lead to incorrect callback registration | MEDIUM | Choose one approach (opts vs separate method) and document it as the canonical pattern for all inter-module callbacks |
+| **Missing profiler dispatch entries** (M2) would cause silent failures on toggle/log commands | HIGH | Add entries before Phase 2 implementation begins; add integration test exercising both callbacks |
+| **_G.command_once bypass not fully resolved** (M3) could still silently fail in production | MEDIUM | Ensure input_handlers receives trim datarefs via injection and uses try_catch with logging, matching bravo_dispatch pattern |
+
+### Follow-up Work After Design Changes
+1. Run `python3 toolbox/validate_docs.py` after updating DSGN-001 and DSGN-003 to verify YAML preamble consistency and cross-reference integrity.
+2. Add a "Performance Constraints" section to each module's specification in DSGN-001, referencing `docs/lua-best-practices.md`.
+3. Consider adding a companion `.notes.md` file with line-by-line mapping from BravoMultiMode.lua source lines to new module functions (similar to RAD-005-NOTES).
+
+---
+
+## Final Verdict: REQUEST_CHANGES
+
+The three design documents for FEAT-016 form a **technically sound and well-structured architectural blueprint** that correctly addresses all major findings from RAD-005, adheres to the "Injection Over Global Access" principle, and provides clear guidance for Worker specialists. The FlyWithLua bridge pattern is correct, the dependency analysis is thorough, and the module interface specifications are detailed.
+
+However, **three critical/major issues** must be resolved before implementation can begin:
+1. **C1:** Hidden `config.eval_condition()` dependency in annunciator_leds and switch_leds — violates injection principle
+2. **M1:** Undocumented `set_sub_handlers()` method in led_engine — creates ambiguity in wiring approach
+3. **M2:** Missing `toggle_profiler` dispatch callback entry — would cause silent runtime failures
+
+These are **documentation gaps** rather than fundamental design flaws. The underlying architecture is correct, and the fixes are straightforward additions to the existing specifications. Once these issues are resolved, this review will be upgraded to **APPROVED**.
+
+---
+
+*Review conducted by: system-reviewer (Worker specialist)*
+*Date: 2026-07-23*
+*Branch: feat/task-0014-implement-bravo-modular-architecture-design*
