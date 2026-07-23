@@ -12,7 +12,7 @@ related_docs: ["FEAT-016", "RAD-005", "REQ-008"]
 
 ## Overview
 
-This document defines the complete public API (exports) for all 11 target modules identified in FEAT-016. Each module follows the standard `local M = {} ... return M` export pattern as mandated by RAD-005 Finding 7 and Phase 4 requirements. All new modules receive their dependencies via injection parameters rather than accessing FlyWithLua globals directly — adhering to the "Injection Over Global Access" principle defined in FEAT-016.
+This document defines the complete public API (exports) for all 11 target modules identified in FEAT-016. Each module follows the standard `local M = {} ... return M` export pattern as mandated by RAD-005 Finding 7 and Phase 4 requirements. All new modules receive their dependencies via injection parameters rather than accessing FlyWithLua globals directly — adhering to the "Injection Over Global Access" principle defined in FEAT-016. Performance constraints from `docs/lua-best-practices.md` are noted per-module and must be followed during implementation.
 
 ## Module Export Pattern (Standard)
 
@@ -64,7 +64,8 @@ Core LED state management, buffer operations (`buffer[]`), dirty-flag tracking, 
 | `M.prime_for_mode_change()` | *(none)* | `nil` | Forces all button LED states in `button_map_leds_state[mode]["ALL"]` and `button_map_leds_state[mode][selection]` to false for every label in `default_button_labels`. Sets dirty flag. If no LEDs detected, falls back to `all_off()`. Used before mode/selector changes to ensure clean state evaluation. |
 | `M.is_dirty()` | *(none)* | `boolean` | Returns current value of the internal dirty flag (`led_state_modified`). Read-only; does not modify state. |
 | `M.clear_dirty()` | *(none)* | `nil` | Resets dirty flag to false after successful HID send. Used by `led_hid_bridge` post-send. |
-| `M.handle_led_changes(opts)` | `{ bus_voltage: number, master_state_ref: table }` | `boolean` (whether any LEDs were updated) | **Main orchestration function.** Evaluates all LED sub-systems in order: button LEDs → gear LEDs → annunciator row 1 → annunciator row 2 → rocker switch LEDs. Checks bus voltage; if zero and previously powered, calls `all_off()`. Returns true if dirty flag was set during evaluation (indicating HID update needed). Calls into injected sub-module handlers via callbacks passed in opts: `{ on_button_leds, on_gear_leds, on_annunciator_row1, on_annunciator_row2, on_switch_leds }`. Uses `try_catch` wrapper for each sub-handler. |
+| `M.handle_led_changes(opts)` | `{ bus_voltage: number, master_state_ref: table }` | `boolean` (whether any LEDs were updated) | **Main orchestration function.** Evaluates all LED sub-systems in order: button LEDs → gear LEDs → annunciator row 1 → annunciator row 2 → rocker switch LEDs. Checks bus voltage; if zero and previously powered, calls `all_off()`. Returns true if dirty flag was set during evaluation (indicating HID update needed). Calls into pre-registered sub-handler callbacks (set via `M.set_sub_handlers()` in composition root) using stored closure references. Uses `try_catch` wrapper for each sub-handler. Sub-handlers are NOT passed per-call — they are registered once at init time and invoked from closure scope. |
+| `M.set_sub_handlers(sub_handlers_table)` | `{ on_annunciator_row1: function, on_annunciator_row2: function, on_gear: function, on_switches: function }` — each is a zero-arg callback that evaluates its sub-module and writes to led_engine buffer | `nil` | Stores the provided sub-handler callbacks in closure scope. These are invoked by `handle_led_changes()` during orchestration instead of being passed per-call via opts. Must be called after `M.init(opts)` but before any update loop iteration. Validates that all four callback keys are present; logs error if any key is missing. |
 | `M.get_bus_voltage()` | *(none)* | `number\|nil` | Returns current bus voltage from injected dataref binding. Used by `handle_led_changes` to determine if LEDs should be powered. |
 
 ### Injection Points
@@ -75,6 +76,16 @@ Core LED state management, buffer operations (`buffer[]`), dirty-flag tracking, 
 | `button_map_leds_state` | table | Config loader / dispatch init | State storage for button LED on/off states per mode/selection. Read/write by engine. |
 | `default_button_labels` | array of strings | Map builder | List of all physical button labels (e.g., "PLT", "IAS", "VS"). Used to iterate over buttons in `all_off()` and `prime_for_mode_change()`. |
 | `bus_voltage_ref` | dataref magic table | Config loader bindings | X-Plane dataref for `sim/cockpit2/electrical/bus_volts`. Read-only. |
+
+### Performance Constraints
+
+> All performance guidance is sourced from `docs/lua-best-practices.md`. Modules MUST adhere to these constraints during implementation.
+
+- **Hot Path**: This module's primary orchestration function (`handle_led_changes`) runs every 0.25s as part of the LED update loop. All sub-handler callbacks must be pre-registered via `set_sub_handlers()` and invoked from closure scope — no table allocation per call.
+- **Pre-computation**: All dataref bindings and condition strings are compiled at init time by config_loader, avoiding runtime parsing overhead in hot paths.
+- **Allocation Budget**: Each evaluation cycle should perform zero heap allocations beyond the dirty-flag boolean return value.
+
+---
 
 ### Internal/Private Functions (NOT exported)
 
@@ -109,6 +120,16 @@ Converts the LED buffer into a bit-packed HID feature report and sends it to the
 | `device_handle` | number (HID handle) | Composition root (`hid_open(0x294B, 0x1901)`) | Injected at init; stored in closure. Used by `hid_send_filled_feature_report`. |
 | `bit_lib` | table | LuaJIT's built-in `bit` library | Passed as parameter to avoid global dependency. Provides `bor`, `lshift`. |
 
+### Performance Constraints
+
+> All performance guidance is sourced from `docs/lua-best-practices.md`. Modules MUST adhere to these constraints during implementation.
+
+- **Hot Path**: This module's primary evaluation function runs every 0.25s as part of the LED update loop (or equivalent periodic interval). Sub-handler callbacks invoked by this module must NOT allocate new tables per invocation — reuse pre-allocated buffers where possible.
+- **Pre-computation**: All dataref bindings and condition strings are compiled at init time by config_loader, avoiding runtime parsing overhead in hot paths.
+- **Allocation Budget**: Each evaluation cycle should perform zero heap allocations beyond the dirty-flag boolean return value.
+
+---
+
 ### Internal/Private Functions (NOT exported)
 
 | Function | Purpose |
@@ -141,12 +162,23 @@ Evaluates 14 annunciator LEDs across two rows based on pre-compiled dataref cond
 |-----------|------|--------|-------|
 | `annunciator_bindings` | table of { dataref_table, condition_string } | Config loader (compiled) | Each entry maps an annunciator label to its X-Plane dataref and compiled condition string. Pre-compiled conditions avoid runtime parsing overhead in hot path. |
 | `led_engine_module.set_led` | function reference | led_engine module injected at init time | Used to write evaluated states into the shared buffer. The actual dirty-flag logic lives in led_engine, keeping this module focused on evaluation only. |
+| eval_fn (NEW) | function `(dataref_table, condition_string, index?) → boolean` | Composition root — passed from config_loader after loading config.lua | Evaluator function for comparing dataref values against compiled conditions. Replaces direct `config.eval_condition()` global access. Must be non-nil at init time; reject nil with error log. |
+
+### Performance Constraints
+
+> All performance guidance is sourced from `docs/lua-best-practices.md`. Modules MUST adhere to these constraints during implementation.
+
+- **Hot Path**: This module's primary evaluation function runs every 0.25s as part of the LED update loop (or equivalent periodic interval). Sub-handler callbacks invoked by this module must NOT allocate new tables per invocation — reuse pre-allocated buffers where possible.
+- **Pre-computation**: All dataref bindings and condition strings are compiled at init time by config_loader, avoiding runtime parsing overhead in hot paths.
+- **Allocation Budget**: Each evaluation cycle should perform zero heap allocations beyond the dirty-flag boolean return value.
+
+---
 
 ### Internal/Private Functions (NOT exported)
 
 | Function | Purpose |
 |----------|---------|
-| `evaluate_single_annunciator(label)` | Evaluates a single annunciator's dataref against its compiled condition. Returns boolean. Handles both scalar and array datarefs with proper nil guards. Uses config.eval_condition() for comparison. |
+| `evaluate_single_annunciator(label)` | Evaluates a single annunciator's dataref against its compiled condition. Returns boolean. Handles both scalar and array datarefs with proper nil guards. Uses injected `eval_fn` for comparison (NOT direct config global access). |
 
 ---
 
@@ -174,6 +206,16 @@ Interprets landing gear position datarefs as a 3-channel green/red LED state mac
 | `gear_dataref` | dataref magic table or nil | Config loader (`nav_bindings["GEAR_DEPLOYMENT_LED"]`) | X-Plane dataref for gear position. May be nil if aircraft has fixed gear and no binding configured. |
 | `led_constants` | table of {bank, bit} pairs | Composition root (from BravoMultiMode.lua constants) | Maps LED names to buffer positions: `{ LED_LDG_N_GREEN={2,3}, LED_LDG_N_RED={2,4}, ... }`. Injected so this module doesn't need to define its own constants. |
 | `led_engine_module.set_led` | function reference | led_engine module | Used to write evaluated gear states into the shared buffer. |
+
+### Performance Constraints
+
+> All performance guidance is sourced from `docs/lua-best-practices.md`. Modules MUST adhere to these constraints during implementation.
+
+- **Hot Path**: This module's primary evaluation function runs every 0.25s as part of the LED update loop (or equivalent periodic interval). Sub-handler callbacks invoked by this module must NOT allocate new tables per invocation — reuse pre-allocated buffers where possible.
+- **Pre-computation**: All dataref bindings and condition strings are compiled at init time by config_loader, avoiding runtime parsing overhead in hot paths.
+- **Allocation Budget**: Each evaluation cycle should perform zero heap allocations beyond the dirty-flag boolean return value.
+
+---
 
 ### Internal/Private Functions (NOT exported)
 
@@ -206,13 +248,41 @@ Evaluates 7 rocker switch LEDs based on pre-compiled dataref conditions. Each sw
 |-----------|------|--------|-------|
 | `switch_bindings` | table of { dataref_table, condition_string, optional_index } | Config loader (`nav_bindings["SWITCH" .. i .. "_LED"]`) | Pre-compiled bindings for all 7 rocker switches. Each entry may include an optional array index (3rd element). |
 | `dispatch_module` | table (module) | dispatch.lua module injected at init time | Required for: `get_rocker_switch_led(key)` to read current state, `set_rocker_switch_led(key, state)` to update it. |
+| eval_fn (NEW) | function `(dataref_table, condition_string, index?) → boolean` | Composition root — passed from config_loader after loading config.lua | Evaluator function for comparing dataref values against compiled conditions. Replaces direct `config.eval_condition()` global access. Must be non-nil at init time; reject nil with error log. |
 | `led_engine_module.set_led` | function reference | led_engine module | Used to write evaluated switch states into the shared buffer. |
+
+### Performance Constraints
+
+> All performance guidance is sourced from `docs/lua-best-practices.md`. Modules MUST adhere to these constraints during implementation.
+
+- **Hot Path**: This module's primary evaluation function runs every 0.25s as part of the LED update loop (or equivalent periodic interval). Sub-handler callbacks invoked by this module must NOT allocate new tables per invocation — reuse pre-allocated buffers where possible.
+- **Pre-computation**: All dataref bindings and condition strings are compiled at init time by config_loader, avoiding runtime parsing overhead in hot paths.
+- **Allocation Budget**: Each evaluation cycle should perform zero heap allocations beyond the dirty-flag boolean return value.
+
+---
 
 ### Internal/Private Functions (NOT exported)
 
 | Function | Purpose |
 |----------|---------|
-| `evaluate_switch(switch_label, binding)` | Evaluates a single switch's dataref against its compiled condition. Handles nil guards on dataref access. Returns boolean state. Uses config.eval_condition() for comparison. |
+| `evaluate_switch(switch_label, binding)` | Evaluates a single switch's dataref against its compiled condition. Handles nil guards on dataref access. Returns boolean state. Uses injected `eval_fn` for comparison (NOT direct config global access). |
+
+---
+
+## Shared Utility Functions
+
+The following function is extracted from BravoMultiMode.lua (line ~1187) and provided as an injected utility to modules that need dataref state evaluation:
+
+### `get_led_state_for_dataref(dataref, condition_string, index?)`
+
+| Property | Value |
+|----------|-------|
+| **Provider** | config_loader module or a dedicated `condition_compiler` utility (to be determined during implementation) |
+| **Consumers** | annunciator_leds (`evaluate_single_annunciator`), switch_leds (`evaluate_switch`) |
+| **Injection Method** | Passed as `eval_fn` parameter to consuming modules at init time (see C1 fix above) |
+| **Purpose** | Reads the current value from a dataref magic table, applies an optional array index, and evaluates it against a compiled condition string. Returns boolean LED state. Includes nil guards for all dataref access paths. |
+
+> **Implementation Note**: During implementation, decide whether this function lives in config_loader (as a shared utility) or is provided directly by the composition root from the original BravoMultiMode.lua logic. The injection parameter name `eval_fn` abstracts away the source — consuming modules only need to call it as a function with `(dataref_table, condition_string, index?)` arguments.
 
 ---
 
@@ -235,6 +305,16 @@ Self-contained cumulative performance profiler with task tracking, sorted loggin
 | `M.log_and_reset()` | *(none)* | `nil` | Sorts all tasks by total time descending, logs formatted stats via `log.info()`, resets `_tasks` table to empty. Logs header with interval duration. |
 | `M.toggle()` | *(none)* | `boolean` (new enabled state) | Toggles profiler on/off. Returns new state. Logs status change. |
 | `M.is_enabled()` | *(none)* | `boolean` | Returns current enabled state without side effects. |
+
+### Performance Constraints
+
+> All performance guidance is sourced from `docs/lua-best-practices.md`. Modules MUST adhere to these constraints during implementation.
+
+- **Hot Path**: This module's primary evaluation function runs every 0.25s as part of the LED update loop (or equivalent periodic interval). Sub-handler callbacks invoked by this module must NOT allocate new tables per invocation — reuse pre-allocated buffers where possible.
+- **Pre-computation**: All dataref bindings and condition strings are compiled at init time by config_loader, avoiding runtime parsing overhead in hot paths.
+- **Allocation Budget**: Each evaluation cycle should perform zero heap allocations beyond the dirty-flag boolean return value.
+
+---
 
 ### Injection Points
 
@@ -268,6 +348,16 @@ Handles multi-step configuration file detection (exact match → variant match �
 |-----------|------|--------|-------|
 | `file_provider` | function `(path) → boolean\|nil` | Composition root — wraps `util.list_files()` and file existence checks | Injected to decouple from filesystem access, enabling testing. Should return true if path exists. |
 
+### Performance Constraints
+
+> All performance guidance is sourced from `docs/lua-best-practices.md`. Modules MUST adhere to these constraints during implementation.
+
+- **Hot Path**: This module's primary evaluation function runs every 0.25s as part of the LED update loop (or equivalent periodic interval). Sub-handler callbacks invoked by this module must NOT allocate new tables per invocation — reuse pre-allocated buffers where possible.
+- **Pre-computation**: All dataref bindings and condition strings are compiled at init time by config_loader, avoiding runtime parsing overhead in hot paths.
+- **Allocation Budget**: Each evaluation cycle should perform zero heap allocations beyond the dirty-flag boolean return value.
+
+---
+
 ### Internal/Private Functions (NOT exported)
 
 | Function | Purpose |
@@ -298,6 +388,17 @@ Dynamically creates 14 X-Plane custom commands (7 rocker switches × UP/DOWN dir
 | Dependency | Type | Source | Notes |
 |-----------|------|--------|-------|
 | `dispatch_callback_fn` | function `(name, ...)` → any | Composition root — wraps `bravo_dispatch` or dispatch module's callback registration | Used by create_command to register the string callback. Must accept a command name and varargs. |
+
+### Performance Constraints
+
+> All performance guidance is sourced from `docs/lua-best-practices.md`. Modules MUST adhere to these constraints during implementation.
+
+- **Hot Path**: This module's primary evaluation function runs every 0.25s as part of the LED update loop (or equivalent periodic interval). Sub-handler callbacks invoked by this module must NOT allocate new tables per invocation — reuse pre-allocated buffers where possible.
+- **Pre-computation**: All dataref bindings and condition strings are compiled at init time by config_loader, avoiding runtime parsing overhead in hot paths.
+- **Allocation Budget**: Each evaluation cycle should perform zero heap allocations beyond the dirty-flag boolean return value.
+
+---
+> - Physical input debounce: Command registration should not create duplicate commands on re-initialization. Guard against multiple `create_command` calls for the same command name.
 
 ### Internal/Private Functions (NOT exported)
 
@@ -331,6 +432,17 @@ Manages the autopilot button lifecycle by registering begin/continue/end callbac
 | `ap_buttons` | array of `{ key, command, description }` | Map builder / config loader | Defines which buttons exist and their metadata. Each entry has a unique key (e.g., "PLT"), an X-Plane command name, and a human-readable description. |
 | `dispatch_callback_fn` | function `(name, ...)` → any | Composition root — wraps bravo_dispatch | Used to register begin/continue/end callbacks that route through the dispatch system with try_catch error handling. |
 
+### Performance Constraints
+
+> All performance guidance is sourced from `docs/lua-best-practices.md`. Modules MUST adhere to these constraints during implementation.
+
+- **Hot Path**: This module's primary evaluation function runs every 0.25s as part of the LED update loop (or equivalent periodic interval). Sub-handler callbacks invoked by this module must NOT allocate new tables per invocation — reuse pre-allocated buffers where possible.
+- **Pre-computation**: All dataref bindings and condition strings are compiled at init time by config_loader, avoiding runtime parsing overhead in hot paths.
+- **Allocation Budget**: Each evaluation cycle should perform zero heap allocations beyond the dirty-flag boolean return value.
+
+---
+
+> All command registrations are one-time operations during init(). No hot-path concerns for this module's primary function.
 ### Internal/Private Functions (NOT exported)
 
 | Function | Purpose |
@@ -354,7 +466,7 @@ Consolidates trim wheel and twist knob input handling into a single focused modu
 |----------|-----------|-------------|--------------|
 | `M.init(opts)` | `{ dispatch_module, decoder_handler_fn }` | `nil` | Stores injected dispatch module and decoder handler function in closure scope. Validates that both are provided. |
 | `M.handle_trim(v)` | `v: string ("up"\|"down")` | `nil` | Handles trim wheel direction changes. Routes to `dispatch.trim_nose_up()` or `dispatch.trim_nose_down()` via try_catch wrapper. Logs unknown values at debug level. |
-| `M.handle_twist(dir)` | `dir: string ("increase"\|"decrease")` | `nil` | **Fixed version** — wraps `_G.command_once` calls in pcall/try_catch to prevent silent failures (RAD-005 Finding 3). Routes twist knob increase/decrease through dispatch module's priority resolution logic. |
+| `M.handle_twist(dir)` | `dir: string ("increase"\|"decrease")` | `nil` | **Fixed version** — routes twist knob commands through the injected dispatch module (not direct `_G.command_once`). The dispatch module resolves trim/twist datarefs via injection rather than global access. All command invocations are wrapped in try_catch with error logging per RAD-005 Finding 3. This fully resolves the bypass anti-pattern by eliminating any direct _G reference. |
 | `M.handle_decoder_event(event_type, value)` | `event_type: string`, `value: any` | `nil` | Generic decoder event handler that routes events to appropriate sub-handlers based on event type (trim_change, selector, rotary_encoder). Uses injected dispatch for mode-specific actions. |
 
 ### Injection Points
@@ -362,13 +474,24 @@ Consolidates trim wheel and twist knob input handling into a single focused modu
 | Dependency | Type | Source | Notes |
 |-----------|------|--------|-------|
 | `dispatch_module` | table (module) | dispatch.lua module | Required for: `trim_nose_up()`, `trim_nose_down()`, and all twist knob command resolution. Provides the centralized error handling via try_catch. |
+| trim_datarefs (NEW) | `{ up: dataref, down: dataref }` or function reference | Composition root — injected from config loader bindings | Trim wheel direction datarefs for direct access when dispatch module does not provide twist resolution. Used as fallback if dispatch_module.trim_nose_up/down are unavailable. Must be non-nil; reject nil with error log. |
 | `decoder_handler_fn` | function `(event_type, value)` → any | Composition root — decoder's event routing callback | Used to wire up decoder pub/sub events to input handlers without circular dependency. |
 
+### Performance Constraints
+
+> All performance guidance is sourced from `docs/lua-best-practices.md`. Modules MUST adhere to these constraints during implementation.
+
+- **Hot Path**: This module's primary evaluation function runs every 0.25s as part of the LED update loop (or equivalent periodic interval). Sub-handler callbacks invoked by this module must NOT allocate new tables per invocation — reuse pre-allocated buffers where possible.
+- **Pre-computation**: All dataref bindings and condition strings are compiled at init time by config_loader, avoiding runtime parsing overhead in hot paths.
+- **Allocation Budget**: Each evaluation cycle should perform zero heap allocations beyond the dirty-flag boolean return value.
+
+---
+> - Trim/twist handlers are triggered by physical rotary encoders which may generate rapid events. Consider debouncing at the decoder/pub-sub layer rather than in this module (the injected `decoder_handler_fn` should handle rate limiting).
 ### Internal/Private Functions (NOT exported)
 
 | Function | Purpose |
 |----------|---------|
-| `_handle_twist_command(command_name)` | **Fixed version** of the original _G.command_once call. Wraps in pcall with try_catch error logging per RAD-005 Finding 3. Previously bypassed safety net; now properly logged on failure. |
+| `_handle_twist_command(dataref_value)` | Routes twist knob command through dispatch module's priority resolution logic using injected trim datarefs (not globals). Wraps in try_catch with proper error logging per RAD-005 Finding 3. The original `_G.command_once` bypass is fully eliminated — all command execution flows through the injection layer or dispatch facade. |
 
 ---
 
@@ -405,6 +528,15 @@ Manages all mode-related state transitions: mode cycling (up/down), CF (inner/ou
 | `modes_array` | array of strings | Map builder / config loader | Complete list of mode names in display order (e.g., "AUTO_1", "MANUAL_2"). Used for cycling logic and conceptual grouping. |
 | `selection_map_labels` | table | Map builder | Maps modes to their available selections. Used by build_ui_context() for UI rendering. |
 
+### Performance Constraints
+
+> All performance guidance is sourced from `docs/lua-best-practices.md`. Modules MUST adhere to these constraints during implementation.
+
+- **Hot Path**: This module's primary evaluation function runs every 0.25s as part of the LED update loop (or equivalent periodic interval). Sub-handler callbacks invoked by this module must NOT allocate new tables per invocation — reuse pre-allocated buffers where possible.
+- **Pre-computation**: All dataref bindings and condition strings are compiled at init time by config_loader, avoiding runtime parsing overhead in hot paths.
+- **Allocation Budget**: Each evaluation cycle should perform zero heap allocations beyond the dirty-flag boolean return value.
+
+---
 ### Internal/Private Functions (NOT exported)
 
 | Function | Purpose |

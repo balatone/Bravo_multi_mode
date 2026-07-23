@@ -45,9 +45,9 @@ BravoMultiMode.lua  ← requires: util, log, config, ui, MapBuilder, plugincheck
 |--------|-------------------|--------------------|--------------------------|
 | `led_engine` | log, util | dispatch module, button_map_leds_state, default_button_labels, bus_voltage_ref | None (pure logic after injection) |
 | `led_hid_bridge` | log, util | device_handle (HID), bit library reference | None — all access via injected handle |
-| `annunciator_leds` | *(none)* | annunciator_bindings (compiled conditions), led_engine.set_led callback | None — receives pre-compiled dataref bindings |
+| `annunciator_leds` | *(none)* | annunciator_bindings, **eval_fn**, led_engine.set_led callback | None — receives pre-compiled dataref bindings; evaluator injected via parameter |
 | `gear_leds` | *(none)* | gear_dataref, LED_LDG_* constants, led_engine.set_led callback | None — no direct X-Plane access |
-| `switch_leds` | *(none)* | switch_bindings (compiled conditions), dispatch module, led_engine.set_led callback | None — all datarefs pre-resolved by config loader |
+| `switch_leds` | *(none)* | switch_bindings, dispatch_module, **eval_fn**, led_engine.set_led callback | None — all datarefs pre-resolved by config loader; evaluator injected via parameter |
 
 ### Phase 2 Modules (HIGH Priority)
 
@@ -64,6 +64,8 @@ BravoMultiMode.lua  ← requires: util, log, config, ui, MapBuilder, plugincheck
 |--------|-------------------|--------------------|--------------------------|
 | `input_handlers` | log | dispatch module, decoder_handler_fn | None — wraps _G.command_once in try_catch per RAD-005 Finding 3 |
 | `mode_manager` | *(none)* | dispatch module, modes_array, selection_map_labels | None — all state queries routed through injected dispatch |
+
+> **Naming Convention Note**: The variable name `bravo_hid` used throughout this document's wiring pseudocode is an alias for the `hardware` module (`require("bravo++.hardware")`). It is NOT a separate module. This naming convention matches the existing BravoMultiMode.lua pattern where `local bravo_hid = require("bravo++.hardware")`. When implementing, use either name consistently — prefer `bravo_hid` in the main script scope for readability, but reference the actual module as `bravo++.hardware` in dependency documentation.
 
 ## Complete Dependency Matrix (All Modules)
 
@@ -147,6 +149,8 @@ mode_manager                    ← [none] — pure state management with inject
             │
             ├→ dispatch.get/set_rocker_switch_led
             └──→ led_engine.set_led
+
+> **Shared Utility**: The `get_led_state_for_dataref()` function (extracted from BravoMultiMode.lua line ~1187) is provided to annunciator_leds and switch_leds via the injected `eval_fn` parameter. Its exact module home (config_loader vs dedicated utility) will be determined during implementation, but it follows the same injection pattern — no global access required.
 ```
 
 ## Circular Dependency Analysis & Resolution
@@ -302,6 +306,7 @@ led_hid_bridge.init({
 -- Annunciator LEDs receive pre-compiled bindings from config loader
 annunciator_leds.init({
     annunciator_bindings = build_annunciator_bindings(nav_bindings),
+    eval_fn = config.eval_condition,  -- injected evaluator from config module
 })
 
 -- Gear LEDs receive gear dataref and LED constants
@@ -318,6 +323,7 @@ gear_leds.init({
 switch_leds.init({
     switch_bindings = build_switch_bindings(nav_bindings),
     dispatch_module = dispatch,
+    eval_fn = config.eval_condition,  -- injected evaluator from config module
 })
 
 -- Phase 2: High Priority Extractions
@@ -360,11 +366,11 @@ mode_manager.init({
 
 | Module | Required Injection Parameters | Optional Injection Parameters | Default Values |
 |--------|------------------------------|-------------------------------|----------------|
-| `led_engine` | dispatch, button_map_leds_state, default_button_labels | bus_voltage_ref | nil (bus voltage defaults to 0) |
+| `led_engine` | dispatch, button_map_leds_state, default_button_labels | bus_voltage_ref, sub_handlers (via separate set_sub_handlers call) | nil (bus voltage defaults to 0); sub-handlers registered separately via M.set_sub_handlers() after init |
 | `led_hid_bridge` | device_handle, bit_lib | *(none)* | Error on missing required params |
-| `annunciator_leds` | annunciator_bindings | *(none)* | Error if bindings empty |
+| `annunciator_leds` | annunciator_bindings, **eval_fn** | *(none)* | Error if bindings empty or eval_fn is nil |
 | `gear_leds` | gear_dataref, led_constants | *(none)* | Fixed-gear behavior if gear_dataref is nil |
-| `switch_leds` | switch_bindings, dispatch_module | *(none)* | No-op for switches without bindings |
+| `switch_leds` | switch_bindings, dispatch_module, **eval_fn** | *(none)* | No-op for switches without bindings; error if eval_fn is nil |
 | `profiler` | *(none — self-contained)* | enabled (bool), log_interval (int) | enabled=false, interval=60s |
 | `config_loader` | file_provider function | aircraft_dir string | nil (uses MODULES_DIRECTORY constant) |
 | `rocker_switches` | dispatch_callback_fn | num_switches (int) | 7 switches |

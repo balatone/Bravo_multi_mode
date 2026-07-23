@@ -206,12 +206,21 @@ end
 
 -- Input Handler callbacks (trim/twist from decoder)
 dispatch_callbacks.trim_nose_up = function()
-    pcall(function() _G.command_once(trim_dataref_up) end)
+    try_catch(function()
+        dispatch.trim_nose_up()  -- routed through dispatch module; datarefs injected at composition root
+    end, "trim_nose_up")
 end
 
 dispatch_callbacks.trim_nose_down = function()
-    pcall(function() _G.command_once(trim_dataref_down) end)
+    try_catch(function()
+        dispatch.trim_nose_down()  -- routed through dispatch module; datarefs injected at composition root
+    end, "trim_nose_down")
 end
+
+-- NOTE: These handlers no longer reference _G.command_once or global datarefs.
+-- Trim knob commands are routed through the dispatch module's priority resolution logic.
+-- The actual trim dataref values (trim_dataref_up/down) are injected into input_handlers
+-- at composition root time, not accessed as globals. This fully resolves RAD-005 Finding 3.
 
 -- UI callbacks (special: receives extra FlyWithLua parameters)
 dispatch_callbacks.build_bravo_gui = function(wnd, x, y)
@@ -225,7 +234,8 @@ end
 
 -- HID poll callback (every frame)
 dispatch_callbacks.bravo_hid_poll_task = function()
-    bravo_hid.poll()
+    -- bravo_hid is an alias for bravo++.hardware module, not a separate module
+    hardware.poll()  -- or bravo_hid.poll() — both refer to the same require("bravo++.hardware") instance
 end
 
 -- Selector refresh callback (every frame)
@@ -246,6 +256,15 @@ dispatch_callbacks.set_current_buttons_task = function()
     end
 end
 
+-- Profiler callbacks (invoked via bravo_dispatch strings)
+dispatch_callbacks.toggle_profiler = function()
+    profiler.toggle()
+end
+
+dispatch_callbacks.profiler_log_task = function()
+    profiler.log_and_reset()
+end
+
 -- Knob decrease callback (from custom command)
 dispatch_callbacks.knob_decrease = function()
     -- Route to appropriate handler based on current mode context
@@ -263,11 +282,7 @@ After refactoring, exactly **three** functions must remain global:
 | `build_bravo_gui` | function | Floating window ImGui builder callback (receives wnd, x, y) | bravo_dispatch("build_bravo_gui", ...) |
 | `on_close_floating_window` | function | Window close handler (receives wnd handle) | bravo_dispatch("on_close_floating_window", ...) |
 
-**Note**: `profiler_toggle()` and `profiler_log_task()` are also global but belong to the profiler module. After extraction, they become:
-- `profiler.toggle()` — called via `"bravo_dispatch('toggle_profiler')"`
-- `profiler.log_and_reset()` — called via `"bravo_dispatch('profiler_log_task')"`
-
-These remain as dispatch callbacks rather than globals because they are invoked through bravo_dispatch strings.
+**Clarification**: The profiler module's functions (`profiler.toggle()` and `profiler.log_and_reset()`) are **NOT** global entry points. They are invoked exclusively through the dispatch system via `"bravo_dispatch('toggle_profiler')"` and `"bravo_dispatch('profiler_log_task')"`. Any prior language suggesting these were globals was imprecise — they route entirely through bravo_dispatch callbacks, consistent with the three-globals principle described above.
 
 ### Transition Plan: From Forward Declarations to Module Init Functions
 
