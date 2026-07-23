@@ -17,7 +17,7 @@ This analysis evaluates the Bravo Multi Mode Lua architecture across two dimensi
 - FlyWithLua's string-callback execution model (global environment) forces a minimal set of global entrypoints (`bravo_dispatch`, `build_bravo_gui`, `on_close_floating_window`). The current forwarding pattern through `bravo_dispatch` is sound but could be improved with explicit export tables per module.
 - Several anti-patterns were identified: forward-declaration reliance, implicit globals in closures, missing nil guards on dataref access in hot paths, and the use of `_G.command_once` (in `dispatch_twist.lua`) which bypasses FlyWithLua's string-callback safety net.
 
-**Recommendation:** Prioritize LED engine modularization into 4–5 sub-modules (`led_engine`, `led_hid_bridge`, `annunciator_leds`, `gear_leds`, `switch_leds`), followed by extraction of the profiler, config loader, rocker switch router, and trim/twist handlers. The Lua Best Practices Guide (DEC-001) provides concrete code examples for all recommendations.
+**Recommendation:** Prioritize LED engine modularization into 4–5 sub-modules (`led_engine`, `led_hid_bridge`, `annunciator_leds`, `gear_leds`, `switch_leds`), followed by extraction of the profiler, config loader, rocker switch router, and trim/twist handlers.
 
 # Purpose / Question
 
@@ -252,7 +252,7 @@ From `hid_filled_feature_report_demo.lua`:
 # Next Steps
 
 1. **Worker specialists** should implement Phase 1 (LED engine split) first, as it addresses the highest technical debt and has the most significant impact on maintainability.
-2. The Lua Best Practices Guide (DEC-001) provides concrete code examples for all recommended patterns — Worker specialists should reference it during implementation.
+2. Concrete code examples and anti-patterns from this analysis are embedded in RAD-005 itself; Worker specialists should review the findings and companion notes (RAD-005-NOTES) before beginning refactoring.
 3. After each phase of modularization, run `python3 toolbox/validate_docs.py` to ensure no regressions in documentation consistency.
 4. Update the board task TASK-0011 status from ANALYSING to COMPLETE once these documents are finalized and committed.
 
