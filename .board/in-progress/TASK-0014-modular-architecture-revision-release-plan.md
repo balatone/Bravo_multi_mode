@@ -4,7 +4,7 @@ title: "Modular Architecture Revision Release Plan"
 version: 1.0.0
 status: PLANNING
 created: "2026-07-23 12:52:03"
-updated: "2026-07-23 20:08:53"
+updated: "2026-07-23 20:09:39"
 primary_doc: REQ-008
 related_docs: ["REQ-008", "PLAN-006", "FEAT-017", "FEAT-018", "FEAT-019", "FEAT-020"]
 ---
@@ -29,3 +29,4 @@ related_docs: ["REQ-008", "PLAN-006", "FEAT-017", "FEAT-018", "FEAT-019", "FEAT-
 [2026-07-23 19:19:33] - [analyst] - Completed Design Phase for FEAT-016 (Module Interfaces, Dependency Map, and Bridge Design)
 [2026-07-23 20:01:44] - [goose] - docs(DSGN): Approved FEAT-016 design documents — DSGN-001 (Module Interface Spec), DSGN-002 (Dependency Mapping & Injection Strategy), DSGN-003 (FlyWithLua Callback Preservation Strategy). All three passed SDLC validation and pre-commit hooks. Design Phase for TASK-0014 is now complete.
 [2026-07-23 20:08:53] - [system-reviewer] - [REQUEST_CHANGES] Review of Bravo++ Design Phase completed. 3 design documents reviewed against REQ-008 and RAD-005. Found 4 issues requiring resolution: (1) led_engine.set_sub_handlers() missing from public API, (2) implicit dependencies in annunciator_leds/switch_leds modules, (3) _G.command_once handling inconsistency between DSGN-001 and DSGN-003, (4) circular dependency analysis contradiction for input_handlers ↔ dispatch_twist. Verdict: REQUEST_CHANGES — architecture is sound but documentation gaps must be resolved before implementation.
+[2026-07-23 20:09:39] - [system-reviewer] - [REQUEST_CHANGES] Review of Bravo++ Design Phase completed. 3 issues identified: hidden eval_condition dependency (C1), undocumented set_sub_handlers method (M1), missing toggle_profiler dispatch callback (M2). Architecture fundamentally sound; fixes are documentation additions.
