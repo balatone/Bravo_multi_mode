@@ -2,9 +2,9 @@
 id: BUGFIX-005
 title: Fixes for Lua Best Practices Guide
 version: 1.0.0
-status: DRAFT
+status: APPROVED
 created: 2026-07-23 18:18:37
-updated: 2026-07-23 18:19:19
+updated: 2026-07-23 18:24:00
 related_docs: ["REVIEW-014", "FEAT-015"]
 ---
 # Summary
