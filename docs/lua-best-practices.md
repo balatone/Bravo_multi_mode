@@ -51,7 +51,7 @@ Each module should own exactly one concern. The ~640-line LED engine block in `B
 
 | Sub-module | Responsibility | Example from Bravo++ |
 |------------|---------------|---------------------|
-| `led_engine.lua` | Core LED state + buffer mgmt | `buffer[]`, `handle_led_changes()` |
+| `led_engine.lua` | Core LED state + buffer management | `buffer[]`, `handle_led_changes()` |
 | `led_hid_bridge.lua` | HID report assembly/sending | `send_hid_data()`, bit manipulation |
 | `annunciator_leds.lua` | Annunciator LED evaluation | Row 1/Row 2 handlers, condition compilation |
 | `gear_leds.lua` | Landing gear LEDs | 3-channel green/red state machine |
@@ -132,6 +132,8 @@ add_macro("Get Button LED State", "get_button_led_state('AP1')")
     ---@type function  local get_button_led_state
 ]]
 ```
+
+> **Note: Forward Declarations vs. Module Exports** — Forward-declared local variables are only necessary when FlyWithLua requires globally named string callbacks (e.g., `do_every_frame("callback_name")`). For standard module organization, prefer the `local M = {} ... return M` export pattern, which provides proper encapsulation without forward declarations. Both patterns are valid; the distinction is about *when* each applies.
 
 ### Module-Level State Tables vs Individual Locals
 
@@ -272,7 +274,7 @@ function send_hid_data()
         data[bank] = 0
         for bit = 1, 8 do
             if buffer[bank][bit] == true then
-                data[bank] = bitwise.bor(data[bank], bitwise.lshift(1, bit - 1))
+                data[bank] = bit.bor(data[bank], bit.lshift(1, bit - 1))
             end
         end
     end
@@ -413,6 +415,10 @@ Values that don't change between invocations should be computed once during modu
 ### Time Budget Awareness
 
 The `hardware.lua` module demonstrates time-budget awareness: ~5ms budget per poll cycle, with early exit if the limit is approached. This prevents blocking X-Plane's main thread.
+
+### Coroutine Usage Warning
+
+> **Warning:** FlyWithLua runs on X-Plane's single main thread. Using `coroutine.yield()` will block the entire simulator, causing freezes and potentially crashing the application. Avoid coroutines in FlyWithLua scripts entirely. Use the `do_every_frame` callback pattern or timed dispatch instead of cooperative multitasking.
 
 ### Debounce and Rate Limiting for Physical Inputs
 
