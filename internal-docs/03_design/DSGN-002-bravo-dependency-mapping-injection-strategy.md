@@ -2,9 +2,9 @@
 id: DSGN-002
 title: Bravo++ Dependency Mapping & Injection Strategy
 version: 1.0.0
-status: IN_REVIEW
+status: APPROVED
 created: 2026-07-23 19:15:00
-updated: 2026-07-23 19:15:00
+updated: 2026-07-23 20:01:00
 related_docs: ["FEAT-016", "RAD-005", "DSGN-001"]
 ---
 
