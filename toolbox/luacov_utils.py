@@ -247,7 +247,11 @@ def print_all_uncovered(records: list[dict[str, Any]], filter_path: str | None =
         if not unc:
             continue
 
-        categories = {"executable": [], "structural": [], "comment_blank": []}
+        categories: dict[str, list] = {
+            "executable": [],
+            "structural": [],
+            "comment_blank": [],
+        }
         for u in unc:
             categories[u["category"]].append(u)
 

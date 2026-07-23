@@ -175,6 +175,8 @@ def update_document(filepath, status, verdict=None, priority=None, related_docs=
     Updates the 'status', 'verdict', and/or 'priority' in a document's YAML preamble.
     - Verdict is strictly for REVIEW documents.
     - Priority is strictly for BUG, REQ, BUGFIX, and FEAT documents.
+    - APPROVED status is blocked for non-REVIEW documents to prevent self-approval.
+      Only a human operator may set status to APPROVED (by editing the file directly).
     """
     if not os.path.exists(filepath):
         print(f"Error: File {filepath} not found.")
@@ -189,6 +191,27 @@ def update_document(filepath, status, verdict=None, priority=None, related_docs=
             f"Error: Invalid lifecycle status '{status}'. Must be one of: {LIFECYCLE_STATUSES}"
         )
         return None
+
+    # 1b. Guardrail: prevent self-approval of non-REVIEW documents
+    # Only a human operator may set status to APPROVED. The CLI tool cannot
+    # approve documents to enforce the approval gate (human-in-the-loop).
+    if status_upper == "APPROVED":
+        doc_type_match = None
+        for t in TYPE_MAP:
+            if filename.startswith(f"{t}-"):
+                doc_type_match = t
+                break
+
+        # REVIEW documents can be set to APPROVED (it's the review verdict, not
+        # a document approval gate). All other document types require human approval.
+        if doc_type_match and doc_type_match != "REVIEW":
+            print(
+                f"Error: Cannot set '{doc_type_match}' document status to APPROVED "
+                f"via the CLI tool. This is a guardrail to prevent self-approval.\n"
+                f"Only a human operator may approve documents. "
+                f"Please edit the document file directly to set status: APPROVED."
+            )
+            return None
 
     # 2. Validate Verdict and Document Type
     verdict_upper = None

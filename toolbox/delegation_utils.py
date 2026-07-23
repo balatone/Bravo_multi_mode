@@ -40,8 +40,15 @@ LOG_DIR = REPO_ROOT / "logs" / "specialist_logs"
 # Doc types that stay on the integration branch (no new branch)
 INTEGRATION_DOC_TYPES = frozenset({"REQ", "BUG", "RAD", "SPIKE", "DEC", "DSGN"})
 
-# Doc types requiring a feature/bugfix branch (implementation work)
-BRANCH_DOC_TYPES = frozenset({"PLAN", "FEAT", "BUGFIX"})
+# Doc types that auto-create a feature branch if not on one already.
+# BUGFIX is NOT here — the Lead manages branch context explicitly:
+#   - BUGFIX from REVIEW: reuses existing feat/ branch
+#   - BUGFIX from BUG: Lead creates bugfix/ branch before calling prepare
+BRANCH_DOC_TYPES = frozenset({"PLAN", "FEAT"})
+
+# Doc types that require a feature branch but do NOT auto-create one.
+# The Lead must ensure the correct branch exists before calling prepare.
+MANUAL_BRANCH_DOC_TYPES = frozenset({"BUGFIX"})
 
 # ──────────────────────────────────────────────────────────────
 # Document type → board status mapping
@@ -167,6 +174,11 @@ def needs_branch(doc_type: str) -> bool:
     return doc_type.upper() in BRANCH_DOC_TYPES
 
 
+def needs_existing_branch(doc_type: str) -> bool:
+    """Check if a document type requires an existing feature branch (no new branch)."""
+    return doc_type.upper() in MANUAL_BRANCH_DOC_TYPES
+
+
 # ──────────────────────────────────────────────────────────────
 # Pre-delegation preparation
 # ──────────────────────────────────────────────────────────────
@@ -180,6 +192,7 @@ class DelegationPrep:
     branch: str
     status: str
     needs_branch: bool
+    existing_branch: bool  # True for BUGFIX — must be on existing feature branch
     branch_created: bool
     task_created: bool
 
@@ -195,6 +208,7 @@ def prepare_delegation(
     target_status: str | None = None,
     branch_name: str | None = None,
     integration_branch: str | None = None,
+    find_existing_task: bool = False,
 ) -> DelegationPrep:
     """
     Prepare the board and git state before delegating a task.
@@ -243,11 +257,21 @@ def prepare_delegation(
                 f"On branch '{current_branch}' which is neither an integration "
                 f"branch nor a feature/bugfix branch. Switch to an integration branch first."
             )
+
+    elif doc_type_upper in MANUAL_BRANCH_DOC_TYPES:
+        # BUGFIX: must be on an existing feature branch (reuses branch, does not create new)
+        if not is_feature_branch(current_branch):
+            raise RuntimeError(
+                f"On branch '{current_branch}' which is not a feature/bugfix branch. "
+                f"BUGFIX work must be done on the existing feature branch for this task. "
+                f"Switch to the active feature branch first."
+            )
     else:
         raise ValueError(
             f"Unknown document type '{doc_type}'. "
             f"Integration types: {sorted(INTEGRATION_DOC_TYPES)}\n"
-            f"Branch types: {sorted(BRANCH_DOC_TYPES)}"
+            f"Branch types: {sorted(BRANCH_DOC_TYPES)}\n"
+            f"Existing branch types: {sorted(MANUAL_BRANCH_DOC_TYPES)}"
         )
 
     # Step 2: Create branch if needed
@@ -274,12 +298,19 @@ def prepare_delegation(
                 # Will create task_id first
                 pass
 
-        if not branch_exists(branch_name):
+        if branch_name and not branch_exists(branch_name):
             create_branch(branch_name)
             branch_created = True
             current_branch = branch_name
 
-    # Step 3: Create task if needed
+    # Step 3: Find existing task if requested
+    if find_existing_task and task_id is None and primary_doc:
+        lookup = find_task_for_doc(primary_doc)
+        if lookup.found:
+            task_id = lookup.task_id
+            print(f"Reusing existing task {task_id} for {primary_doc}")
+
+    # Step 4: Create task if needed
     task_created = False
     if task_id is None:
         task_id = next_task_id()
@@ -327,6 +358,7 @@ def prepare_delegation(
         branch=current_branch,
         status=target_status,
         needs_branch=doc_type_upper in BRANCH_DOC_TYPES,
+        existing_branch=doc_type_upper in MANUAL_BRANCH_DOC_TYPES,
         branch_created=branch_created,
         task_created=task_created,
     )
@@ -454,6 +486,86 @@ def verify_delegation(
 
 
 # ──────────────────────────────────────────────────────────────
+# Task lookup utilities
+# ──────────────────────────────────────────────────────────────
+
+
+@dataclass
+class TaskLookupResult:
+    """Result of find_task_for_doc."""
+
+    found: bool
+    task_id: str | None
+    task_path: str | None
+    status: str | None
+    primary_doc: str | None
+    related_docs: list[str] | None
+
+    def to_json(self) -> str:
+        return json.dumps(asdict(self), indent=2)
+
+
+def find_task_for_doc(doc_id: str) -> TaskLookupResult:
+    """
+    Find an existing board task associated with a document ID.
+
+    Searches all task files in .board/ for a task whose primary_doc or
+    related_docs contains the given document ID.
+
+    Args:
+        doc_id: The document ID to search for (e.g. "REQ-001", "FEAT-002").
+
+    Returns:
+        TaskLookupResult with found status and task details.
+    """
+    # Search all task files in .board/
+    for path in BOARD_DIR.rglob("TASK-*.md"):
+        try:
+            content = path.read_text(encoding="utf-8")
+            # Check primary_doc and related_docs in the YAML preamble
+            if f"primary_doc: {doc_id}" in content or f'"{doc_id}"' in content:
+                # Extract task ID from filename
+                task_id_match = re.match(r"TASK-(\d+)", path.name)
+                if task_id_match:
+                    task_id = f"TASK-{task_id_match.group(1)}"
+                    # Get more details from the task file
+                    status = None
+                    primary_doc = None
+                    related_docs = None
+                    for line in content.split("\n"):
+                        line = line.strip()
+                        if line.startswith("status:"):
+                            status = line.split(":", 1)[1].strip()
+                        elif line.startswith("primary_doc:"):
+                            primary_doc = line.split(":", 1)[1].strip()
+                        elif line.startswith("related_docs:"):
+                            try:
+                                related_docs = json.loads(line.split(":", 1)[1].strip())
+                            except (json.JSONDecodeError, ValueError):
+                                related_docs = []
+
+                    return TaskLookupResult(
+                        found=True,
+                        task_id=task_id,
+                        task_path=str(path),
+                        status=status,
+                        primary_doc=primary_doc,
+                        related_docs=related_docs or [],
+                    )
+        except Exception:
+            continue
+
+    return TaskLookupResult(
+        found=False,
+        task_id=None,
+        task_path=None,
+        status=None,
+        primary_doc=None,
+        related_docs=None,
+    )
+
+
+# ──────────────────────────────────────────────────────────────
 # CLI interface
 # ──────────────────────────────────────────────────────────────
 
@@ -509,6 +621,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Output as JSON",
     )
+    prep_parser.add_argument(
+        "--find-existing-task",
+        action="store_true",
+        help="Search for an existing task before creating a new one",
+    )
 
     # ── verify ───────────────────────────────────────────────
     verify_parser = subparsers.add_parser(
@@ -541,6 +658,22 @@ def _build_parser() -> argparse.ArgumentParser:
         help="Output as JSON",
     )
 
+    # ── find-task ───────────────────────────────────────────
+    find_parser = subparsers.add_parser(
+        "find-task",
+        help="Find an existing board task associated with a document ID",
+    )
+    find_parser.add_argument(
+        "--doc-id",
+        required=True,
+        help="Document ID to search for (e.g. REQ-001, FEAT-002)",
+    )
+    find_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Output as JSON",
+    )
+
     return parser
 
 
@@ -558,6 +691,7 @@ def main() -> None:
                 target_status=args.target_status,
                 branch_name=args.branch_name,
                 integration_branch=args.integration_branch,
+                find_existing_task=args.find_existing_task,
             )
             if args.json:
                 print(prep.to_json())
@@ -593,6 +727,22 @@ def main() -> None:
                 for err in result.errors:
                     print(f"   • {err}")
                 sys.exit(1)
+
+    elif args.command == "find-task":
+        result = find_task_for_doc(doc_id=args.doc_id)
+
+        if args.json:
+            print(result.to_json())
+        else:
+            if result.found:
+                print(f"✅ Found task: {result.task_id}")
+                print(f"   Path: {result.task_path}")
+                print(f"   Status: {result.status}")
+                print(f"   Primary doc: {result.primary_doc}")
+                if result.related_docs:
+                    print(f"   Related docs: {result.related_docs}")
+            else:
+                print(f"❌ No task found for document '{args.doc_id}'.")
 
 
 if __name__ == "__main__":

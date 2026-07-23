@@ -14,7 +14,7 @@ local log = require("bravo++.log")
 local M = {}
 
 --- Path to X-Plane's plugins directory (FlyWithLua global RESOURCE_PATH points here)
-local PLUGINS_DIR = RESOURCE_PATH --[[@as string]]
+local PLUGINS_DIR = SYSTEM_DIRECTORY .. "/Resources/plugins" --[[@as string]]
 
 -- ---------------------------------------------------------------------------
 -- Detection helpers
@@ -23,7 +23,7 @@ local PLUGINS_DIR = RESOURCE_PATH --[[@as string]]
 --- Check whether the Honeycomb Bridge plugin folder exists and contains an .xpl file.
 --- Returns true if the bridge appears to be installed (extracted, not just archived).
 local function is_bridge_folder_present()
-    local bridge_dir = PLUGINS_DIR .. "AFC_Bridge"
+    local bridge_dir = PLUGINS_DIR .. "/AFC_Bridge"
 
     -- Use io.popen to list files in win_x64 subfolder for AFC_Bridge.xpl
     local is_windows = (package.config and package.config:sub(1, 1) == "\\")

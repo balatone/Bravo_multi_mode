@@ -1111,6 +1111,49 @@ def auto_approve_delegation(doc_id: str, task_id: str | None = None) -> dict[str
     return result
 
 
+def _show_task(task_id: str, as_json: bool = False) -> None:
+    """
+    Display full metadata and body for a given task.
+
+    Args:
+        task_id: The task ID (e.g. TASK-0001).
+        as_json: If True, output as JSON; otherwise as YAML-like text.
+    """
+    path = get_task_path(task_id)
+    if not path:
+        raise RuntimeError(f"Error: Task {task_id} not found.")
+
+    task_data = load_task(path)
+    metadata = task_data["metadata"]
+    body = task_data["body"]
+
+    if as_json:
+        output = {
+            "id": metadata.get("id"),
+            "title": metadata.get("title"),
+            "version": metadata.get("version"),
+            "status": metadata.get("status"),
+            "created": metadata.get("created"),
+            "updated": metadata.get("updated"),
+            "primary_doc": metadata.get("primary_doc"),
+            "related_docs": metadata.get("related_docs", []),
+            "body": body,
+        }
+        print(json.dumps(output, indent=2))
+    else:
+        print(f"id: {metadata.get('id')}")
+        print(f"title: {metadata.get('title')}")
+        print(f"version: {metadata.get('version')}")
+        print(f"status: {metadata.get('status')}")
+        print(f"created: {metadata.get('created')}")
+        print(f"updated: {metadata.get('updated')}")
+        print(f"primary_doc: {metadata.get('primary_doc')}")
+        related = metadata.get("related_docs", [])
+        print(f"related_docs: {json.dumps(related)}")
+        print("---")
+        print(body)
+
+
 def main() -> None:
     if len(sys.argv) == 1 or sys.argv[1] in ["-h", "--help"]:
         print("Manage Status Board tasks.")
@@ -1188,6 +1231,10 @@ def main() -> None:
         help="Show active tasks plus N most recent DONE tasks",
     )
 
+    show_p = subparsers.add_parser("show", help="Show task metadata and body")
+    show_p.add_argument("id", help="Task ID (e.g., TASK-0001)")
+    show_p.add_argument("--json", action="store_true", help="Output as JSON")
+
     args = parser.parse_args()
 
     try:
@@ -1203,6 +1250,8 @@ def main() -> None:
             update_task(args.id, args.title, args.primary_doc, args.related_docs)
         elif args.command == "list":
             list_board(active_only=args.active_only, last_n=args.last_n)
+        elif args.command == "show":
+            _show_task(args.id, as_json=args.json)
         else:
             parser.print_help()
     except (RuntimeError, ValueError, yaml.YAMLError) as exc:
