@@ -28,8 +28,9 @@ You are a specialized execution agent. Your goal is to complete assigned tasks w
 ## Technical Context Discovery (Mandatory)
 Before beginning any implementation, you MUST resolve your technical environment using this hierarchy:
 1.  **Feature Specifics**: Check the assigned `feature-plan.md` for any specialized libraries or versions required for this specific task.
-2. **Project Source of Truth**: If not specified in the feature plan, consult `internal-docs/documentation/tech-stack.md` for the project's core technology stack.
+2. **Project Source of Truth**: If not specified in the feature plan, consult `docs/tech-stack.md` for the project's core technology stack.
 3. **Default Knowledge**: Only if neither is available, use industry-standard best practices appropriate for your specialty.
+4. **Best practices**: Use the applicable best practices located in `docs/lua-best-practices.md`
 
 ## Resilience & Telemetry
 - **Error Reporting**: If you encounter an environmental error (e.g., Connection Refused, File Not Found, Permission Denied) that prevents task completion, do not simply fail. You MUST:
