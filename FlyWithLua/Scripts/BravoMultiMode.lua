@@ -4,7 +4,6 @@ local log = require("bravo++.log")
 local config = require("bravo++.config")
 local ui = require("bravo++.ui")
 local MapBuilder = require("bravo++.mapbuilder")
-local plugincheck = require("bravo++.plugincheck")
 
 -- LED Engine modular components (FEAT-017)
 local led_engine = require("bravo++.led_engine")
@@ -410,13 +409,6 @@ dispatch.init(nav_bindings, {
     selection_map_labels = selection_map_labels,
     button_map_labels = button_map_labels,
 })
-
------------------------------------------------------
---- Check for conflicting Honeycomb Bridge plugin
------------------------------------------------------
-if plugincheck.should_warn() then
-    plugincheck.show_warning_if_needed()
-end
 
 -- Twist knob action map and rocker switch LED states are now managed by dispatch module.
 
@@ -1129,7 +1121,7 @@ gear_leds.init({
 
 -- 4. HID Bridge
 led_hid_bridge.init({
-    device_handle = device_handle,
+    device_handle = bravo,
     bit_lib = bit,
     button_map_leds_state = button_map_leds_state,
     led_engine_module = led_engine,

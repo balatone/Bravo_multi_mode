@@ -4,7 +4,7 @@ title: "Modular Architecture Revision Release Plan"
 version: 1.0.0
 status: IMPLEMENTING
 created: "2026-07-23 12:52:03"
-updated: "2026-07-24 14:00:07"
+updated: "2026-07-24 14:08:39"
 primary_doc: REQ-008
 related_docs: ["REQ-008", "PLAN-006", "FEAT-017", "FEAT-018", "FEAT-019", "FEAT-020"]
 ---
@@ -51,3 +51,4 @@ related_docs: ["REQ-008", "PLAN-006", "FEAT-017", "FEAT-018", "FEAT-019", "FEAT-
 [2026-07-24 13:37:25] - [analyst] - Refined BUGFIX-008: discovered switch_leds.evaluate() is the sole source of dispatch state updates for UI display. Updated plan to replace (not just delete) its logic with a standalone handler in BravoMultiMode.lua, preserving rocker switch position display in ImGui.
 [2026-07-24 13:44:55] - [analyst] - Approved BUGFIX-008 (supersedes incorrect BUGFIX-007) and committed with REVIEW-018. Fixed broken reference in BUGFIX-007.
 [2026-07-24 14:00:07] - [worker] - Completed: Implemented BUGFIX-008 fixes - removed switch_leds.lua with standalone handler replacement, corrected annunciator LED_POSITIONS/labels to match hardware layout (Row1=Bank2, Row2=Bank3). F-003/BP-001/BP-003/BP-004 already implemented in codebase.
+[2026-07-24 14:08:39] - [reviewer] - Completed: Review of BUGFIX-008 LED Engine Modularization Fixes — Verdict: APPROVED. All 6 issues verified resolved; one minor cleanup item noted.

@@ -1,5 +1,5 @@
 -- tests/mocks/imgui.lua
--- Minimal ImGui mock for testing ui.lua and plugincheck.lua in CLI environment.
+-- Minimal ImGui mock for testing ui.lua in CLI environment.
 -- Only stubs the specific methods actually called by these modules.
 --
 -- Full UI integration testing requires FlyWithLua runtime; this mock covers
