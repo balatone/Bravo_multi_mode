@@ -12,95 +12,23 @@ local annunciator_leds = require("bravo++.annunciator_leds")
 local gear_leds = require("bravo++.gear_leds")
 -- switch_leds module removed (BUGFIX-008): rocker switches have no physical LEDs
 
------------------------------------------------------
---- PERFORMANCE PROFILER (Method 2: Cumulative Stats)
------------------------------------------------------
--- Lightweight profiler to track CPU time consumption of core tasks.
--- Logs cumulative stats every 60 seconds to X-Plane log for "before/after" comparison.
-local PROFILER_ENABLED = false -- Set to true to enable profiling
+-- High Priority Module Extractions (FEAT-018)
+local profiler = require("bravo++.profiler")
+local config_loader = require("bravo++.config_loader")
+local rocker_switches = require("bravo++.rocker_switches")
+local button_lifecycle = require("bravo++.button_lifecycle")
 
-local profiler = {
-    _tasks = {},
-    _last_log_time = os.clock(),
-    _log_interval = 60, -- seconds
-}
+-- Initialize profiler (FEAT-018)
+profiler.init({ enabled = false, log_interval = 60 })
 
---- Start timing a specific task
-function profiler.start(task_name)
-    if not PROFILER_ENABLED then
-        return nil -- Zero overhead when disabled
-    end
-    if not profiler._tasks[task_name] then
-        profiler._tasks[task_name] = { total_time = 0, calls = 0 }
-    end
-    return os.clock()
-end
-
---- Stop timing and record the delta for the task
-function profiler.stop(task_name, start_time)
-    if not PROFILER_ENABLED or not start_time then
-        return -- Zero overhead when disabled
-    end
-    if profiler._tasks[task_name] then
-        local delta = os.clock() - start_time
-        profiler._tasks[task_name].total_time = profiler._tasks[task_name].total_time + delta
-        profiler._tasks[task_name].calls = profiler._tasks[task_name].calls + 1
-    end
-end
-
---- Log all accumulated stats and reset the counters
-function profiler.log_and_reset()
-    log.info("======================================================")
-    log.info("BRAVO++ PERFORMANCE PROFILER (Last " .. profiler._log_interval .. "s)")
-    log.info("------------------------------------------------------")
-
-    -- Sort tasks by total time descending for easier analysis
-    local sorted_tasks = {}
-    for name, stats in pairs(profiler._tasks) do
-        table.insert(sorted_tasks, { name = name, stats = stats })
-    end
-    table.sort(sorted_tasks, function(a, b)
-        return a.stats.total_time > b.stats.total_time
-    end)
-
-    for _, entry in ipairs(sorted_tasks) do
-        local name = entry.name
-        local stats = entry.stats
-        local avg = (stats.calls > 0) and (stats.total_time / stats.calls) or 0
-        log.info(
-            string.format(
-                "Task: %-30s | Calls: %5d | Total: %.4fs | Avg: %.6fs",
-                name,
-                stats.calls,
-                stats.total_time,
-                avg
-            )
-        )
-    end
-
-    log.info("======================================================")
-
-    -- Reset for next interval
-    profiler._tasks = {}
-end
-
---- Periodic logging task (called every frame via FlyWithLua string callback)
--- Must be global because do_every_frame evaluates strings in the global environment.
+-- Global wrapper for FlyWithLua profiler log task (do_every_frame string callback)
 function profiler_log_task() -- luacheck: ignore (used by do_every_frame string callback)
-    if not PROFILER_ENABLED then
-        return -- Zero overhead when disabled
-    end
-    local now = os.clock()
-    if (now - profiler._last_log_time) >= profiler._log_interval then
-        profiler.log_and_reset()
-        profiler._last_log_time = now
-    end
+    profiler.log_task()
 end
 
---- Toggle profiling on/off at runtime via custom command
+-- Global wrapper for FlyWithLua profiler toggle (create_command callback)
 function profiler_toggle() -- luacheck: ignore (used by create_command callback)
-    PROFILER_ENABLED = not PROFILER_ENABLED
-    log.info("Profiling " .. (PROFILER_ENABLED and "ENABLED" or "DISABLED"))
+    profiler.toggle()
 end
 
 create_command(
@@ -220,10 +148,18 @@ local aircraft_name = string.sub(AIRCRAFT_FILENAME, 1, string.len(AIRCRAFT_FILEN
 -- Table to hold dataref assignments
 local nav_bindings = {}
 
+-- Initialize config loader (FEAT-018)
+config_loader.init({
+    file_provider = function(path)
+        return util.list_files(path)
+    end,
+    aircraft_dir = aircraft_dir,
+})
+
 -- Load global user preferences first (optional file, won't fail if missing).
 -- Aircraft config loaded below will override any overlapping keys.
 local prefs_path = MODULES_DIRECTORY .. "bravo++" .. DIRECTORY_SEPARATOR .. "preferences.cfg"
-if config.read_preferences(prefs_path, nav_bindings) then
+if config_loader.read_preferences(prefs_path, nav_bindings) then
     log.info("Loaded global preferences from " .. prefs_path)
 end
 
@@ -234,69 +170,15 @@ end
 --   3. bravo_multi-mode.cfg                       (generic fallback)
 -- If none are found, stop the script.
 
--- luacheck: ignore nav_cfg_file_full_path file_ok (intentionally overwritten across config detection steps)
-local nav_cfg_file_full_path = nil
-local file_ok = false
+local config_result = config_loader.detect_config(aircraft_name, aircraft_dir)
+local nav_cfg_file_full_path = config_result.path
+local file_ok = config_result.found
 
--- Step 1: Exact aircraft name match
-do
-    local candidate = "bravo_multi-mode." .. aircraft_name .. ".cfg"
-    nav_cfg_file_full_path = aircraft_dir .. candidate
-    log.info("Trying config: " .. nav_cfg_file_full_path)
-    file_ok = config.read_file(nav_cfg_file_full_path, nav_bindings)
-    if file_ok then
-        log.info("Successfully parsed exact-match config for " .. aircraft_name)
-    end
+if file_ok then
+    file_ok = config_loader.read_file(nav_cfg_file_full_path, nav_bindings)
 end
 
--- Step 2: Variant match (bravo_multi-mode.<aircraft_name>.*.cfg)
-if not file_ok then
-    -- Build the regex from the aircraft name, escaping any literal dots and hyphens
-    local escaped_name = aircraft_name:gsub("%-", "%%-"):gsub("%.", "%%.")
-    local variant_pattern = "^bravo_multi%-mode%." .. escaped_name .. "%.([^.]+)%.[cC][fF][gG]$"
-
-    -- Find matching variant files in the aircraft directory
-    local all_files = util.list_files(aircraft_dir)
-    local variant_matches = {}
-    for _, filename in ipairs(all_files) do
-        if string.match(filename, variant_pattern) then
-            table.insert(variant_matches, filename)
-        end
-    end
-
-    if #variant_matches > 0 then
-        -- Sort for deterministic selection when multiple variants exist
-        table.sort(variant_matches)
-
-        if #variant_matches > 1 then
-            log.warning(
-                "Multiple variant config files found: "
-                    .. table.concat(variant_matches, ", ")
-                    .. ". Using first alphabetically."
-            )
-        end
-
-        nav_cfg_file_full_path = aircraft_dir .. variant_matches[1]
-        log.info("Trying variant config: " .. nav_cfg_file_full_path)
-        file_ok = config.read_file(nav_cfg_file_full_path, nav_bindings)
-        if file_ok then
-            log.info("Successfully parsed variant config: " .. variant_matches[1])
-        end
-    end
-end
-
--- Step 3: Generic fallback
-if not file_ok then
-    local candidate = "bravo_multi-mode.cfg"
-    nav_cfg_file_full_path = aircraft_dir .. candidate
-    log.info("Trying generic config: " .. nav_cfg_file_full_path)
-    file_ok = config.read_file(nav_cfg_file_full_path, nav_bindings)
-    if file_ok then
-        log.info("Successfully parsed generic config")
-    end
-end
-
--- Step 4: No config found — stop script
+-- No config found — stop script
 if not file_ok then
     log.warning(
         "No config file found in "
@@ -692,7 +574,7 @@ dispatch_callbacks.set_current_buttons_task = set_current_buttons_task
 do_every_frame("bravo_dispatch('set_current_buttons_task')")
 
 --------------------------------------
----- ROCKER SWITCHES
+---- ROCKER SWITCHES (FEAT-018: rocker_switches module)
 --------------------------------------
 
 -- Route rocker switch commands through the dispatch module.
@@ -702,43 +584,15 @@ dispatch_callbacks.rocker_switch = function(rocker_number, dir)
     end, "rocker_switch:" .. rocker_number .. ":" .. dir)
 end
 
--- Initialize the rocker switch commands
-log.info("Initializing switch commands...")
-for i = 1, 7 do
-    local func_up_name = "rocker_switch" .. i .. "_up"
-
-    local dataref = "FlyWithLua/Bravo++/" .. func_up_name
-    local description = "Bravo++ command for rocker switch" .. i .. " when it is positioned up"
-    local command = string.format("bravo_dispatch('rocker_switch', %d, 'UP')", i)
-    log.debug("dataref: " .. dataref)
-    log.debug("description: " .. description)
-    log.debug("command: " .. command)
-
-    create_command(
-        dataref,
-        description,
-        command, -- Call Lua function when pressed
-        "",
-        ""
-    )
-
-    local func_down_name = "rocker_switch" .. i .. "_down"
-
-    local dataref = "FlyWithLua/Bravo++/" .. func_down_name
-    local description = "Bravo++ command for rocker switch" .. i .. " when it is positioned down"
-    local command = string.format("bravo_dispatch('rocker_switch', %d, 'DOWN')", i)
-    log.debug("dataref: " .. dataref)
-    log.debug("description: " .. description)
-    log.debug("command: " .. command)
-
-    create_command(
-        dataref,
-        description,
-        command, -- Call Lua function when pressed
-        "",
-        ""
-    )
-end
+-- Initialize rocker switch commands via module (FEAT-018)
+rocker_switches.init({
+    dispatch_callback_fn = function(name, ...)
+        bravo_dispatch(name, ...)
+    end,
+    num_switches = 7,
+    create_command_fn = create_command,
+})
+rocker_switches.register_all()
 
 --------------------------------------
 ---- TRIM WHEEL
@@ -890,7 +744,7 @@ create_command(
 )
 
 --------------------------------------
----- BUTTON HANDLING
+---- BUTTON HANDLING (FEAT-018: button_lifecycle module)
 --------------------------------------
 -- Button handling is delegated to the dispatch module.
 -- Thin wrappers that delegate to dispatch module:
@@ -916,6 +770,7 @@ dispatch_callbacks.ap_end = function(button_name)
     end, "ap_end:" .. button_name)
 end
 
+-- AP button definitions (FEAT-018: injected into button_lifecycle module)
 local ap_buttons = {
     { key = "PLT", command = "autopilot_button", description = "AUTOPILOT" },
     { key = "IAS", command = "ias_button", description = "IAS" },
@@ -927,15 +782,12 @@ local ap_buttons = {
     { key = "HDG", command = "hdg_button", description = "HDG" },
 }
 
-for _, b in ipairs(ap_buttons) do
-    create_command(
-        "FlyWithLua/Bravo++/" .. b.command,
-        "Bravo++ toggles " .. b.description .. " button",
-        string.format("bravo_dispatch('ap_begin', '%s')", b.key),
-        string.format("bravo_dispatch('ap_continue', '%s')", b.key),
-        string.format("bravo_dispatch('ap_end', '%s')", b.key)
-    )
-end
+-- Initialize button lifecycle via module (FEAT-018)
+button_lifecycle.init({
+    ap_buttons = ap_buttons,
+    create_command_fn = create_command,
+})
+button_lifecycle.register_all()
 
 --------------------------------------
 ---- LED HANDLING (FEAT-017: Modular LED Engine)
