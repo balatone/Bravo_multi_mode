@@ -4,7 +4,7 @@ title: Bravo++ Module Interface Specification
 version: 1.0.0
 status: APPROVED
 created: 2026-07-23 19:08:00
-updated: 2026-07-23 20:01:00
+updated: 2026-07-24 10:07:00
 related_docs: ["FEAT-016", "RAD-005", "REQ-008"]
 ---
 
@@ -310,9 +310,7 @@ Self-contained cumulative performance profiler with task tracking, sorted loggin
 
 > All performance guidance is sourced from `docs/lua-best-practices.md`. Modules MUST adhere to these constraints during implementation.
 
-- **Hot Path**: This module's primary evaluation function runs every 0.25s as part of the LED update loop (or equivalent periodic interval). Sub-handler callbacks invoked by this module must NOT allocate new tables per invocation — reuse pre-allocated buffers where possible.
-- **Pre-computation**: All dataref bindings and condition strings are compiled at init time by config_loader, avoiding runtime parsing overhead in hot paths.
-- **Allocation Budget**: Each evaluation cycle should perform zero heap allocations beyond the dirty-flag boolean return value.
+- **Not a Hot Path**: This module runs on demand (profiler start/stop/log) — not in the LED update loop. `start()` and `stop()` are called frequently but should still minimize allocations. Zero overhead when disabled (`enabled=false`).
 
 ---
 
@@ -352,9 +350,7 @@ Handles multi-step configuration file detection (exact match → variant match �
 
 > All performance guidance is sourced from `docs/lua-best-practices.md`. Modules MUST adhere to these constraints during implementation.
 
-- **Hot Path**: This module's primary evaluation function runs every 0.25s as part of the LED update loop (or equivalent periodic interval). Sub-handler callbacks invoked by this module must NOT allocate new tables per invocation — reuse pre-allocated buffers where possible.
-- **Pre-computation**: All dataref bindings and condition strings are compiled at init time by config_loader, avoiding runtime parsing overhead in hot paths.
-- **Allocation Budget**: Each evaluation cycle should perform zero heap allocations beyond the dirty-flag boolean return value.
+- **Not a Hot Path**: This module runs once at initialization time (config detection, file reading, condition compilation). No periodic execution. Focus on correctness of config parsing rather than runtime performance.
 
 ---
 
@@ -393,11 +389,7 @@ Dynamically creates 14 X-Plane custom commands (7 rocker switches × UP/DOWN dir
 
 > All performance guidance is sourced from `docs/lua-best-practices.md`. Modules MUST adhere to these constraints during implementation.
 
-- **Hot Path**: This module's primary evaluation function runs every 0.25s as part of the LED update loop (or equivalent periodic interval). Sub-handler callbacks invoked by this module must NOT allocate new tables per invocation — reuse pre-allocated buffers where possible.
-- **Pre-computation**: All dataref bindings and condition strings are compiled at init time by config_loader, avoiding runtime parsing overhead in hot paths.
-- **Allocation Budget**: Each evaluation cycle should perform zero heap allocations beyond the dirty-flag boolean return value.
-
----
+- **Not a Hot Path**: Command registration is a one-time operation during init(). No periodic execution. Focus on correctness of command creation and callback registration.
 > - Physical input debounce: Command registration should not create duplicate commands on re-initialization. Guard against multiple `create_command` calls for the same command name.
 
 ### Internal/Private Functions (NOT exported)
@@ -436,13 +428,7 @@ Manages the autopilot button lifecycle by registering begin/continue/end callbac
 
 > All performance guidance is sourced from `docs/lua-best-practices.md`. Modules MUST adhere to these constraints during implementation.
 
-- **Hot Path**: This module's primary evaluation function runs every 0.25s as part of the LED update loop (or equivalent periodic interval). Sub-handler callbacks invoked by this module must NOT allocate new tables per invocation — reuse pre-allocated buffers where possible.
-- **Pre-computation**: All dataref bindings and condition strings are compiled at init time by config_loader, avoiding runtime parsing overhead in hot paths.
-- **Allocation Budget**: Each evaluation cycle should perform zero heap allocations beyond the dirty-flag boolean return value.
-
----
-
-> All command registrations are one-time operations during init(). No hot-path concerns for this module's primary function.
+- **Not a Hot Path**: All command registrations are one-time operations during init(). No periodic execution or hot-path concerns for this module's primary function.
 ### Internal/Private Functions (NOT exported)
 
 | Function | Purpose |
@@ -481,12 +467,7 @@ Consolidates trim wheel and twist knob input handling into a single focused modu
 
 > All performance guidance is sourced from `docs/lua-best-practices.md`. Modules MUST adhere to these constraints during implementation.
 
-- **Hot Path**: This module's primary evaluation function runs every 0.25s as part of the LED update loop (or equivalent periodic interval). Sub-handler callbacks invoked by this module must NOT allocate new tables per invocation — reuse pre-allocated buffers where possible.
-- **Pre-computation**: All dataref bindings and condition strings are compiled at init time by config_loader, avoiding runtime parsing overhead in hot paths.
-- **Allocation Budget**: Each evaluation cycle should perform zero heap allocations beyond the dirty-flag boolean return value.
-
----
-> - Trim/twist handlers are triggered by physical rotary encoders which may generate rapid events. Consider debouncing at the decoder/pub-sub layer rather than in this module (the injected `decoder_handler_fn` should handle rate limiting).
+- **Not a Hot Path**: Trim/twist handlers are triggered by physical rotary encoder events, not by the periodic LED update loop. They may fire rapidly during physical input but are not called on a fixed interval. Consider debouncing at the decoder/pub-sub layer rather than in this module (the injected `decoder_handler_fn` should handle rate limiting).
 ### Internal/Private Functions (NOT exported)
 
 | Function | Purpose |
@@ -532,11 +513,7 @@ Manages all mode-related state transitions: mode cycling (up/down), CF (inner/ou
 
 > All performance guidance is sourced from `docs/lua-best-practices.md`. Modules MUST adhere to these constraints during implementation.
 
-- **Hot Path**: This module's primary evaluation function runs every 0.25s as part of the LED update loop (or equivalent periodic interval). Sub-handler callbacks invoked by this module must NOT allocate new tables per invocation — reuse pre-allocated buffers where possible.
-- **Pre-computation**: All dataref bindings and condition strings are compiled at init time by config_loader, avoiding runtime parsing overhead in hot paths.
-- **Allocation Budget**: Each evaluation cycle should perform zero heap allocations beyond the dirty-flag boolean return value.
-
----
+- **Not a Hot Path**: Mode cycling is triggered by user actions (mode button presses), not by the periodic LED update loop. `build_ui_context()` is called on demand when the UI needs to render. No fixed-interval execution.
 ### Internal/Private Functions (NOT exported)
 
 | Function | Purpose |

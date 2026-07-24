@@ -4,7 +4,7 @@ title: Bravo++ FlyWithLua Callback Preservation Strategy
 version: 1.0.0
 status: APPROVED
 created: 2026-07-23 19:20:00
-updated: 2026-07-23 20:01:00
+updated: 2026-07-24 10:07:00
 related_docs: ["FEAT-016", "RAD-005", "DSGN-001", "DSGN-002"]
 ---
 
@@ -141,7 +141,7 @@ local dispatch_callbacks = {}
 
 -- LED Engine callbacks
 dispatch_callbacks.handle_led_changes_task = function()
-    led_engine.handle_led_changes({ bus_voltage_ref })
+    led_engine.handle_led_changes({ bus_voltage = bus_voltage_ref.value })
 end
 
 dispatch_callbacks.do_on_exit_task = function()
@@ -338,7 +338,7 @@ mode_manager.init({ dispatch_module = dispatch, modes_array = modes, selection_m
 
 -- 3. Register routing table entries (no inline logic)
 dispatch_callbacks.handle_led_changes_task = function()
-    led_engine.handle_led_changes({ bus_voltage_ref })
+    led_engine.handle_led_changes({ bus_voltage = bus_voltage_ref.value })
 end
 
 dispatch_callbacks.cycle_mode_up = function()

@@ -4,8 +4,8 @@ title: LED Engine Modularization
 version: 1.0.0
 status: APPROVED
 created: 2026-07-23 12:59:49
-updated: 2026-07-23 13:06:00
-related_docs: ["REQ-008", "PLAN-006"]
+updated: 2026-07-24 10:07:00
+related_docs: ["REQ-008", "PLAN-006", "DSGN-001", "DSGN-002", "DSGN-003"]
 priority: CRITICAL
 ---
 
@@ -63,32 +63,32 @@ Before implementation begins, review:
 ## Task 2: Extract `annunciator_leds.lua` (Lowest Coupling)
 
 1. Move Row 1/Row 2 annunciator LED evaluation handlers from BravoMultiMode.lua lines ~960–1180 into a new module.
-2. Accept compiled condition data from config/loader as injection parameter rather than accessing global state directly.
-3. Export public API: `evaluate_annunciators(conditions, buffer)` returning updated buffer state.
+2. Accept compiled condition data (`annunciator_bindings`) and an `eval_fn` callback as injection parameters rather than accessing global state directly. The `eval_fn` parameter is a function `(dataref_table, condition_string, index?) → boolean` that replaces direct `config.eval_condition()` global access (per DSGN-001).
+3. Export public API (per DSGN-001): `init({ annunciator_bindings, eval_fn })`, `evaluate_row1(led_engine_module)`, `evaluate_row2(led_engine_module)`, `evaluate_all(led_engine_module)`. This module writes LED states through `led_engine_module.set_led()` — NOT through direct buffer access.
 
 ## Task 3: Extract `gear_leds.lua`
 
 1. Move the three-channel green/red gear LED state machine from BravoMultiMode.lua lines ~1180–1270 into a new module.
-2. Accept gear dataref bindings (e.g., `sim/aircraft/view/acf_gear`, `sim/flightmodel2/gear`) as injection parameters.
-3. Export public API: `handle_gear_led_changes(gear_data, buffer)` returning updated buffer state.
+2. Accept gear dataref bindings and LED position constants as injection parameters (per DSGN-001: `gear_dataref`, `led_constants`).
+3. Export public API (per DSGN-001): `init({ gear_dataref, led_constants })`, `evaluate(led_engine_module)`, `get_gear_state()`. This module writes LED states through `led_engine_module.set_led()` — NOT through direct buffer access.
 
 ## Task 4: Extract `switch_leds.lua`
 
 1. Move rocker switch per-switch LED condition evaluation from BravoMultiMode.lua lines ~1270–1350 into a new module.
-2. Accept switch LED bindings and configuration data as injection parameters.
-3. Export public API: `handle_switch_led_changes(switch_config, buffer)` returning updated buffer state.
+2. Accept switch LED bindings, dispatch module reference, and an `eval_fn` callback as injection parameters. The `eval_fn` parameter is a function `(dataref_table, condition_string, index?) → boolean` that replaces direct `config.eval_condition()` global access (per DSGN-001).
+3. Export public API (per DSGN-001): `init({ switch_bindings, dispatch_module, eval_fn })`, `evaluate(led_engine_module)`, `get_current_states()`. This module writes LED states through `led_engine_module.set_led()` — NOT through direct buffer access.
 
 ## Task 5: Extract `led_engine.lua` (Core State Manager)
 
-1. Move core state management including `buffer[]`, `led_state_modified`, `all_leds_off()`, and the main `handle_led_changes()` orchestrator from BravoMultiMode.lua lines ~820–960 into a new module.
-2. This module coordinates calls to the three sub-modules (annunciators, gear, switches) and writes results to the shared buffer.
-3. Export public API: `init()`, `handle_led_changes()`, `all_leds_off()` — these are called via FlyWithLua string callbacks through `bravo_dispatch`.
+1. Move core state management including `buffer[]`, `led_state_modified`, `all_leds_off()`, `prime_for_mode_change()`, and the main `handle_led_changes()` orchestrator from BravoMultiMode.lua lines ~820–960 into a new module.
+2. This module coordinates calls to the LED sub-modules via pre-registered callbacks (set through `set_sub_handlers()`). Sub-modules write to the buffer through `M.set_led()` — the buffer is **not** shared directly; it remains internal to this module.
+3. Export public API (per DSGN-001): `init({ dispatch, button_map_leds_state, default_button_labels })`, `set_sub_handlers({ on_annunciator_row1, on_annunciator_row2, on_gear, on_switches })`, `set_led(bank, bit, state)`, `get_led(bank, bit)`, `all_off()`, `prime_for_mode_change()`, `is_dirty()`, `clear_dirty()`, `handle_led_changes({ bus_voltage, master_state_ref })`, `get_bus_voltage()`. The `set_sub_handlers()` method is critical — it registers callbacks at init time so the hot path performs zero table allocations per cycle.
 
 ## Task 6: Extract `led_hid_bridge.lua` (HID Report Assembly)
 
 1. Move HID report assembly logic (`send_hid_data()`) and bit manipulation across four banks from BravoMultiMode.lua lines ~1350–1420 into a new module.
-2. Accept the HID device handle as an injection parameter rather than accessing globals.
-3. Export public API: `init(device_handle)`, `assemble_and_send(buffer)` — called after all LED state evaluations complete.
+2. Accept the HID device handle and `bit` library reference as injection parameters rather than accessing globals (per DSGN-001).
+3. Export public API (per DSGN-001): `init({ device_handle, bit_lib })`, `assemble_and_send(buffer_ref, default_button_labels, dispatch_module)`, `assemble_report(buffer_ref, default_button_labels, dispatch_module)`. On success, calls `led_engine.clear_dirty()` through the injected dispatch module reference.
 
 ## Task 7: Wire Dependencies in Main Script
 
@@ -145,9 +145,11 @@ The extraction order is designed to minimize risk: start with the lowest-couplin
 
 ## Key Design Decisions
 
-1. **Shared Buffer Pattern**: All five sub-modules write LED states to a shared `buffer[]` table managed by `led_engine.lua`. This preserves the existing data flow: evaluate → buffer → assemble → send.
-2. **Injection Over Globals**: Each sub-module accepts its specific dependencies (conditions, gear datarefs, switch config) as parameters rather than accessing globals directly. The main script acts as composition root wiring all dependencies together.
-3. **Preserve `bravo_dispatch` Integration**: The FlyWithLua string callback contract is maintained — `bravo_dispatch('handle_led_changes_task')` continues to route through the existing dispatch facade, now forwarding to modular exports rather than inline functions.
+1. **Encapsulated Buffer with `set_led()` API**: The LED buffer is internal to `led_engine.lua` and is **not** shared directly with sub-modules. All LED state writes flow through `led_engine.set_led(bank, bit, state)`, which handles dirty-flag logic centrally. This preserves encapsulation and ensures the dirty flag is always set correctly. Sub-modules receive a reference to the `led_engine` module (not the raw buffer) and call `set_led()` to write evaluated states.
+2. **Pre-Registered Sub-Handler Callbacks**: The `led_engine.set_sub_handlers()` method registers the four LED sub-handler callbacks (annunciator row 1, annunciator row 2, gear, switches) at init time. These are stored in closure scope and invoked by `handle_led_changes()` with zero table allocation per cycle — critical for the 0.25s hot path.
+3. **`eval_fn` Injection for Dataref Evaluation**: Both `annunciator_leds` and `switch_leds` receive an `eval_fn` callback (function `(dataref_table, condition_string, index?) → boolean`) as an injection parameter. This replaces direct `config.eval_condition()` global access, adhering to the injection-over-globals principle.
+4. **Injection Over Globals**: Each sub-module accepts its specific dependencies (conditions, gear datarefs, switch config, eval_fn) as parameters rather than accessing globals directly. The main script acts as composition root wiring all dependencies together.
+5. **Preserve `bravo_dispatch` Integration**: The FlyWithLua string callback contract is maintained — `bravo_dispatch('handle_led_changes_task')` continues to route through the existing dispatch facade, now forwarding to modular exports rather than inline functions.
 
 ## Anti-Patterns to Avoid During Refactoring
 

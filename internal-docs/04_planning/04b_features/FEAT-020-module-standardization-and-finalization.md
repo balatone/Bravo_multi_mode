@@ -4,8 +4,8 @@ title: Module Standardization and Finalization
 version: 1.0.0
 status: APPROVED
 created: 2026-07-23 13:00:13
-updated: 2026-07-23 13:06:00
-related_docs: ["REQ-008", "PLAN-006"]
+updated: 2026-07-24 10:07:00
+related_docs: ["REQ-008", "PLAN-006", "DSGN-001", "DSGN-002", "DSGN-003"]
 priority: LOW
 ---
 
@@ -104,14 +104,14 @@ Before implementation begins, review:
 3. Namespace table evaluation for dispatch facade completed with documented recommendation and migration plan (if applicable).
 4. Final integration verification passes: byte-identical HID output across all four configurations; no FlyWithLua callback breakage; no performance regression.
 5. All existing unit and integration tests pass; new test coverage for refactored modules exceeds baseline.
-6. Lua Best Practices Guide (FEAT-015) status set to APPROVED with final review against completed implementation.
+6. Lua Best Practices Guide (FEAT-015) reviewed against completed implementation — if already APPROVED, confirm it remains applicable; if not yet approved, this item is blocked on FEAT-015's approval and should be completed as a follow-up action once that dependency resolves.
 
 # Dependencies / Risks
 
 ## Dependencies
 
 1. **FEAT-017 through FEAT-019**: All module extractions must be complete before standardization begins — running this phase earlier would risk rework as module APIs evolve during extraction phases.
-2. **FEAT-015 (Lua Best Practices Guide)**: Provides the coding conventions reference for export patterns, scoping rules, error handling standards, and documentation expectations that guide this standardization work.
+2. **FEAT-015 (Lua Best Practices Guide)**: Provides the coding conventions reference for export patterns, scoping rules, error handling standards, and documentation expectations that guide this standardization work. Note: FEAT-020's standardization tasks can proceed regardless of FEAT-015's approval status; only the final Definition of Done item (LuaDoc annotation review against approved best practices) is blocked until FEAT-015 reaches APPROVED status.
 3. **Existing Test Suite (FEAT-010 through FEAT-014)**: Provides verification baseline; no phase advances without passing existing tests.
 
 ## Risks and Mitigations

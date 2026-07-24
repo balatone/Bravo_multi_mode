@@ -4,14 +4,14 @@ title: High Priority Module Extractions
 version: 1.0.0
 status: APPROVED
 created: 2026-07-23 12:59:55
-updated: 2026-07-23 13:06:00
-related_docs: ["REQ-008", "PLAN-006"]
+updated: 2026-07-24 10:07:00
+related_docs: ["REQ-008", "PLAN-006", "DSGN-001", "DSGN-002", "DSGN-003"]
 priority: HIGH
 ---
 
 # Feature Overview
 
-This feature extracts four high-priority responsibility blocks from `BravoMultiMode.lua` into focused, independently require'd modules under `FlyWithLua/Modules/bracto++/`. These extractions address the next tier of technical debt identified in RAD-005 after the CRITICAL LED engine split (FEAT-017) is complete.
+This feature extracts four high-priority responsibility blocks from `BravoMultiMode.lua` into focused, independently require'd modules under `FlyWithLua/Modules/bravo++/`. These extractions address the next tier of technical debt identified in RAD-005 after the CRITICAL LED engine split (FEAT-017) is complete.
 
 The deliverable is four new modules — Profiler (`profiler.lua`), Config Loader (`config_loader.lua`), Rocker Switch Router (`rocker_switches.lua`), and Button Lifecycle Manager (`button_lifecycle.lua`) — each with a clean public API, injection-based dependencies, and verified backward compatibility across all four aircraft configurations (B58, C90B, DA42, Transponder).
 
@@ -20,7 +20,7 @@ The deliverable is four new modules — Profiler (`profiler.lua`), Config Loader
 1. **Extract `profiler.lua`** — Self-contained performance profiling block from BravoMultiMode.lua lines ~10–130 with zero external dependencies. Export start/stop/log/toggle API for runtime performance monitoring.
 2. **Extract `config_loader.lua`** — Aircraft configuration detection logic (exact→variant→generic fallback) and validation context building from BravoMultiMode.lua lines ~230–380. Decouple file system access via injection parameters.
 3. **Extract `rocker_switches.lua`** — Uniform rocker switch command creation loop (7 switches × UP/DOWN directions) from BravoMultiMode.lua lines ~560–620, with dispatch callback registration as an injection point.
-4. **Extract `button_lifecycle.lua`** — AP button begin/continue/end lifecycle manager from BravoMultiMode.lua lines ~750–810, accepting action map and command registry parameters for decoupled initialization.
+4. **Extract `button_lifecycle.lua`** — AP button begin/continue/end lifecycle manager from BravoMultiMode.lua lines ~750–810, accepting a dispatch callback function as an injection point for decoupled command registration (per DSGN-002 Injection Summary table).
 
 # Scope
 
@@ -28,7 +28,7 @@ The deliverable is four new modules — Profiler (`profiler.lua`), Config Loader
 
 - Extraction of four responsibility blocks from `BravoMultiMode.lua` into new modules under `FlyWithLua/Modules/bravo++/`.
 - Definition of public APIs using the `local M = {} ... return M` export pattern with documented function signatures.
-- Injection-based dependency wiring: file system access, dispatch callbacks, action maps passed as parameters rather than accessed via globals.
+- Injection-based dependency wiring: file system access (`file_provider`), dispatch callback functions (`dispatch_callback_fn`), and other required parameters passed to each module's init function as defined in DSGN-002, rather than accessed via globals.
 - Preservation of FlyWithLua string callback integration through existing dispatch facade (`bravo_dispatch`).
 - Verification against pre-refactoring behavior for all four aircraft configurations (B58, C90B, DA42, Transponder).
 
@@ -55,15 +55,15 @@ Before implementation begins, review:
 
 ## Task 1: Extract `profiler.lua` (Zero Dependencies)
 
-1. Move the profiler block from BravoMultiMode.lua lines ~10–130 into a new module. This is self-contained with zero dependencies on other modules — it only uses Lua standard library functions (`os.clock`, string formatting).
-2. Export public API: `init()`, `start()`, `stop()`, `log(message)`, `toggle()` — providing runtime performance monitoring capabilities for debugging and optimization.
-3. Verify the profiler continues to work correctly when invoked via FlyWithLua callbacks (e.g., `bravo_dispatch('profiler_start')`).
+1. Move the profiler block from BravoMultiMode.lua lines ~10–130 into a new module. This is self-contained with zero dependencies on other modules — it only uses Lua standard library functions (`os.clock`, string formatting) plus `log` for output.
+2. Export public API (per DSGN-001): `init({ enabled, log_interval })`, `start(task_name)`, `stop(task_name, start_time)`, `log_and_reset()`, `toggle()`, `is_enabled()` — providing runtime performance monitoring capabilities for debugging and optimization.
+3. Verify the profiler continues to work correctly when invoked via FlyWithLua callbacks (e.g., `bravo_dispatch('toggle_profiler')`, `bravo_dispatch('profiler_log_task')`).
 
 ## Task 2: Extract `config_loader.lua`
 
 1. Move aircraft configuration detection logic (exact model name → variant suffix → generic fallback) and validation context building from BravoMultiMode.lua lines ~230–380 into a new module.
-2. Accept file list provider function as an injection parameter to decouple from direct calls to `util.list_files()` — this improves testability and allows mock file systems in tests.
-3. Export public API: `init(file_provider)`, `detect_config()`, `load_validation_context(aircraft_type)` — returning structured configuration data rather than modifying globals.
+2. Accept file provider function as an injection parameter to decouple from direct calls to `util.list_files()` — this improves testability and allows mock file systems in tests.
+3. Export public API (per DSGN-001): `init({ file_provider, aircraft_dir })`, `detect_config(aircraft_name)` returning `{ path, found }`, `read_file(path, nav_bindings)`, `read_preferences(path, nav_bindings)`, `compile_condition(condition_str, label)`, `build_validation_context(nav_bindings)` returning `{ gear_dataref, switch_bindings, annunciator_bindings, button_bindings }`.
 
 ## Task 3: Extract `rocker_switches.lua`
 
@@ -74,13 +74,13 @@ Before implementation begins, review:
 ## Task 4: Extract `button_lifecycle.lua`
 
 1. Move AP button begin/continue/end lifecycle manager from BravoMultiMode.lua lines ~750–810 into a new module. This handles the three-phase lifecycle (begin → continue → end) for AP-related buttons with proper state management.
-2. Accept action map and command registry as parameters to decouple from global access patterns.
-3. Export public API: `init(action_map, command_registry)`, `register_ap_button_lifecycle()` — registering begin/continue/end handlers through the injected registries.
+2. Accept AP button definitions array (`ap_buttons`) and a dispatch callback function (`dispatch_callback_fn`) as injection points rather than directly accessing `bravo_dispatch` or global command registry — this decouples the button lifecycle module from FlyWithLua-specific integration details, consistent with DSGN-001 and DSGN-002.
+3. Export public API (per DSGN-001): `init({ ap_buttons, dispatch_callback_fn })`, `register_all()`, `get_button_commands(button_key)` — registering begin/continue/end handlers through the injected dispatcher callback function.
 
 ## Task 5: Wire Dependencies in Main Script
 
 1. Update `BravoMultiMode.lua` to require the four new modules instead of containing their inline code.
-2. Establish injection wiring at the composition root (main script): pass file providers, dispatch callbacks, action maps, and command registries to each module's init function.
+2. Establish injection wiring at the composition root (main script): pass file providers, dispatch callback functions (`dispatch_callback_fn`), and other required parameters to each module's init function as defined in DSGN-002's Injection Parameter Summary table.
 3. Verify FlyWithLua string callbacks (`bravo_dispatch('profiler_start')`, etc.) still resolve through `bravo_dispatch` → modular exports.
 
 ## Task 6: Verification Gate
@@ -131,7 +131,7 @@ These four modules have fewer inter-module dependencies than the Input Handlers 
 
 1. **Profiler Self-Containment**: The profiler module requires zero dependencies — it only uses Lua standard library functions. This makes it the ideal first extraction, providing immediate value (runtime performance monitoring) with minimal risk.
 2. **Config Loader Injection Pattern**: File system access is abstracted via an injected `file_provider` function parameter rather than direct calls to `util.list_files()`. The main script provides a default implementation that delegates to the existing utility, maintaining backward compatibility while enabling testability.
-3. **Dispatch Registrar Abstraction**: Rocker switches and Button Lifecycle receive dispatch callbacks through injection parameters (`dispatch_registrar`, `action_map`, `command_registry`) rather than accessing globals directly. This decouples module logic from FlyWithLua integration details.
+3. **Dispatch Callback Injection**: Both rocker_switches.lua and button_lifecycle.lua receive dispatch callbacks through injection parameters (`dispatch_callback_fn` for button_lifecycle; `dispatch_registrar` function for rocker_switches) rather than accessing globals directly, consistent with DSGN-002's Injection Summary table. This decouples module logic from FlyWithLua integration details.
 
 ## Anti-Patterns to Avoid During Refactoring
 
