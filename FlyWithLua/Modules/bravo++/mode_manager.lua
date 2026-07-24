@@ -137,17 +137,17 @@ end
 -- Public: Selector Management
 -- ============================================================
 
---- Set the selector index and trigger LED refresh callback.
+--- Set the local selector index.
+--- The composition root (set_current_selector) calls dispatch.set_selector_index
+--- separately with the on_update callback for LED refresh.
 --- @param idx integer  1-based selector index
 function M.set_selector_index(idx)
     _selector_index = idx
-    if not _dispatch_module then
-        log.warning("mode_manager: dispatch_module not initialized")
-        return
-    end
-    -- The on_update callback is provided by the composition root
-    -- to trigger LED refresh after selector changes
-    _dispatch_module.set_selector_index(idx)
+    -- Note: do NOT call _dispatch_module.set_selector_index(idx) here.
+    -- The composition root (set_current_selector) calls dispatch.set_selector_index
+    -- with the on_update callback for LED refresh. Calling it here without the
+    -- callback would update the selection state prematurely, causing the callback
+    -- in the composition root to be skipped (new_label == current_label check fails).
 end
 
 --- Get the current selector index.
