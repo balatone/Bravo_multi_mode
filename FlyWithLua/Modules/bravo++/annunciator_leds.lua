@@ -18,39 +18,41 @@ local annunciator_bindings = nil
 local eval_fn = nil
 
 -- LED position constants for annunciators (shared with composition root)
--- Row 1 = Bank 2 (7 LEDs), Row 2 = Bank 3 (7 LEDs)
+-- Bank 2 bits 1-6 are gear LEDs; annunciators use bits 7-8 in Bank 2,
+-- all of Bank 3, and bits 1-4 in Bank 4.
 local LED_POSITIONS = {
-    -- Row 1 (Bank 2)
-    MASTER_WARNING = { 2, 1 },
-    FIRE_WARNING = { 2, 2 },
-    OIL_LOW_PRESSURE = { 2, 3 },
-    FUEL_LOW_PRESSURE = { 2, 4 },
-    ANTI_ICE = { 2, 5 },
-    STARTER_ENGAGED = { 2, 6 },
-    APU = { 2, 7 },
-    -- Row 2 (Bank 3)
-    MASTER_CAUTION = { 3, 1 },
-    VACUUM = { 3, 2 },
-    HYD_LOW_PRESSURE = { 3, 3 },
-    AUX_FUEL_PUMP = { 3, 4 },
-    PARKING_BRAKE = { 3, 5 },
-    VOLTS_LOW = { 3, 6 },
-    DOOR = { 3, 7 },
+    -- Bank 2 (bits 7-8, after gear LEDs)
+    MASTER_WARNING = { 2, 7 },
+    FIRE_WARNING = { 2, 8 },
+    -- Bank 3 (all 8 bits)
+    OIL_LOW_PRESSURE = { 3, 1 },
+    FUEL_LOW_PRESSURE = { 3, 2 },
+    ANTI_ICE = { 3, 3 },
+    STARTER_ENGAGED = { 3, 4 },
+    APU = { 3, 5 },
+    MASTER_CAUTION = { 3, 6 },
+    VACUUM = { 3, 7 },
+    HYD_LOW_PRESSURE = { 3, 8 },
+    -- Bank 4 (bits 1-4)
+    AUX_FUEL_PUMP = { 4, 1 },
+    PARKING_BRAKE = { 4, 2 },
+    VOLTS_LOW = { 4, 3 },
+    DOOR = { 4, 4 },
 }
 
--- Row 1 annunciator labels (Bank 2: 7 annunciators)
+-- Row 1 annunciator labels (Bank 2: bits 7-8)
 local ROW1_LABELS = {
     "MASTER_WARNING",
     "FIRE_WARNING",
+}
+
+-- Row 2 annunciator labels (Banks 3-4: all remaining annunciators)
+local ROW2_LABELS = {
     "OIL_LOW_PRESSURE",
     "FUEL_LOW_PRESSURE",
     "ANTI_ICE",
     "STARTER_ENGAGED",
     "APU",
-}
-
--- Row 2 annunciator labels (Bank 3: 7 annunciators)
-local ROW2_LABELS = {
     "MASTER_CAUTION",
     "VACUUM",
     "HYD_LOW_PRESSURE",
