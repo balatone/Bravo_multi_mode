@@ -1115,12 +1115,15 @@ switch_leds.init({
     switch_bindings = switch_led_bindings,
     dispatch_module = dispatch,
     eval_fn = get_led_state_for_dataref,
+    led_engine_module = led_engine,
 })
 
 -- 5. HID Bridge
 led_hid_bridge.init({
-    device_handle = bravo,
+    device_handle = device_handle,
     bit_lib = bit,
+    button_map_leds_state = button_map_leds_state,
+    led_engine_module = led_engine,
 })
 
 -- Register sub-handler callbacks with led_engine (injection-based wiring)
@@ -1135,7 +1138,7 @@ led_engine.set_sub_handlers({
         gear_leds.evaluate(led_engine)
     end,
     on_switches = function()
-        switch_leds.evaluate(led_engine)
+        switch_leds.evaluate()
     end,
 })
 
@@ -1157,13 +1160,7 @@ end
 
 -- Send HID data through led_hid_bridge (wrapper for backward compat)
 local function send_hid_data()
-    led_hid_bridge.assemble_and_send(
-        led_engine.get_buffer(),
-        default_button_labels,
-        dispatch,
-        button_map_leds_state,
-        led_engine
-    )
+    led_hid_bridge.assemble_and_send(led_engine.get_buffer_snapshot(), default_button_labels, dispatch)
 end
 
 -- Handle LED changes through led_engine orchestrator

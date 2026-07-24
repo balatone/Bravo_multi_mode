@@ -18,9 +18,22 @@ local M = {}
 local switch_bindings = nil
 local dispatch_module = nil
 local eval_fn = nil
+local led_engine_module_ref = nil
 
 -- Number of rocker switches
 local NUM_SWITCHES = 7
+
+-- Switch LED position mapping: maps each switch label to {bank, bit} in the LED engine buffer.
+-- Switch LEDs are assigned to Bank 1, bits 1-7 (bit 8 unused).
+local SWITCH_LED_POSITIONS = {
+    SWITCH1_LED = { 1, 1 },
+    SWITCH2_LED = { 1, 2 },
+    SWITCH3_LED = { 1, 3 },
+    SWITCH4_LED = { 1, 4 },
+    SWITCH5_LED = { 1, 5 },
+    SWITCH6_LED = { 1, 6 },
+    SWITCH7_LED = { 1, 7 },
+}
 
 --- Evaluate a single switch's dataref against its compiled condition.
 --- Handles nil guards on dataref access.
@@ -47,7 +60,7 @@ local function evaluate_switch(binding)
 end
 
 --- Initialize the switch LEDs module.
---- @param opts table { switch_bindings: table, dispatch_module: table, eval_fn: function }
+--- @param opts table { switch_bindings: table, dispatch_module: table, eval_fn: function, led_engine_module: table }
 function M.init(opts)
     if not opts then
         log.error("switch_leds: init called without opts")
@@ -57,6 +70,7 @@ function M.init(opts)
     switch_bindings = opts.switch_bindings
     dispatch_module = opts.dispatch_module
     eval_fn = opts.eval_fn
+    led_engine_module_ref = opts.led_engine_module
 
     if not eval_fn then
         log.error("switch_leds: eval_fn is required")
@@ -68,16 +82,21 @@ function M.init(opts)
         return
     end
 
+    if not led_engine_module_ref then
+        log.error("switch_leds: led_engine_module is required")
+        return
+    end
+
     if not switch_bindings then
         log.warning("switch_leds: no switch_bindings provided")
     end
 end
 
 --- Evaluate all rocker switch LED states and update dispatch module.
---- Iterates SWITCH1_LED through SWITCH7_LED.
---- @param _led_engine_module table (unused, retained for API consistency)
-function M.evaluate(_led_engine_module)
-    if not dispatch_module then
+--- Iterates SWITCH1_LED through SWITCH7_LED, writing to LED engine buffer
+--- via set_led() for each switch with a configured binding.
+function M.evaluate()
+    if not dispatch_module or not led_engine_module_ref then
         return
     end
 
@@ -99,6 +118,12 @@ function M.evaluate(_led_engine_module)
             if previous_state ~= current_state then
                 if dispatch_module.set_rocker_switch_led then
                     dispatch_module.set_rocker_switch_led(switch_label, current_state)
+                end
+
+                -- Write to LED engine buffer via set_led() with position mapping
+                local led_pos = SWITCH_LED_POSITIONS[switch_label]
+                if led_pos then
+                    led_engine_module_ref.set_led(led_pos[1], led_pos[2], current_state)
                 end
             end
         end

@@ -17,13 +17,18 @@ local M = {}
 -- Internal state (set during init)
 local device_handle = nil
 local bit_lib = nil
+local button_map_leds_state = nil
+local led_engine_module = nil
+
+-- Pre-allocated report buffer: reused across assemble_report() calls
+local report_data = { 0, 0, 0, 0 }
 
 --- Convert button LED states into bank-1 byte via bit manipulation.
+--- Uses injected button_map_leds_state from closure scope.
 --- @param button_labels array of button name strings
 --- @param dispatch_module dispatch module for mode/selection queries
---- @param button_map_leds_state state table for button LEDs
 --- @return integer bank-1 byte value
-local function button_to_byte(button_labels, dispatch_module, button_map_leds_state)
+local function button_to_byte(button_labels, dispatch_module)
     local byte_val = 0
 
     for i = 1, #button_labels do
@@ -54,7 +59,7 @@ local function button_to_byte(button_labels, dispatch_module, button_map_leds_st
 end
 
 --- Initialize the HID bridge module.
---- @param opts table { device_handle, bit_lib }
+--- @param opts table { device_handle, bit_lib, button_map_leds_state, led_engine_module }
 function M.init(opts)
     if not opts then
         log.error("led_hid_bridge: init called without opts")
@@ -63,6 +68,8 @@ function M.init(opts)
 
     device_handle = opts.device_handle
     bit_lib = opts.bit_lib
+    button_map_leds_state = opts.button_map_leds_state
+    led_engine_module = opts.led_engine_module
 
     if not device_handle then
         log.error("led_hid_bridge: device_handle is required")
@@ -80,51 +87,43 @@ end
 --- @param buffer_ref table LED buffer (buffer[bank][bit])
 --- @param default_button_labels array of button name strings
 --- @param dispatch_module dispatch module for mode/selection queries
---- @param button_map_leds_state state table for button LEDs
 --- @return table|nil Array of 4 integers (bytes), or nil on invalid input
-function M.assemble_report(buffer_ref, default_button_labels, dispatch_module, button_map_leds_state)
+function M.assemble_report(buffer_ref, default_button_labels, dispatch_module)
     if not buffer_ref or not default_button_labels or not dispatch_module or not button_map_leds_state then
         return nil
     end
 
-    local data = {}
+    -- Reset pre-allocated buffer in-place
     for bank = 1, 4 do
-        data[bank] = 0
+        report_data[bank] = 0
     end
 
     -- Bank 1: Button LEDs
-    data[1] = button_to_byte(default_button_labels, dispatch_module, button_map_leds_state)
+    report_data[1] = button_to_byte(default_button_labels, dispatch_module)
 
     -- Banks 2-4: Buffer LEDs
     for bank = 2, 4 do
         if buffer_ref[bank] then
             for abit = 1, 8 do
                 if buffer_ref[bank][abit] == true then
-                    data[bank] = bit_lib.bor(data[bank], bit_lib.lshift(1, abit - 1))
+                    report_data[bank] = bit_lib.bor(report_data[bank], bit_lib.lshift(1, abit - 1))
                 end
             end
         end
     end
 
-    return data
+    return report_data
 end
 
 --- Assemble and send the HID feature report.
---- On success, calls led_engine.clear_dirty() through the provided reference.
+--- On success, calls led_engine.clear_dirty() through the injected reference.
+--- DSGN-001 spec signature: (buffer_ref, default_button_labels, dispatch_module)
 --- @param buffer_ref table LED buffer (buffer[bank][bit])
 --- @param default_button_labels array of button name strings
 --- @param dispatch_module dispatch module for mode/selection queries
---- @param button_map_leds_state state table for button LEDs
---- @param led_engine_module led_engine module with clear_dirty() method
 --- @return boolean true if send was successful (65 bytes written)
-function M.assemble_and_send(
-    buffer_ref,
-    default_button_labels,
-    dispatch_module,
-    button_map_leds_state,
-    led_engine_module
-)
-    local data = M.assemble_report(buffer_ref, default_button_labels, dispatch_module, button_map_leds_state)
+function M.assemble_and_send(buffer_ref, default_button_labels, dispatch_module)
+    local data = M.assemble_report(buffer_ref, default_button_labels, dispatch_module)
 
     if not data then
         log.error("led_hid_bridge: Failed to assemble report")

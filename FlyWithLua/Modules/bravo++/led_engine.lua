@@ -430,10 +430,19 @@ function M.handle_led_changes(opts)
     return led_state_modified
 end
 
---- Get internal buffer reference (for HID bridge access).
---- @return table The internal buffer table
-function M.get_buffer()
-    return buffer
+--- Get a shallow copy of the internal buffer (for HID bridge access).
+--- Returns a new table so callers cannot mutate internal state,
+--- preserving dirty-flag logic and encapsulation boundaries.
+--- @return table A shallow copy of the internal buffer
+function M.get_buffer_snapshot()
+    local snapshot = {}
+    for bank = 1, 4 do
+        snapshot[bank] = {}
+        for bit = 1, 8 do
+            snapshot[bank][bit] = buffer[bank] and buffer[bank][bit] or false
+        end
+    end
+    return snapshot
 end
 
 return M

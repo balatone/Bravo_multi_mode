@@ -16,6 +16,17 @@ local M = {}
 local gear_dataref = nil
 local led_constants = nil
 
+-- Module-level constants: allocated once at load time, reused in hot path
+local CHANNEL_INDICES = { 0, 1, 2 }
+local LED_KEYS = {
+    "LED_LDG_N_GREEN",
+    "LED_LDG_N_RED",
+    "LED_LDG_L_GREEN",
+    "LED_LDG_L_RED",
+    "LED_LDG_R_GREEN",
+    "LED_LDG_R_RED",
+}
+
 --- Interpret a single gear channel value to {green, red} state pair.
 --- 0 = stowed (both off), 1 = deployed (green), other = moving (red)
 --- @param value number|nil Gear channel value
@@ -64,35 +75,25 @@ function M.evaluate(led_engine_module)
 
     -- Channel order: nose (index 0), left (index 1), right (index 2)
     -- LED constant order matches: N_GREEN, N_RED, L_GREEN, L_RED, R_GREEN, R_RED
-    local channel_indices = { 0, 1, 2 }
-    local led_keys = {
-        "LED_LDG_N_GREEN",
-        "LED_LDG_N_RED",
-        "LED_LDG_L_GREEN",
-        "LED_LDG_L_RED",
-        "LED_LDG_R_GREEN",
-        "LED_LDG_R_RED",
-    }
-
     for ch = 1, 3 do
         local green_state = false
         local red_state = false
 
         if gear_dataref ~= nil then
-            local value = gear_dataref[channel_indices[ch]]
+            local value = gear_dataref[CHANNEL_INDICES[ch]]
             green_state, red_state = interpret_channel(value)
         end
         -- If gear_dataref is nil (fixed gear), both states remain false
 
         -- Write green LED
-        local green_key = led_keys[(ch - 1) * 2 + 1]
+        local green_key = LED_KEYS[(ch - 1) * 2 + 1]
         local green_pos = led_constants[green_key]
         if green_pos then
             led_engine_module.set_led(green_pos[1], green_pos[2], green_state)
         end
 
         -- Write red LED
-        local red_key = led_keys[(ch - 1) * 2 + 2]
+        local red_key = LED_KEYS[(ch - 1) * 2 + 2]
         local red_pos = led_constants[red_key]
         if red_pos then
             led_engine_module.set_led(red_pos[1], red_pos[2], red_state)
@@ -109,14 +110,13 @@ function M.get_gear_state()
     end
 
     local result = {}
-    local channel_indices = { 0, 1, 2 }
 
     for i = 1, 3 do
         local green_state = false
         local red_state = false
 
         if gear_dataref ~= nil then
-            local value = gear_dataref[channel_indices[i]]
+            local value = gear_dataref[CHANNEL_INDICES[i]]
             green_state, red_state = interpret_channel(value)
         end
 

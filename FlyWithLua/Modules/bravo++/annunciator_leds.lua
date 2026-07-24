@@ -38,19 +38,19 @@ local LED_POSITIONS = {
     DOOR = { 4, 4 },
 }
 
--- Row 1 annunciator labels (7 LEDs)
+-- Row 1 annunciator labels (Bank 2: MASTER_WARNING, FIRE_WARNING)
 local ROW1_LABELS = {
     "MASTER_WARNING",
     "FIRE_WARNING",
+}
+
+-- Row 2 annunciator labels (Banks 3-4: remaining annunciators)
+local ROW2_LABELS = {
     "OIL_LOW_PRESSURE",
     "FUEL_LOW_PRESSURE",
     "ANTI_ICE",
     "STARTER_ENGAGED",
     "APU",
-}
-
--- Row 2 annunciator labels (7 LEDs)
-local ROW2_LABELS = {
     "MASTER_CAUTION",
     "VACUUM",
     "HYD_LOW_PRESSURE",
