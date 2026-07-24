@@ -11,7 +11,7 @@ local led_engine = require("bravo++.led_engine")
 local led_hid_bridge = require("bravo++.led_hid_bridge")
 local annunciator_leds = require("bravo++.annunciator_leds")
 local gear_leds = require("bravo++.gear_leds")
-local switch_leds = require("bravo++.switch_leds")
+-- switch_leds module removed (BUGFIX-008): rocker switches have no physical LEDs
 
 -----------------------------------------------------
 --- PERFORMANCE PROFILER (Method 2: Cumulative Stats)
@@ -959,7 +959,7 @@ local LED_CONSTANTS = {
     LED_LDG_R_RED = { 2, 6 },
 }
 
--- Dataref evaluator function (injected into annunciator_leds and switch_leds)
+-- Dataref evaluator function (injected into annunciator_leds and switch handler)
 local function get_led_state_for_dataref(dr_table, cond, index)
     if dr_table == nil then
         return false
@@ -1019,7 +1019,7 @@ local function get_led_state_for_dataref(dr_table, cond, index)
     end
 end
 
--- Build switch LED bindings (needed for switch_leds module)
+-- Build switch LED bindings (needed for switch state handler)
 local switch_map_leds = {}
 local switch_map_leds_cond = {}
 local switch_map_leds_index = {}
@@ -1036,7 +1036,7 @@ for i = 1, 7 do
     end
 end
 
--- Build switch bindings table for switch_leds module
+-- Build switch bindings table for switch state handler
 local switch_led_bindings = {}
 for i = 1, 7 do
     local key = "SWITCH" .. i .. "_LED"
@@ -1046,6 +1046,23 @@ for i = 1, 7 do
             switch_map_leds_cond[key],
             switch_map_leds_index[key],
         }
+    end
+end
+
+-- Standalone handler for rocker switch LED state updates (BUGFIX-008).
+-- Replaces the removed switch_leds.lua module.
+-- Updates dispatch state for UI display only — no physical LEDs on switches.
+local function handle_rocker_switch_led_changes()
+    for i = 1, 7 do
+        local switch_label = "SWITCH" .. i .. "_LED"
+        local binding = switch_led_bindings and switch_led_bindings[switch_label]
+        if binding then
+            local current_state = get_led_state_for_dataref(binding[1], binding[2], binding[3])
+            -- Only update dispatch state for UI display — NO LED buffer writes
+            if dispatch.set_rocker_switch_led then
+                dispatch.set_rocker_switch_led(switch_label, current_state)
+            end
+        end
     end
 end
 
@@ -1110,15 +1127,7 @@ gear_leds.init({
     led_constants = LED_CONSTANTS,
 })
 
--- 4. Switch LEDs
-switch_leds.init({
-    switch_bindings = switch_led_bindings,
-    dispatch_module = dispatch,
-    eval_fn = get_led_state_for_dataref,
-    led_engine_module = led_engine,
-})
-
--- 5. HID Bridge
+-- 4. HID Bridge
 led_hid_bridge.init({
     device_handle = device_handle,
     bit_lib = bit,
@@ -1137,9 +1146,7 @@ led_engine.set_sub_handlers({
     on_gear = function()
         gear_leds.evaluate(led_engine)
     end,
-    on_switches = function()
-        switch_leds.evaluate()
-    end,
+    on_switches = handle_rocker_switch_led_changes,
 })
 
 -- Wire get_button_led_state through led_engine (for UI context)
