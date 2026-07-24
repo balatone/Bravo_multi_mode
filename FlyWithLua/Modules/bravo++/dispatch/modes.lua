@@ -1,5 +1,5 @@
 --[[
-    bravo++.dispatch_modes - Mode Cycling Manager
+    bravo++.dispatch.modes - Mode Cycling Manager
 
     Responsibilities:
     - Mode cycling with index wrapping (cycle_mode_up, cycle_mode_down)

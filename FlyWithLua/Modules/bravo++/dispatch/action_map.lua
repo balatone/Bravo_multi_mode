@@ -1,5 +1,5 @@
 --[[
-    bravo++.dispatch_action_map - Action Map Builder
+    bravo++.dispatch.action_map - Action Map Builder
 
     Responsibilities:
     - Build button action maps from parsed config (nav_bindings)

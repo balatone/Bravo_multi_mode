@@ -1,5 +1,5 @@
 --[[
-    bravo++.dispatch_buttons - Button Command Executor
+    bravo++.dispatch.buttons - Button Command Executor
 
     Responsibilities:
     - Resolve button commands via three lookup paths

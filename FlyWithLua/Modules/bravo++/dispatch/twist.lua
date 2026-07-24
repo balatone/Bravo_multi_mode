@@ -1,5 +1,5 @@
 --[[
-    bravo++.dispatch_twist - Twist Knob Executor
+    bravo++.dispatch.twist - Twist Knob Executor
 
     Responsibilities:
     - Execute twist knob increase (clockwise)

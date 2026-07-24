@@ -162,7 +162,7 @@ function dispatch.is_mode_select()
 end
 
 -- ============================================================
--- Public: Mode Cycling (delegated to dispatch_modes)
+-- Public: Mode Cycling (delegated to bravo++.dispatch.modes)
 -- ============================================================
 
 function dispatch.cycle_mode_up()
@@ -190,7 +190,7 @@ function dispatch.deactivate_mode_select()
 end
 
 -- ============================================================
--- Public: Selector & Button Label Management (delegated to dispatch_modes)
+-- Public: Selector & Button Label Management (delegated to bravo++.dispatch.modes)
 -- ============================================================
 
 function dispatch.set_selector_index(idx, on_update)
@@ -214,7 +214,7 @@ function dispatch.init_selection_label(l)
 end
 
 -- ============================================================
--- Public: Button Action Execution (delegated to dispatch_buttons)
+-- Public: Button Action Execution (delegated to bravo++.dispatch.buttons)
 -- ============================================================
 
 function dispatch.resolve_button_command(button_name)
@@ -234,7 +234,7 @@ function dispatch.button_end(button_name)
 end
 
 -- ============================================================
--- Public: Twist Knob Execution (delegated to dispatch_twist)
+-- Public: Twist Knob Execution (delegated to bravo++.dispatch.twist)
 -- ============================================================
 
 function dispatch.knob_increase()
@@ -282,7 +282,7 @@ function dispatch.set_rocker_switch_led(name, led_state)
 end
 
 -- ============================================================
--- Public: Trim Wheel Execution (delegated to dispatch_trim)
+-- Public: Trim Wheel Execution (delegated to bravo++.dispatch.trim)
 -- ============================================================
 
 function dispatch.trim_nose_up()
@@ -294,7 +294,7 @@ function dispatch.trim_nose_down()
 end
 
 -- ============================================================
--- Public: Map Accessors (delegated to dispatch_action_map)
+-- Public: Map Accessors (delegated to bravo++.dispatch.action_map)
 -- ============================================================
 
 function dispatch.get_button_is_switch_map()

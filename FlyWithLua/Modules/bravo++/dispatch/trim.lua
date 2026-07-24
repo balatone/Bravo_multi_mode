@@ -1,5 +1,5 @@
 --[[
-    bravo++.dispatch_trim - Trim Wheel Executor
+    bravo++.dispatch.trim - Trim Wheel Executor
 
     Responsibilities:
     - Execute trim nose up (elevator trim forward)
