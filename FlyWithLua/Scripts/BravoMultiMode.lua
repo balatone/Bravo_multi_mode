@@ -82,8 +82,8 @@ if not bravo_device then
 end
 
 -- Initialize the modular hid module if available and start draining reports
-if bravo and bravo_hid and bravo_hid.init then
-    bravo_hid.init({ device_handle = bravo, packet_size = 64 })
+if bravo_device and bravo_hid and bravo_hid.init then
+    bravo_hid.init({ device_handle = bravo_device, packet_size = 64 })
     bravo_hid.start()
     log.info("HID polling has started")
 else

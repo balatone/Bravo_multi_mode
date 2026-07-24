@@ -64,6 +64,9 @@ local ROW2_LABELS = {
 
 --- Evaluate a single annunciator's dataref against its compiled condition.
 --- Handles both scalar and array datarefs with proper nil guards.
+--- Supports indexed bindings (e.g. ANTI_ICE_1_LED, ANTI_ICE_2_LED) where
+--- the binding is a table of {dataref, condition} pairs keyed by integer index.
+--- If any indexed binding evaluates true, the LED is on (OR logic).
 --- Uses injected eval_fn for comparison.
 --- @param label string Annunciator label (e.g. "MASTER_WARNING")
 --- @return boolean true if LED should be on
@@ -73,18 +76,31 @@ local function evaluate_single_annunciator(label)
         return false
     end
 
+    -- Check if this is an indexed binding (table of {dataref, condition} pairs
+    -- keyed by integer indices, e.g. ANTI_ICE_1_LED, ANTI_ICE_2_LED).
+    -- A non-indexed binding has its dataref at binding[1] and it IS a magic table.
+    -- An indexed binding has binding[1] as a regular Lua table (the first pair).
     local dataref = binding[1]
-    local condition = binding[2]
 
-    if not util.is_dataref_magic_table(dataref) then
+    if util.is_dataref_magic_table(dataref) then
+        -- Non-indexed binding: { dataref_magic_table, "condition" }
+        local condition = binding[2]
+        if not condition then
+            return false
+        end
+        return eval_fn(dataref, condition)
+    else
+        -- Indexed binding: { [1] = {dataref, cond}, [2] = {dataref, cond}, ... }
+        -- OR logic: if ANY indexed dataref matches, the LED is on
+        for _, pair in ipairs(binding) do
+            if util.is_dataref_magic_table(pair[1]) and pair[2] then
+                if eval_fn(pair[1], pair[2]) then
+                    return true
+                end
+            end
+        end
         return false
     end
-
-    if not condition then
-        return false
-    end
-
-    return eval_fn(dataref, condition)
 end
 
 --- Initialize the annunciator LEDs module.

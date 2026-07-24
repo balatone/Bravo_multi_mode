@@ -65,7 +65,12 @@ function M.init(opts)
     end
 
     if device then
-        hid_set_nonblocking(device, 1)
+        -- Wrap in pcall: some FlyWithLua NG+ versions throw "Wrong arguments"
+        -- despite the manual specifying (device, 1). Catch gracefully.
+        local ok, err = pcall(hid_set_nonblocking, device, 1)
+        if not ok then
+            log.warning("hid_set_nonblocking failed: " .. tostring(err) .. " (continuing anyway)")
+        end
     end
 
     -- Reset internal state

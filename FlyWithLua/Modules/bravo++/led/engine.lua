@@ -18,7 +18,7 @@ local M = {}
 
 -- Internal state
 local buffer = {} -- LED buffer: buffer[bank][bit] = boolean
-local led_state_modified = false -- Dirty flag
+local led_state_modified = false -- Dirty flag: true when buffer has changed since last HID send
 
 -- Injected dependencies
 local dispatch_module = nil
@@ -431,8 +431,7 @@ function M.handle_led_changes(opts)
 end
 
 --- Get a shallow copy of the internal buffer (for HID bridge access).
---- Returns a new table so callers cannot mutate internal state,
---- preserving dirty-flag logic and encapsulation boundaries.
+--- Returns a new table so callers cannot mutate internal state.
 --- @return table A shallow copy of the internal buffer
 function M.get_buffer_snapshot()
     local snapshot = {}
@@ -442,6 +441,7 @@ function M.get_buffer_snapshot()
             snapshot[bank][bit] = buffer[bank] and buffer[bank][bit] or false
         end
     end
+
     return snapshot
 end
 

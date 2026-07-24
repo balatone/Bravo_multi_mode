@@ -112,6 +112,17 @@ function M.assemble_report(buffer_ref, default_button_labels, dispatch_module)
         end
     end
 
+    log.debug(
+        "assemble_report: report_data=("
+            .. report_data[1]
+            .. ","
+            .. report_data[2]
+            .. ","
+            .. report_data[3]
+            .. ","
+            .. report_data[4]
+            .. ")"
+    )
     return report_data
 end
 
