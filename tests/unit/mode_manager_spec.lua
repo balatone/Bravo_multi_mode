@@ -234,11 +234,15 @@ describe("mode_manager module", function()
     end)
 
     describe("set_selector_index", function()
-        it("should set selector index and delegate to dispatch", function()
+        it("should set local selector index without delegating to dispatch", function()
+            -- set_selector_index intentionally does NOT call dispatch.set_selector_index.
+            -- The composition root (set_current_selector) calls dispatch.set_selector_index
+            -- separately with the on_update callback for LED refresh.
             local mm = setup_with_dispatch()
             mm.set_selector_index(3)
             assert.equals(3, mm.get_selector_index())
-            assert.equals(3, mock_dispatch.selector_index)
+            -- dispatch should NOT have been called
+            assert.is_nil(mock_dispatch.selector_index)
         end)
 
         it("should warn when dispatch_module not initialized", function()

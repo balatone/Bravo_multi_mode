@@ -73,10 +73,10 @@ bravo_debug.enable(HID_INPUT_DEBUG)
 -- Detect Windows vs POSIX (package.config first char == directory separator)
 local is_windows = (package.config and package.config:sub(1, 1) == "\\")
 
-local bravo = hid_open(0x294B, 0x1901) -- Honeycomb Bravo VID/PID
+local bravo_device = hid_open(0x294B, 0x1901) -- Honeycomb Bravo VID/PID
 
 -- Exit immediately if the Bravo device cannot be opened. Simulated mode removed.
-if not bravo then
+if not bravo_device then
     log.error("Bravo device was not found (VID=0x294B PID=0x1901). Stopping script.")
     return
 end
@@ -381,7 +381,7 @@ function build_bravo_gui(wnd, x, y)
 end
 
 local function on_close_floating_window_impl(my_floating_wnd)
-    ui.on_close({ hid_close_fn = hid_close, bravo = bravo })
+    ui.on_close({ hid_close_fn = hid_close, bravo = bravo_device })
 end
 
 dispatch_callbacks.on_close_floating_window = on_close_floating_window_impl
@@ -940,7 +940,7 @@ gear_leds.init({
 
 -- 4. HID Bridge
 led_hid_bridge.init({
-    device_handle = bravo,
+    device_handle = bravo_device,
     bit_lib = bit,
     button_map_leds_state = button_map_leds_state,
     led_engine_module = led_engine,
@@ -1024,7 +1024,7 @@ do_every_frame("bravo_dispatch('handle_led_changes_task')")
 local function do_on_exit_task()
     try_catch(function()
         log.info("Calling do_on_exit")
-        if bravo == nil then
+        if bravo_device == nil then
             return
         end
 
@@ -1037,11 +1037,11 @@ local function do_on_exit_task()
         try_catch(send_hid_data, "send_hid_data_do_on_exit")
 
         -- Optionally close the hid device if available
-        if bravo then
+        if bravo_device then
             try_catch(function()
-                hid_close(bravo)
+                hid_close(bravo_device)
             end, "hid_close_do_on_exit")
-            bravo = nil
+            bravo_device = nil
         end
     end, "do_on_exit")
 end
