@@ -170,7 +170,7 @@ end
 --   3. bravo_multi-mode.cfg                       (generic fallback)
 -- If none are found, stop the script.
 
-local config_result = config_loader.detect_config(aircraft_name, aircraft_dir)
+local config_result = config_loader.detect_config(aircraft_name)
 local nav_cfg_file_full_path = config_result.path
 local file_ok = config_result.found
 

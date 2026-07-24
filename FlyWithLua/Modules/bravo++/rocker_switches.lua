@@ -6,7 +6,7 @@
 -- a uniform loop pattern.
 --
 -- Extracted from BravoMultiMode.lua (FEAT-018, Phase 2).
--- Dependencies: log; injects dispatch_callback_fn.
+-- Dependencies: log; injects num_switches, create_command_fn.
 -- ************************************************
 
 local log = require("bravo++.log")
@@ -14,21 +14,16 @@ local log = require("bravo++.log")
 local M = {}
 
 -- Internal state (injected at init time)
-local _dispatch_callback_fn = nil
 local _num_switches = 7
 local _create_command_fn = nil
 
 --- Initialize the rocker switch router with required dependencies.
 --- @param opts table  Configuration options
----   - dispatch_callback_fn: function (name, ...) → any
 ---   - num_switches: integer (default 7)
 ---   - create_command_fn: function (dataref, description, press, repeat_, release)
 function M.init(opts)
     if not opts then
         return
-    end
-    if opts.dispatch_callback_fn and type(opts.dispatch_callback_fn) == "function" then
-        _dispatch_callback_fn = opts.dispatch_callback_fn
     end
     if opts.num_switches and type(opts.num_switches) == "number" then
         _num_switches = math.floor(opts.num_switches)

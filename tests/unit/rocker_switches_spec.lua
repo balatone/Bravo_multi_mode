@@ -6,9 +6,8 @@ local rocker_switches = require("bravo++.rocker_switches")
 
 describe("rocker_switches module", function()
     describe("init", function()
-        it("should accept dispatch_callback_fn and num_switches", function()
+        it("should accept num_switches and create_command_fn", function()
             rocker_switches.init({
-                dispatch_callback_fn = function() end,
                 num_switches = 7,
                 create_command_fn = function() end,
             })
@@ -29,16 +28,13 @@ describe("rocker_switches module", function()
 
     describe("register_all", function()
         it("should log error when create_command_fn not set", function()
-            rocker_switches.init({
-                dispatch_callback_fn = function() end,
-            })
+            rocker_switches.init({})
             rocker_switches.register_all() -- should log error but not crash
         end)
 
         it("should create commands for all switches", function()
             local created_commands = {}
             rocker_switches.init({
-                dispatch_callback_fn = function(name, ...) bravo_dispatch(name, ...) end,
                 num_switches = 3, -- use fewer for testing
                 create_command_fn = function(dataref, description, press, repeat_, release)
                     table.insert(created_commands, {

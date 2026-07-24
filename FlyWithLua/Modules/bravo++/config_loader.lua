@@ -41,10 +41,9 @@ end
 ---   3. Generic fallback: bravo_multi-mode.cfg
 ---
 --- @param aircraft_name string  Aircraft name (e.g. "C90B")
---- @param aircraft_dir string   Aircraft directory path
 --- @return table  { path: string|nil, found: boolean }
-function M.detect_config(aircraft_name, aircraft_dir)
-    local dir = aircraft_dir or _aircraft_dir
+function M.detect_config(aircraft_name)
+    local dir = _aircraft_dir
     if not dir then
         log.error("config_loader.detect_config: no aircraft directory specified")
         return { path = nil, found = false }
