@@ -30,19 +30,19 @@ local config_loader = require("bravo++.config_loader")
 local ui = require("bravo++.ui")
 local mapbuilder = require("bravo++.mapbuilder")
 
--- LED Engine modules (FEAT-017)
-local led_engine = require("bravo++.led_engine")
-local led_hid_bridge = require("bravo++.led_hid_bridge")
-local annunciator_leds = require("bravo++.annunciator_leds")
-local gear_leds = require("bravo++.gear_leds")
+-- LED Engine modules (FEAT-017) → bravo++/led/
+local led_engine = require("bravo++.led.engine")
+local led_hid_bridge = require("bravo++.led.hid_bridge")
+local annunciator_leds = require("bravo++.led.annunciators")
+local gear_leds = require("bravo++.led.gear")
 
--- Input & mode management (FEAT-018/019)
-local input_handlers = require("bravo++.input_handlers")
+-- Input & mode management (FEAT-018/019) → bravo++/input/
+local input_handlers = require("bravo++.input.handlers")
 local mode_manager = require("bravo++.mode_manager")
-local rocker_switches = require("bravo++.rocker_switches")
-local button_lifecycle = require("bravo++.button_lifecycle")
+local rocker_switches = require("bravo++.input.rocker_switches")
+local button_lifecycle = require("bravo++.input.button_lifecycle")
 
--- Dispatch sub-package (FEAT-021)
+-- Dispatch sub-package (FEAT-021) → bravo++/dispatch/
 local dispatch = require("bravo++.dispatch")
 local action_map = require("bravo++.dispatch.action_map")
 local buttons = require("bravo++.dispatch.buttons")

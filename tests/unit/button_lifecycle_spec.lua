@@ -2,7 +2,7 @@
 -- Unit tests for button_lifecycle module (FEAT-018)
 -- ************************************************
 
-local button_lifecycle = require("bravo++.button_lifecycle")
+local button_lifecycle = require("bravo++.input.button_lifecycle")
 
 describe("button_lifecycle module", function()
     describe("init", function()

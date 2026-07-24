@@ -2,7 +2,7 @@
 -- Unit tests for rocker_switches module (FEAT-018)
 -- ************************************************
 
-local rocker_switches = require("bravo++.rocker_switches")
+local rocker_switches = require("bravo++.input.rocker_switches")
 
 describe("rocker_switches module", function()
     describe("init", function()

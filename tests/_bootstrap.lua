@@ -52,6 +52,10 @@ package.path = modules_path .. "/?/init.lua;" .. package.path
 package.path = modules_path .. "/bravo++/?.lua;" .. package.path
 -- Support nested sub-package paths: require("bravo++.dispatch.action_map") -> bravo++/dispatch/action_map.lua
 package.path = modules_path .. "/bravo++/dispatch/?.lua;" .. package.path
+-- Support led sub-package paths: require("bravo++.led.engine") -> bravo++/led/engine.lua
+package.path = modules_path .. "/bravo++/led/?.lua;" .. package.path
+-- Support input sub-package paths: require("bravo++.input.handlers") -> bravo++/input/handlers.lua
+package.path = modules_path .. "/bravo++/input/?.lua;" .. package.path
 -- Support init.lua composition root: require("bravo++") -> bravo++/init.lua
 package.path = modules_path .. "/?/init.lua;" .. package.path
 

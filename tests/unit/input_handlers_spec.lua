@@ -2,7 +2,7 @@
 -- Unit tests for input_handlers module (FEAT-019)
 -- ************************************************
 
-local input_handlers = require("bravo++.input_handlers")
+local input_handlers = require("bravo++.input.handlers")
 
 describe("input_handlers module", function()
     local mock_dispatch
