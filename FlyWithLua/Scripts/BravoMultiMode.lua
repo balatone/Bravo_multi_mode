@@ -6,6 +6,13 @@ local ui = require("bravo++.ui")
 local MapBuilder = require("bravo++.mapbuilder")
 local plugincheck = require("bravo++.plugincheck")
 
+-- LED Engine modular components (FEAT-017)
+local led_engine = require("bravo++.led_engine")
+local led_hid_bridge = require("bravo++.led_hid_bridge")
+local annunciator_leds = require("bravo++.annunciator_leds")
+local gear_leds = require("bravo++.gear_leds")
+local switch_leds = require("bravo++.switch_leds")
+
 -----------------------------------------------------
 --- PERFORMANCE PROFILER (Method 2: Cumulative Stats)
 -----------------------------------------------------
@@ -939,257 +946,25 @@ for _, b in ipairs(ap_buttons) do
 end
 
 --------------------------------------
----- LED HANDLING
+---- LED HANDLING (FEAT-017: Modular LED Engine)
 --------------------------------------
-local LED_LDG_L_GREEN = { 2, 1 }
-local LED_LDG_L_RED = { 2, 2 }
-local LED_LDG_N_GREEN = { 2, 3 }
-local LED_LDG_N_RED = { 2, 4 }
-local LED_LDG_R_GREEN = { 2, 5 }
-local LED_LDG_R_RED = { 2, 6 }
-local LED_ANC_MSTR_WARNG = { 2, 7 }
-local LED_ANC_ENG_FIRE = { 2, 8 }
-local LED_ANC_OIL = { 3, 1 }
-local LED_ANC_FUEL = { 3, 2 }
-local LED_ANC_ANTI_ICE = { 3, 3 }
-local LED_ANC_STARTER = { 3, 4 }
-local LED_ANC_APU = { 3, 5 }
-local LED_ANC_MSTR_CTN = { 3, 6 }
-local LED_ANC_VACUUM = { 3, 7 }
-local LED_ANC_HYD = { 3, 8 }
-local LED_ANC_AUX_FUEL = { 4, 1 }
-local LED_ANC_PRK_BRK = { 4, 2 }
-local LED_ANC_VOLTS = { 4, 3 }
-local LED_ANC_DOOR = { 4, 4 }
 
--- led_state_modified is declared once near the top of the script (shared across mode/selector + LED code)
+-- LED position constants (injected into gear_leds module)
+local LED_CONSTANTS = {
+    LED_LDG_N_GREEN = { 2, 3 },
+    LED_LDG_N_RED = { 2, 4 },
+    LED_LDG_L_GREEN = { 2, 1 },
+    LED_LDG_L_RED = { 2, 2 },
+    LED_LDG_R_GREEN = { 2, 5 },
+    LED_LDG_R_RED = { 2, 6 },
+}
 
--- BUTTON LED handling
-get_button_led_state = function(button_name)
-    if
-        util.is_table(button_map_leds_state[dispatch.get_current_mode()]["ALL"])
-        and util.is_boolean(button_map_leds_state[dispatch.get_current_mode()]["ALL"][button_name])
-    then
-        if log_led_state then
-            log.debug("get_led_state for mode ALL and button name " .. button_name)
-        end
-        return button_map_leds_state[dispatch.get_current_mode()]["ALL"][button_name]
-    elseif
-        util.is_table(button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()])
-        and util.is_boolean(
-            button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()][button_name]
-        )
-    then
-        if log_led_state then
-            log.debug(
-                "get_led_state for mode "
-                    .. dispatch.get_current_mode()
-                    .. ", current selection "
-                    .. dispatch.get_current_selection()
-                    .. " and button name "
-                    .. button_name
-            )
-        end
-        return button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()][button_name]
-    else
-        if log_led_state then
-            log.debug("Return nil for mode " .. dispatch.get_current_mode() .. " and button_name " .. button_name)
-        end
-        return nil
-    end
-end
-
-local function set_button_led_state(button_name, state)
-    local current_led_state = get_button_led_state(button_name)
-    if current_led_state ~= nil and state ~= current_led_state then
-        if log_led_state then
-            log.debug("get_led_state for " .. button_name .. " = " .. tostring(current_led_state))
-        end
-        if
-            util.is_table(button_map_leds_state[dispatch.get_current_mode()]["ALL"])
-            and util.is_boolean(button_map_leds_state[dispatch.get_current_mode()]["ALL"][button_name])
-        then
-            button_map_leds_state[dispatch.get_current_mode()]["ALL"][button_name] = state
-        elseif
-            util.is_table(button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()])
-            and util.is_boolean(
-                button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()][button_name]
-            )
-        then
-            button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()][button_name] = state
-        end
-        led_state_modified = true
-    else
-        if log_led_state then
-            if current_led_state ~= nil then
-                log.debug(
-                    "state did not change for mode " .. dispatch.get_current_mode() .. " and button " .. button_name
-                )
-            else
-                log.debug(
-                    "state does not exist for mode " .. dispatch.get_current_mode() .. " and button " .. button_name
-                )
-            end
-        end
-    end
-end
-
-local buffer = {}
-
-local function get_led(led)
-    -- logMsg("buffer[" .. led[1] .. "][" .. led[2] .. "]")
-    return buffer[led[1]][led[2]]
-end
-
-local function set_led(led, state)
-    if state ~= get_led(led) then
-        buffer[led[1]][led[2]] = state
-        led_state_modified = true
-    end
-end
-
-local function all_leds_off()
-    for i = 1, #default_button_labels do
-        set_button_led_state(default_button_labels[i], false)
-    end
-
-    for bank = 2, 4 do
-        buffer[bank] = {}
-        for bit = 1, 8 do
-            buffer[bank][bit] = false
-        end
-    end
-
-    for i = 1, 7 do
-        local key = "SWITCH" .. i .. "_LED"
-        dispatch.set_rocker_switch_led(key, false)
-    end
-
-    led_state_modified = true
-    if log_led_state then
-        log.debug("Set all leds to off")
-    end
-end
-
--- New helper function to "prime" button LED states for change detection.
--- This temporarily forces the internal state for relevant buttons to 'true'
--- so that handle_led_changes can detect a change to 'false' if needed.
-prime_button_led_states_for_mode_change = function()
-    -- Iterate through all possible physical button labels as defined in default_button_labels [1]
-    local led_detected = false -- Used to check whether there are any leds in this selection
-    for i = 1, #default_button_labels do
-        local button_label = default_button_labels[i]
-
-        -- Check and set for "ALL" selection within the current mode context
-        -- The "ALL" selection is used for LEDs that are common across all selector positions within a mode [2, 3]
-        if
-            util.is_table(button_map_leds_state[dispatch.get_current_mode()])
-            and util.is_table(button_map_leds_state[dispatch.get_current_mode()]["ALL"])
-        then
-            -- Only prime if the LED state entry actually exists for this button in the "ALL" category [4, 5]
-            if util.is_boolean(button_map_leds_state[dispatch.get_current_mode()]["ALL"][button_label]) then
-                button_map_leds_state[dispatch.get_current_mode()]["ALL"][button_label] = false
-                -- Manually setting led_state_modified to true ensures a HID update will be sent [6, 7].
-                -- This is a safeguard in case no other state changes occur that would trigger it.
-                if log_led_state then
-                    log.debug(
-                        "Setting led to true for [" .. dispatch.get_current_mode() .. "][ALL][" .. button_label .. "]"
-                    )
-                end
-                led_state_modified = true
-                led_detected = true
-            end
-        elseif
-            util.is_table(button_map_leds_state[dispatch.get_current_mode()])
-            and util.is_table(button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()])
-        then
-            -- Only prime if the LED state entry actually exists for this button in this specific selection [5, 9]
-            if
-                util.is_boolean(
-                    button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()][button_label]
-                )
-            then
-                button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()][button_label] =
-                    false
-                -- As above, manually forcing led_state_modified to ensure a HID update.
-                if log_led_state then
-                    log.debug(
-                        "Setting led to true for ["
-                            .. dispatch.get_current_mode()
-                            .. "]["
-                            .. dispatch.get_current_selection()
-                            .. "]["
-                            .. button_label
-                            .. "]"
-                    )
-                end
-                led_state_modified = true
-                led_detected = true
-            end
-        end
-    end
-    if not led_detected then -- Ensures all leds are off if no leds are used
-        all_leds_off()
-    end
-    if log_led_state then
-        log.debug("Internal button LED states 'primed' to true for mode change evaluation.")
-    end
-end
-
-local function send_hid_data()
-    local data = {}
-
-    for bank = 1, 4 do
-        data[bank] = 0
-    end
-
-    for i = 1, #default_button_labels do
-        local button_name = default_button_labels[i]
-        if
-            util.is_table(button_map_leds_state[dispatch.get_current_mode()]["ALL"])
-            and button_map_leds_state[dispatch.get_current_mode()]["ALL"][button_name] == true
-        then
-            data[1] = bit.bor(data[1], bit.lshift(1, i - 1))
-        elseif
-            util.is_table(button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()])
-            and button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()][button_name]
-                == true
-        then
-            data[1] = bit.bor(data[1], bit.lshift(1, i - 1))
-        end
-    end
-
-    for bank = 2, 4 do
-        for abit = 1, 8 do
-            if buffer[bank][abit] == true then
-                data[bank] = bit.bor(data[bank], bit.lshift(1, abit - 1))
-            end
-        end
-    end
-
-    local bytes_written = hid_send_filled_feature_report(bravo, 0, 65, data[1], data[2], data[3], data[4]) -- 65 = 1 byte (report ID) + 64 bytes (data)
-
-    if bytes_written == 65 then
-        led_state_modified = false
-    elseif bytes_written == nil or bytes_written == -1 then
-        log.error("ERROR Feature report write failed, an error occurred")
-    elseif bytes_written < 65 then
-        log.error("ERROR Feature report write failed, only " .. bytes_written .. " bytes written")
-    end
-end
-
--- Replacement get_led_state_for_dataref written by assistant
---- Evaluate a numeric value against a conditional string.
---- Supported cond syntax: "<9", ">=10", "<=5", ">3", "!=5", "=0", "0"
---- Check whether a string is a valid LED condition.
---- Accepts: "<9", ">=10", "<=5", ">3", "!=5", "=0", "0"
---- Returns true if the format is valid, false otherwise.
+-- Dataref evaluator function (injected into annunciator_leds and switch_leds)
 local function get_led_state_for_dataref(dr_table, cond, index)
     if dr_table == nil then
         return false
     end
     if util.is_dataref_array(dr_table) then
-        -- If an explicit index was provided, use it (cfg uses 1-based indexing; dataref table is 0-based)
         if index ~= nil then
             local idx = tonumber(index)
             if idx == nil then
@@ -1197,24 +972,20 @@ local function get_led_state_for_dataref(dr_table, cond, index)
             end
             local val = dr_table[idx - 1]
             if val == nil then
-                -- Index not present in array -> treat as 'no' (do not light)
                 return false
             end
             local vnum = tonumber(val)
             if vnum ~= nil then
                 return config.eval_condition(vnum, cond)
             else
-                return false -- non-numeric value cannot satisfy numeric condition
+                return false
             end
         end
 
-        -- No explicit index: iterate only the actual elements of the array dataref.
         local name = dr_table.refname or dr_table.name or dr_table._dataref or dr_table._name or "unknown dataref"
 
-        -- Query the real array size from X-Plane via XPLMGetDataRefInfo
         local arraySize = util.get_dataref_array_size(dr_table)
 
-        -- If we cannot determine the size, fall back to a safe bounded scan
         if arraySize == nil or arraySize <= 0 then
             log.warning("Could not determine array size for dataref: " .. name)
             arraySize = 3
@@ -1235,7 +1006,6 @@ local function get_led_state_for_dataref(dr_table, cond, index)
         end
         return false
     else
-        -- Non-array dataref: compare the single value at index 0
         local val = dr_table[0]
         if val == nil then
             return false
@@ -1244,10 +1014,12 @@ local function get_led_state_for_dataref(dr_table, cond, index)
         if vnum ~= nil then
             return config.eval_condition(vnum, cond)
         else
-            return false -- non-numeric value cannot satisfy numeric condition
+            return false
         end
     end
 end
+
+-- Build switch LED bindings (needed for switch_leds module)
 local switch_map_leds = {}
 local switch_map_leds_cond = {}
 local switch_map_leds_index = {}
@@ -1264,273 +1036,161 @@ for i = 1, 7 do
     end
 end
 
-get_led_state_for_switch = function(switch_label)
-    return dispatch.get_rocker_switch_led(switch_label) or false
-end
-
-local function handle_rocker_switch_led_changes()
-    -- Iterate through the predefined rocker switch labels (SWITCH1_LED, SWITCH2_LED, etc.)
-    -- `switch_map_leds` stores the `dataref_table` objects, `switch_map_leds_cond` stores the condition,
-    -- and `switch_map_leds_index` stores the array index for each switch [4].
-    for i = 1, 7 do -- There are 7 rocker switches [5]
-        local switch_label_key = "SWITCH" .. i .. "_LED" -- Construct the key like "SWITCH1_LED"
-
-        local dataref_table_obj = switch_map_leds[switch_label_key] -- Get the dataref_table object
-
-        -- Only proceed if a DataRef is actually configured for this switch LED
-        if util.is_dataref_magic_table(dataref_table_obj) then
-            local condition_value = switch_map_leds_cond[switch_label_key]
-            local dataref_index = switch_map_leds_index[switch_label_key]
-
-            -- Call the existing helper function to get the current LED state from the DataRef
-            local current_state_from_dataref =
-                get_led_state_for_dataref(dataref_table_obj, condition_value, dataref_index)
-
-            -- Check if the state has changed to minimize unnecessary updates
-            if dispatch.get_rocker_switch_led(switch_label_key) ~= current_state_from_dataref then
-                dispatch.set_rocker_switch_led(switch_label_key, current_state_from_dataref)
-                led_state_modified = true -- Mark `led_state_modified` to trigger a HID update for the device
-            end
-        end
+-- Build switch bindings table for switch_leds module
+local switch_led_bindings = {}
+for i = 1, 7 do
+    local key = "SWITCH" .. i .. "_LED"
+    if switch_map_leds[key] ~= nil then
+        switch_led_bindings[key] = {
+            switch_map_leds[key],
+            switch_map_leds_cond[key],
+            switch_map_leds_index[key],
+        }
     end
 end
 
+-- Bus voltage dataref
 local bus_voltage = dataref_table("sim/cockpit2/electrical/bus_volts")
-local master_state = false
 
--- Landing gear LEDs
-local gear = nil
+-- Landing gear dataref
+local gear_dataref = nil
 if nav_bindings["GEAR_DEPLOYMENT_LED"] ~= nil then
     local binding = util.create_table(nav_bindings["GEAR_DEPLOYMENT_LED"])
-    gear = dataref_table(binding[1])
+    gear_dataref = dataref_table(binding[1])
 end
 
-local annunciator_map_leds = {}
-local annunciator_map_leds_cond = {}
+-- Build annunciator bindings table for annunciator_leds module
+local annunciator_led_bindings = {}
 
 for i = 1, #annunciator_labels do
     local key = annunciator_labels[i] .. "_LED"
     if util.is_string(nav_bindings[key]) then
         local binding = util.create_table(nav_bindings[key])
-        annunciator_map_leds[annunciator_labels[i]] = dataref_table(binding[1])
-        annunciator_map_leds_cond[annunciator_labels[i]] = config.compile_condition(binding[2], key)
+        annunciator_led_bindings[annunciator_labels[i]] = {
+            dataref_table(binding[1]),
+            config.compile_condition(binding[2], key),
+        }
     elseif util.is_string(nav_bindings[annunciator_labels[i] .. "_1_LED"]) then
-        annunciator_map_leds[annunciator_labels[i]] = {}
-        annunciator_map_leds_cond[annunciator_labels[i]] = {}
+        -- Indexed annunciator (e.g. DOOR_1_LED, DOOR_2_LED)
         local idx = 1
-        local key = annunciator_labels[i] .. "_" .. tostring(idx) .. "_LED"
-        -- logMsg("key: " .. key)
-        while util.is_string(nav_bindings[key]) do
-            local binding = util.create_table(nav_bindings[key])
-            annunciator_map_leds[annunciator_labels[i]][idx] = dataref_table(binding[1])
-            annunciator_map_leds_cond[annunciator_labels[i]] = config.compile_condition(binding[2], key)
+        local indexed_key = annunciator_labels[i] .. "_" .. tostring(idx) .. "_LED"
+        while util.is_string(nav_bindings[indexed_key]) do
+            local binding = util.create_table(nav_bindings[indexed_key])
+            annunciator_led_bindings[annunciator_labels[i]] = annunciator_led_bindings[annunciator_labels[i]] or {}
+            annunciator_led_bindings[annunciator_labels[i]][idx] = {
+                dataref_table(binding[1]),
+                config.compile_condition(binding[2], indexed_key),
+            }
             idx = idx + 1
-            key = annunciator_labels[i] .. "_" .. tostring(idx) .. "_LED"
-            -- logMsg("key: " .. key)
+            indexed_key = annunciator_labels[i] .. "_" .. tostring(idx) .. "_LED"
         end
     end
 end
 
-local function get_led_state_for_annunciator(annunciator_label)
-    local dataref = annunciator_map_leds[annunciator_label]
-    -- logMsg("get dataref for: " .. annunciator_label)
-    if util.is_dataref_magic_table(dataref) then
-        return get_led_state_for_dataref(dataref, annunciator_map_leds_cond[annunciator_label])
-    elseif util.is_table(dataref) then
-        for i = 1, #dataref do
-            if get_led_state_for_dataref(dataref[i], annunciator_map_leds_cond[annunciator_label]) == true then
-                return true
-            end
-        end
-        return false
-    end
+-- Initialize LED engine modules
+log.info("Initializing LED Engine modules (FEAT-017)...")
+
+-- 1. LED Engine (core state manager)
+led_engine.init({
+    dispatch = dispatch,
+    button_map_leds_state = button_map_leds_state,
+    default_button_labels = default_button_labels,
+    bus_voltage_ref = bus_voltage,
+})
+
+-- 2. Annunciator LEDs
+annunciator_leds.init({
+    annunciator_bindings = annunciator_led_bindings,
+    eval_fn = get_led_state_for_dataref,
+})
+
+-- 3. Gear LEDs
+gear_leds.init({
+    gear_dataref = gear_dataref,
+    led_constants = LED_CONSTANTS,
+})
+
+-- 4. Switch LEDs
+switch_leds.init({
+    switch_bindings = switch_led_bindings,
+    dispatch_module = dispatch,
+    eval_fn = get_led_state_for_dataref,
+})
+
+-- 5. HID Bridge
+led_hid_bridge.init({
+    device_handle = bravo,
+    bit_lib = bit,
+})
+
+-- Register sub-handler callbacks with led_engine (injection-based wiring)
+led_engine.set_sub_handlers({
+    on_annunciator_row1 = function()
+        annunciator_leds.evaluate_row1(led_engine)
+    end,
+    on_annunciator_row2 = function()
+        annunciator_leds.evaluate_row2(led_engine)
+    end,
+    on_gear = function()
+        gear_leds.evaluate(led_engine)
+    end,
+    on_switches = function()
+        switch_leds.evaluate(led_engine)
+    end,
+})
+
+-- Wire get_button_led_state through led_engine (for UI context)
+get_button_led_state = function(button_name)
+    return led_engine.get_button_led_state(button_name)
 end
 
-local function handle_button_led_changes()
-    for i = 1, #default_button_labels do
-        local led_state_for_dataref = nil
-        local led_state_for_button = nil
-        local button_label = default_button_labels[i]
-
-        -- log.debug("Before if: [" .. dispatch.get_current_mode() .. "][" .. dispatch.get_current_selection() .. "][" .. button_label .. "]")
-        if util.is_table(button_map_leds[dispatch.get_current_mode()]["ALL"]) then
-            local dataref = button_map_leds[dispatch.get_current_mode()]["ALL"][button_label]
-            if dataref ~= nil then
-                local index = nil
-                if util.is_table(button_map_leds_index[dispatch.get_current_mode()]["ALL"]) then
-                    index = button_map_leds_index[dispatch.get_current_mode()]["ALL"][button_label]
-                end
-
-                led_state_for_dataref = get_led_state_for_dataref(
-                    dataref,
-                    button_map_leds_cond[dispatch.get_current_mode()]["ALL"][button_label],
-                    index
-                )
-                led_state_for_button = button_map_leds_state[dispatch.get_current_mode()]["ALL"][button_label]
-            end
-        elseif util.is_table(button_map_leds[dispatch.get_current_mode()][dispatch.get_current_selection()]) then
-            local dataref = button_map_leds[dispatch.get_current_mode()][dispatch.get_current_selection()][button_label]
-
-            if dataref ~= nil then
-                local index = nil
-                if
-                    util.is_table(button_map_leds_index[dispatch.get_current_mode()][dispatch.get_current_selection()])
-                then
-                    index =
-                        button_map_leds_index[dispatch.get_current_mode()][dispatch.get_current_selection()][button_label]
-                end
-
-                led_state_for_dataref = get_led_state_for_dataref(
-                    dataref,
-                    button_map_leds_cond[dispatch.get_current_mode()][dispatch.get_current_selection()][button_label],
-                    index
-                )
-                led_state_for_button =
-                    button_map_leds_state[dispatch.get_current_mode()][dispatch.get_current_selection()][button_label]
-            end
-        end
-        -- Check if we need to update the state of the button
-        if led_state_for_dataref ~= led_state_for_button then
-            set_button_led_state(button_label, led_state_for_dataref)
-        end
-    end
+-- Wire get_led_state_for_switch (for UI context)
+get_led_state_for_switch = function(switch_label)
+    return dispatch.get_rocker_switch_led(switch_label) or false
 end
 
-local function handle_gear_led_changes()
-    -- Landing gear
-    local gear_leds = {}
-
-    if gear ~= nil then
-        for i = 1, 3 do
-            gear_leds[i] = { nil, nil } -- green, red
-
-            if gear[i - 1] == 0 then
-                -- Gear stowed
-                gear_leds[i][1] = false
-                gear_leds[i][2] = false
-            elseif gear[i - 1] == 1 then
-                -- Gear deployed
-                gear_leds[i][1] = true
-                gear_leds[i][2] = false
-            else
-                -- Gear moving
-                gear_leds[i][1] = false
-                gear_leds[i][2] = true
-            end
-        end
-    else
-        -- Fixed gear
-        for i = 1, 3 do
-            gear_leds[i] = { nil, nil } -- green, red
-
-            -- Gear deployed
-            gear_leds[i][1] = false
-            gear_leds[i][2] = false
-        end
-    end
-
-    set_led(LED_LDG_N_GREEN, gear_leds[1][1])
-    set_led(LED_LDG_N_RED, gear_leds[1][2])
-    set_led(LED_LDG_L_GREEN, gear_leds[2][1])
-    set_led(LED_LDG_L_RED, gear_leds[2][2])
-    set_led(LED_LDG_R_GREEN, gear_leds[3][1])
-    set_led(LED_LDG_R_RED, gear_leds[3][2])
+-- Wire prime_button_led_states_for_mode_change through led_engine
+prime_button_led_states_for_mode_change = function()
+    led_engine.prime_for_mode_change()
+    led_state_modified = true
 end
 
-local function handle_annunciator_row1_led_changes()
-    -- MASTER WARNING
-    set_led(LED_ANC_MSTR_WARNG, get_led_state_for_annunciator("MASTER_WARNING"))
-
-    -- ENGINE FIRE
-    set_led(LED_ANC_ENG_FIRE, get_led_state_for_annunciator("FIRE_WARNING"))
-
-    -- LOW OIL PRESSURE
-    set_led(LED_ANC_OIL, get_led_state_for_annunciator("OIL_LOW_PRESSURE"))
-
-    -- LOW FUEL PRESSURE
-    set_led(LED_ANC_FUEL, get_led_state_for_annunciator("FUEL_LOW_PRESSURE"))
-
-    -- ANTI ICE
-    set_led(LED_ANC_ANTI_ICE, get_led_state_for_annunciator("ANTI_ICE"))
-
-    -- STARTER ENGAGED
-    set_led(LED_ANC_STARTER, get_led_state_for_annunciator("STARTER_ENGAGED"))
-
-    -- APU
-    set_led(LED_ANC_APU, get_led_state_for_annunciator("APU"))
+-- Send HID data through led_hid_bridge (wrapper for backward compat)
+local function send_hid_data()
+    led_hid_bridge.assemble_and_send(
+        led_engine.get_buffer(),
+        default_button_labels,
+        dispatch,
+        button_map_leds_state,
+        led_engine
+    )
 end
 
-local function handle_annunciator_row2_led_changes()
-    -- MASTER CAUTION
-    set_led(LED_ANC_MSTR_CTN, get_led_state_for_annunciator("MASTER_CAUTION"))
-
-    -- VACUUM
-    set_led(LED_ANC_VACUUM, get_led_state_for_annunciator("VACUUM"))
-
-    -- LOW HYD PRESSURE
-    set_led(LED_ANC_HYD, get_led_state_for_annunciator("HYD_LOW_PRESSURE"))
-
-    -- AUX FUEL PUMP
-    set_led(LED_ANC_AUX_FUEL, get_led_state_for_annunciator("AUX_FUEL_PUMP"))
-
-    -- PARKING BRAKE
-    set_led(LED_ANC_PRK_BRK, get_led_state_for_annunciator("PARKING_BRAKE"))
-
-    -- LOW VOLTS
-    set_led(LED_ANC_VOLTS, get_led_state_for_annunciator("VOLTS_LOW"))
-
-    -- DOOR
-    set_led(LED_ANC_DOOR, get_led_state_for_annunciator("DOOR"))
-end
-
--- A time delay is required on the initial loading of the aircraft in order to set the leds correctly
-local leds_first_sync_done = false
-local leds_first_sync_timer = os.clock()
-local led_first_time_delay = 4 -- 10 second delay before setting the leds
-
+-- Handle LED changes through led_engine orchestrator
 handle_led_changes = function()
-    if leds_first_sync_done then
-        if bus_voltage[0] > 0 then
-            master_state = true
-
-            try_catch(handle_button_led_changes, "handle_button_led_changes")
-
-            -- Handle the remaining leds
-            try_catch(handle_gear_led_changes, "handle_gear_led_changes")
-            try_catch(handle_annunciator_row1_led_changes, "handle_annunciator_row1_led_changes")
-            try_catch(handle_annunciator_row2_led_changes, "handle_annunciator_row2_led_changes")
-
-            -- Handle the rocker switches
-            try_catch(handle_rocker_switch_led_changes, "handle_rocker_switch_led_changes")
-        elseif master_state == true then
-            log.debug("No voltage detected. Turning all leds off.")
-            -- No bus voltage, disable all LEDs
-            master_state = false
-            try_catch(all_leds_off, "all_leds_off")
-        end
-
-        -- If we have any LED changes, send them to the device
-        if led_state_modified == true then
-            try_catch(send_hid_data, "send_hid_data")
-        end
-    elseif os.clock() - leds_first_sync_timer > led_first_time_delay then
-        leds_first_sync_done = true
+    if
+        led_engine.handle_led_changes({
+            bus_voltage = bus_voltage[0],
+            button_map_leds = button_map_leds,
+            button_map_leds_cond = button_map_leds_cond,
+            button_map_leds_index = button_map_leds_index,
+            get_led_state_for_dataref = get_led_state_for_dataref,
+        })
+    then
+        try_catch(send_hid_data, "send_hid_data")
     end
 end
 
 -- Initialize the initial state
-all_leds_off()
+led_engine.all_off()
 
 local last_call = os.clock()
 
 local function do_more_often(func_to_execute, description, interval_seconds)
     local current_time = os.clock()
-    -- Check if enough time has passed since the last successful call
-    -- The condition (current_time - last_call) >= interval_seconds correctly calculates elapsed time [Conversation History]
     if (current_time - last_call) >= interval_seconds then
-        -- Execute the passed function, with its given source name for error logging
         try_catch(func_to_execute, description)
-        last_call = current_time -- Update the last call time only if the function was executed
+        last_call = current_time
     end
 end
 
@@ -1554,7 +1214,9 @@ local function do_on_exit_task()
         end
 
         -- Turn off all internal LED state
-        try_catch(all_leds_off, "all_leds_off_do_on_exit")
+        try_catch(function()
+            led_engine.all_off()
+        end, "all_leds_off_do_on_exit")
 
         -- Send cleared HID report
         try_catch(send_hid_data, "send_hid_data_do_on_exit")
@@ -1566,9 +1228,6 @@ local function do_on_exit_task()
             end, "hid_close_do_on_exit")
             bravo = nil
         end
-
-        -- Small delay to allow OS/driver to flush the report if necessary
-        -- local t0 = os.clock(); while os.clock() - t0 < 0.08 do end
     end, "do_on_exit")
 end
 
