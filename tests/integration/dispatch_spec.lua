@@ -12,18 +12,18 @@
 package.loaded["bravo++.log"] = nil
 package.loaded["bravo++.util"] = nil
 package.loaded["bravo++.dispatch"] = nil
-package.loaded["bravo++.dispatch_action_map"] = nil
-package.loaded["bravo++.dispatch_buttons"] = nil
-package.loaded["bravo++.dispatch_twist"] = nil
-package.loaded["bravo++.dispatch_trim"] = nil
-package.loaded["bravo++.dispatch_modes"] = nil
+package.loaded["bravo++.dispatch.action_map"] = nil
+package.loaded["bravo++.dispatch.buttons"] = nil
+package.loaded["bravo++.dispatch.twist"] = nil
+package.loaded["bravo++.dispatch.trim"] = nil
+package.loaded["bravo++.dispatch.modes"] = nil
 
 local dispatch = require("bravo++.dispatch")
-local action_map = require("bravo++.dispatch_action_map")
-local buttons = require("bravo++.dispatch_buttons")
-local twist = require("bravo++.dispatch_twist")
-local trim = require("bravo++.dispatch_trim")
-local modes = require("bravo++.dispatch_modes")
+local action_map = require("bravo++.dispatch.action_map")
+local buttons = require("bravo++.dispatch.buttons")
+local twist = require("bravo++.dispatch.twist")
+local trim = require("bravo++.dispatch.trim")
+local modes = require("bravo++.dispatch.modes")
 
 -- ============================================================
 -- Test Helpers

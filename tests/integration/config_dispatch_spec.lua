@@ -9,11 +9,11 @@ package.loaded["bravo++.util"] = nil
 package.loaded["bravo++.condition_compiler"] = nil
 package.loaded["bravo++.config"] = nil
 package.loaded["bravo++.dispatch"] = nil
-package.loaded["bravo++.dispatch_action_map"] = nil
-package.loaded["bravo++.dispatch_buttons"] = nil
-package.loaded["bravo++.dispatch_twist"] = nil
-package.loaded["bravo++.dispatch_trim"] = nil
-package.loaded["bravo++.dispatch_modes"] = nil
+package.loaded["bravo++.dispatch.action_map"] = nil
+package.loaded["bravo++.dispatch.buttons"] = nil
+package.loaded["bravo++.dispatch.twist"] = nil
+package.loaded["bravo++.dispatch.trim"] = nil
+package.loaded["bravo++.dispatch.modes"] = nil
 
 local config = require("bravo++.config")
 local condition_compiler = require("bravo++.condition_compiler")

@@ -16,18 +16,18 @@ package.loaded["bravo++.state"] = nil
 package.loaded["bravo++.decoder"] = nil
 package.loaded["bravo++.hardware"] = nil
 package.loaded["bravo++.dispatch"] = nil
-package.loaded["bravo++.dispatch_action_map"] = nil
-package.loaded["bravo++.dispatch_buttons"] = nil
-package.loaded["bravo++.dispatch_twist"] = nil
-package.loaded["bravo++.dispatch_trim"] = nil
-package.loaded["bravo++.dispatch_modes"] = nil
+package.loaded["bravo++.dispatch.action_map"] = nil
+package.loaded["bravo++.dispatch.buttons"] = nil
+package.loaded["bravo++.dispatch.twist"] = nil
+package.loaded["bravo++.dispatch.trim"] = nil
+package.loaded["bravo++.dispatch.modes"] = nil
 
 local decoder = require("bravo++.decoder")
 local state = require("bravo++.state")
 local hardware = require("bravo++.hardware")
 local dispatch = require("bravo++.dispatch")
-local action_map = require("bravo++.dispatch_action_map")
-local modes = require("bravo++.dispatch_modes")
+local action_map = require("bravo++.dispatch.action_map")
+local modes = require("bravo++.dispatch.modes")
 
 -- ============================================================
 -- Test Helpers

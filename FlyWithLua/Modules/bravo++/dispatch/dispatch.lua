@@ -14,11 +14,11 @@
 local log = require("bravo++.log")
 
 -- Import sub-modules
-local action_map = require("bravo++.dispatch_action_map")
-local buttons = require("bravo++.dispatch_buttons")
-local twist = require("bravo++.dispatch_twist")
-local trim = require("bravo++.dispatch_trim")
-local modes = require("bravo++.dispatch_modes")
+local action_map = require("bravo++.dispatch.action_map")
+local buttons = require("bravo++.dispatch.buttons")
+local twist = require("bravo++.dispatch.twist")
+local trim = require("bravo++.dispatch.trim")
+local modes = require("bravo++.dispatch.modes")
 
 local dispatch = {}
 

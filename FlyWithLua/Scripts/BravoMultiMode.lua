@@ -1,26 +1,29 @@
--- Modules needed for logging and general functionality
-local util = require("bravo++.util")
-local log = require("bravo++.log")
-local config = require("bravo++.config")
-local ui = require("bravo++.ui")
-local MapBuilder = require("bravo++.mapbuilder")
+-- Composition root (FEAT-021): Load all modules via bravo++ init.lua
+local bravo = require("bravo++")
+
+-- Core utilities
+local util = bravo.util
+local log = bravo.log
+local config = bravo.config
+local ui = bravo.ui
+local MapBuilder = bravo.mapbuilder
 
 -- LED Engine modular components (FEAT-017)
-local led_engine = require("bravo++.led_engine")
-local led_hid_bridge = require("bravo++.led_hid_bridge")
-local annunciator_leds = require("bravo++.annunciator_leds")
-local gear_leds = require("bravo++.gear_leds")
+local led_engine = bravo.led_engine
+local led_hid_bridge = bravo.led_hid_bridge
+local annunciator_leds = bravo.annunciator_leds
+local gear_leds = bravo.gear_leds
 -- switch_leds module removed (BUGFIX-008): rocker switches have no physical LEDs
 
 -- High Priority Module Extractions (FEAT-018)
-local profiler = require("bravo++.profiler")
-local config_loader = require("bravo++.config_loader")
-local rocker_switches = require("bravo++.rocker_switches")
-local button_lifecycle = require("bravo++.button_lifecycle")
+local profiler = bravo.profiler
+local config_loader = bravo.config_loader
+local rocker_switches = bravo.rocker_switches
+local button_lifecycle = bravo.button_lifecycle
 
 -- Medium Priority Module Extractions (FEAT-019)
-local input_handlers = require("bravo++.input_handlers")
-local mode_manager = require("bravo++.mode_manager")
+local input_handlers = bravo.input_handlers
+local mode_manager = bravo.mode_manager
 
 -- Initialize profiler (FEAT-018)
 profiler.init({ enabled = false, log_interval = 60 })
@@ -57,12 +60,12 @@ dofile(custom_directory .. "Transponder.lua")
 log.LOG_LEVEL = log.LOG_INFO
 local log_led_state = false
 
--- New modular HID/decoder modules
-local bravo_hid = require("bravo++.hardware")
-local bravo_decoder = require("bravo++.decoder")
-local bravo_state = require("bravo++.state")
-local bravo_debug = require("bravo++.debug")
-local dispatch = require("bravo++.dispatch")
+-- New modular HID/decoder modules (loaded via composition root)
+local bravo_hid = bravo.hardware
+local bravo_decoder = bravo.decoder
+local bravo_state = bravo.state
+local bravo_debug = bravo.debug
+local dispatch = bravo.dispatch
 
 local HID_INPUT_DEBUG = false
 bravo_debug.enable(HID_INPUT_DEBUG)

@@ -14,6 +14,8 @@ end
 local modules_path = "/home/eb/git/Bravo_multi_mode/agentic-refactoring/FlyWithLua/Modules"
 package.path = modules_path .. "/?.lua;" .. package.path
 package.path = modules_path .. "/?/init.lua;" .. package.path
+-- Support nested sub-package paths: require("bravo++.dispatch.action_map") -> bravo++/dispatch/action_map.lua
+package.path = modules_path .. "/bravo++/dispatch/?.lua;" .. package.path
 
 -- Add tests/ directory to package path for shim modules (e.g. bit.lua)
 local tests_path = "/home/eb/git/Bravo_multi_mode/agentic-refactoring/tests"
