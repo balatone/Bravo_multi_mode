@@ -1,11 +1,11 @@
 ---
 id: PLAN-006
 title: Modular Architecture Revision Release Plan
-version: 1.0.0
+version: 1.1.0
 status: APPROVED
 created: 2026-07-23 12:52:58
-updated: 2026-07-23 13:09:00
-related_docs: ["REQ-008", "FEAT-015", "FEAT-016"]
+updated: 2026-07-24 10:25:00
+related_docs: ["REQ-008", "FEAT-015", "FEAT-016", "FEAT-021"]
 ---
 # Release Summary
 
@@ -48,12 +48,13 @@ This release encompasses the following features, organized by implementation pha
 |---|-----------|-------|-------|----------|
 | 1 | **FEAT-015** | Lua Best Practices Guide | Foundation & Design (Phase 1) | HIGH |
 | 2 | **FEAT-016** | Bravo++ Modular Architecture Design | Foundation & Design (Phase 1) | CRITICAL |
-| 3 | **FEAT-017** *(proposed)* | LED Engine Modularization — Split the ~640-line LED engine into five focused sub-modules (`led_engine`, `led_hid_bridge`, `annunciator_leds`, `gear_leds`, `switch_leds`) | Core Refactoring (Phase 2) | CRITICAL |
+| 3 | **FEAT-017** *(proposed)* | LED Engine Modularization — Split the ~640-line LED engine into five focused sub-modules (`led_engine`, `led_hid_bridge`, `annunciator_leds`, `gear_leds`, `switch_leds`) into `led/` package | Core Refactoring (Phase 2) | CRITICAL |
 | 4 | **FEAT-018** *(proposed)* | High Priority Module Extractions — Extract Profiler (`profiler.lua`), Config Loader (`config_loader.lua`), Rocker Switch Router (`rocker_switches.lua`), and Button Lifecycle Manager (`button_lifecycle.lua`) | Secondary Extractions (Phase 3) | HIGH |
 | 5 | **FEAT-019** *(proposed)* | Medium Priority Module Extractions — Extract Input Handlers (`input_handlers.lua`) and Mode Manager (`mode_manager.lua`); resolve `_G.command_once` bypass in `dispatch_twist.lua` | Secondary Extractions (Phase 3) | MEDIUM |
-| 6 | **FEAT-020** *(proposed)* | Module Standardization & Finalization — Standardize all export patterns to `local M = {} ... return M`, add LuaDoc-style annotations, consider namespace tables in dispatch facade | Standardization & Finalization (Phase 4) | OPTIONAL |
+| 6 | **FEAT-021** | Bravo++ Package Restructure — Move 6 dispatch files into `dispatch/` package; create `init.lua` composition root | Package Restructure (Phase 4a) | HIGH |
+| 7 | **FEAT-020** *(proposed)* | Module Standardization & Finalization — Standardize all export patterns to `local M = {} ... return M`, add LuaDoc-style annotations, consider namespace tables in dispatch facade | Standardization & Finalization (Phase 4b) | OPTIONAL |
 
-*Note: FEAT-017 through FEAT-020 are proposed feature IDs pending Lead agent approval and board task creation.*
+*Note: FEAT-017 through FEAT-020 are proposed feature IDs pending Lead agent approval and board task creation. FEAT-021 runs after all extraction features (FEAT-017 through FEAT-019) to avoid merge conflicts on shared files.*
 
 # Sequencing / Dependencies
 
@@ -71,9 +72,10 @@ The features follow a strict sequential ordering — each phase must be verified
 ```
 REQ-008 ──► FEAT-015 (Best Practices Guide) ─┐
          ┌──► FEAT-016 (Architecture Design) ─┤
-         │                                     ├──► FEAT-017 (LED Engine Split) ──► FEAT-018 (High Priority Extractions) ──► FEAT-019 (Medium Priority Extractions) ──► FEAT-020 (Standardization & Finalization)
-         │                                     │
-         └──────────────────────────────────────┘
+         │                                    │
+         │                                    ├──► FEAT-017 (LED Engine Split) ──► FEAT-018 (High Priority Extractions) ──► FEAT-019 (Medium Priority Extractions) ──► FEAT-021 (Package Restructure) ──► FEAT-020 (Standardization & Finalization)
+         │                                    │
+         └────────────────────────────────────┘
 ```
 
 ### Dependency Chain Rationale
@@ -81,7 +83,8 @@ REQ-008 ──► FEAT-015 (Best Practices Guide) ─┐
 1. **FEAT-015 and FEAT-016 must complete before any implementation** — The Best Practices Guide provides the coding conventions reference for Worker specialists, while the Architecture Design defines the module interfaces, dependency maps, and phased extraction roadmap that guides all refactoring work.
 2. **FEAT-017 (LED Engine Split) is a prerequisite for FEAT-018/FEAT-019** — The LED engine has the highest coupling with other modules; splitting it first reduces complexity and risk for subsequent extractions. Additionally, `led_engine` exports are referenced by multiple downstream modules.
 3. **FEAT-018 (High Priority) precedes FEAT-019 (Medium Priority)** — Profiler, Config Loader, Rocker Switches, and Button Lifecycle have fewer inter-module dependencies than Input Handlers and Mode Manager, which require the dispatch layer to be stable.
-4. **FEAT-020 runs last** — Standardization of export patterns and LuaDoc annotations must occur after all modules are extracted; running it earlier would risk rework as module APIs evolve during extraction phases.
+4. **FEAT-021 (Package Restructure) runs after FEAT-017 through FEAT-019** — Each extraction feature creates its own package directory (`led/` from FEAT-017, `input/` from FEAT-018) and places modules there. FEAT-021 then moves the 6 existing dispatch files into `dispatch/` and creates `init.lua` as the composition root. Running last avoids merge conflicts on `BravoMultiMode.lua` and test files that are also modified by the extraction features.
+5. **FEAT-020 runs last** — Standardization of export patterns and LuaDoc annotations must occur after all modules are extracted and restructured; running it earlier would risk rework as module APIs evolve during extraction phases.
 
 ## Cross-Cutting Dependencies
 
@@ -111,13 +114,13 @@ REQ-008 ──► FEAT-015 (Best Practices Guide) ─┐
   - Verification Gate checklist established covering syntax validation, global pollution checks, callback resolution, HID output parity, performance regression checks, and test coverage.
   - Document passes validation; status set to APPROVED.
 
-## Phase 2: Core Refactoring — LED Engine Split (Weeks 1–2)
+## Phase 2: Core Refactoring — LED Engine Split (Weeks 3–4)
 
 **Feature**: FEAT-017 (LED Engine Modularization)
 
 ### Milestone M2.1 — Five LED Sub-Modules Extracted and Verified
 - **Success Criteria**:
-  - All five modules exist under `FlyWithLua/Modules/bravo++/`: `led_engine.lua`, `led_hid_bridge.lua`, `annunciator_leds.lua`, `gear_leds.lua`, `switch_leds.lua`.
+  - `bravo++/led/` directory created with all five modules: `engine.lua`, `hid_bridge.lua`, `annunciators.lua`, `gear.lua`, `switches.lua`.
   - Each module uses the `local M = {} ... return M` export pattern with documented public API.
   - HID output is byte-identical to pre-refactoring state for all four aircraft configurations (B58, C90B, DA42, Transponder).
   - FlyWithLua string callbacks (`bravo_dispatch`, `build_bravo_gui`, `on_close_floating_window`) resolve correctly.
@@ -131,7 +134,8 @@ REQ-008 ──► FEAT-015 (Best Practices Guide) ─┐
 
 ### Milestone M3a — Four Modules Extracted and Verified
 - **Success Criteria**:
-  - All four modules exist under `FlyWithLua/Modules/bravo++/`: `profiler.lua`, `config_loader.lua`, `rocker_switches.lua`, `button_lifecycle.lua`.
+  - `profiler.lua` and `config_loader.lua` exist flat under `FlyWithLua/Modules/bravo++/`.
+  - `bravo++/input/` directory created with `rocker_switches.lua` and `button_lifecycle.lua`.
   - Each module independently require'd by the main script with all original functionality preserved.
   - Verified against pre-refactoring behavior for B58, C90B, DA42, and Transponder configurations.
   - No FlyWithLua string-callback breakage; `bravo_dispatch` forwarding works correctly through modular exports.
@@ -143,13 +147,27 @@ REQ-008 ──► FEAT-015 (Best Practices Guide) ─┐
 
 ### Milestone M3b — Two Modules Extracted and Verified
 - **Success Criteria**:
-  - Both modules exist under `FlyWithLua/Modules/bravo++/`: `input_handlers.lua`, `mode_manager.lua`.
+  - `input_handlers.lua` exists under `FlyWithLua/Modules/bravo++/input/`.
+  - `mode_manager.lua` exists flat under `FlyWithLua/Modules/bravo++/`.
   - `_G.command_once` bypass in `dispatch_twist.lua` resolved with proper error handling wrapper (per RAD-005 Finding 3).
   - All original functionality preserved; no regression in dispatch or mode cycling behavior.
   - Forward-declaration anti-pattern eliminated — all FlyWithLua global entrypoints use explicit module init functions.
   - All existing tests pass; new integration tests cover refactored modules.
 
-## Phase 4: Standardization & Finalization (Week 6)
+## Phase 4a: Package Restructure (Week 5)
+
+**Feature**: FEAT-021 (Bravo++ Package Restructure)
+
+### Milestone M4a.1 — Dispatch Package & Composition Root Ready
+- **Success Criteria**:
+  - Six existing dispatch files moved into `bravo++/dispatch/` with updated require paths.
+  - `bravo++/init.lua` exists as composition root with requires for all modules from their final locations.
+  - `BravoMultiMode.lua` requires dispatch modules from `bravo++.dispatch.*` paths.
+  - All unit, integration, and e2e tests pass with zero failures.
+  - No behavioral changes — restructure is purely organizational.
+  - Coverage percentage maintained or improved (no regression).
+
+## Phase 4b: Standardization & Finalization (Week 6)
 
 **Feature**: FEAT-020 (Module Standardization and Documentation)
 
@@ -166,7 +184,7 @@ REQ-008 ──► FEAT-015 (Best Practices Guide) ─┐
 
 ### Milestone M5 — Full Release Complete
 - **Success Criteria**:
-  - All six features (FEAT-015 through FEAT-020) implemented and verified.
+  - All seven features (FEAT-015 through FEAT-021) implemented and verified.
   - `BravoMultiMode.lua` reduced from ~1,577 lines to a minimal entry script that acts as the composition root and FlyWithLua bridge.
   - Complete module inventory of all newly extracted modules documented with public APIs and dependency relationships.
   - All aircraft configurations (B58, C90B, DA42, Transponder) verified functional in X-Plane integration testing.
@@ -208,9 +226,9 @@ REQ-008 ──► FEAT-015 (Best Practices Guide) ─┐
 
 The Release Plan is considered successfully fulfilled when **all** of the following conditions are met:
 
-1. **All Six Features Implemented**: FEAT-015 (Lua Best Practices Guide), FEAT-016 (Modular Architecture Design), FEAT-017 (LED Engine Modularization), FEAT-018 (High Priority Extractions), FEAT-019 (Medium Priority Extractions), and FEAT-020 (Module Standardization & Finalization) are each verified against their respective exit criteria.
+1. **All Seven Features Implemented**: FEAT-015 (Lua Best Practices Guide), FEAT-016 (Modular Architecture Design), FEAT-021 (Package Restructure), FEAT-017 (LED Engine Modularization), FEAT-018 (High Priority Extractions), FEAT-019 (Medium Priority Extractions), and FEAT-020 (Module Standardization & Finalization) are each verified against their respective exit criteria.
 
-2. **Modular Architecture Achieved**: `BravoMultiMode.lua` is reduced from ~1,577 lines to a minimal entry script (~100–200 lines) that acts as the FlyWithLua bridge and composition root. All 11 new modules exist under `FlyWithLua/Modules/bravo++/` with documented public APIs.
+2. **Modular Architecture Achieved**: `BravoMultiMode.lua` is reduced from ~1,577 lines to a minimal entry script (~100–200 lines) that acts as the FlyWithLua bridge and composition root. All 11 new modules exist under `FlyWithLua/Modules/bravo++/` (or within `led/`, `input/` sub-packages) with documented public APIs. The three subsystem packages (`led/`, `dispatch/`, `input/`) are populated and all require paths resolve correctly.
 
 3. **HID Output Parity**: Byte-identical HID feature reports across all four aircraft configurations (B58, C90B, DA42, Transponder) before and after refactoring — verified through automated integration tests.
 
@@ -229,3 +247,11 @@ The Release Plan is considered successfully fulfilled when **all** of the follow
 # Revision Notes
 
 Use this section for release-plan updates, additions, or sequencing changes as new features are introduced.
+
+## v1.1.0 — 2026-07-24
+
+- Added **FEAT-021** (Bravo++ Package Restructure) as Phase 4a, running after all extraction features (FEAT-017 through FEAT-019) and before FEAT-020 (Standardization). This feature moves the 6 existing dispatch files into `dispatch/` and creates `init.lua` as composition root. The `led/` and `input/` packages are created by their respective extraction features (FEAT-017 and FEAT-018).
+- Updated dependency chain: FEAT-017 → FEAT-018 → FEAT-019 → FEAT-021 → FEAT-020.
+- Updated M2.1, M3a, M3b to include package directory creation as part of each extraction feature's work.
+- Updated Success Criteria to reference seven features and package structure.
+- Renumbered feature table and dependency rationale items.
