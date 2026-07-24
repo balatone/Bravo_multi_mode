@@ -4,7 +4,7 @@ title: "Modular Architecture Revision Release Plan"
 version: 1.0.0
 status: REVIEWING
 created: "2026-07-23 12:52:03"
-updated: "2026-07-24 13:27:40"
+updated: "2026-07-24 13:33:12"
 primary_doc: REQ-008
 related_docs: ["REQ-008", "PLAN-006", "FEAT-017", "FEAT-018", "FEAT-019", "FEAT-020"]
 ---
@@ -46,3 +46,4 @@ related_docs: ["REQ-008", "PLAN-006", "FEAT-017", "FEAT-018", "FEAT-019", "FEAT-
 [2026-07-24 12:59:35] - [worker] - Completed: Implemented all 6 BUGFIX-007 fixes (F-001 switch_leds set_led, F-002 annunciator labels, BP-001/P-001 gear_leds constants, BP-003/P-002 led_hid_bridge pre-alloc, F-003 API signature alignment, BP-004 get_buffer_snapshot)
 [2026-07-24 13:16:42] - [reviewer] - Updated REVIEW-FEAT-017: Removed switch_leds.lua from scope after discovering rocker switches have no physical LEDs. Root cause traced to RAD-005 misinterpretation of handle_rocker_switch_led_changes(). Remaining blockers: F-002 (annunciator row labels), F-003 (API signature mismatch).
 [2026-07-24 13:27:40] - [reviewer] - Updated REVIEW-FEAT-017: Corrected F-002 description per physical layout (Row 1 = Bank 2 positions {2,1}-{2,7} for MASTER WARNING through APU; Row 2 = Bank 3 positions {3,1}-{3,7} for MASTER CAUTION through DOOR). Source code unchanged — only documentation updated.
+[2026-07-24 13:33:12] - [analyst] - Completed: Created BUGFIX-008 document based on REVIEW-018 findings, superseding incorrect BUGFIX-007. Covers switch_leds removal, F-002/F-003 corrections, performance fixes (BP-001/P-001/BP-003/P-002), and encapsulation fix (BP-004).
