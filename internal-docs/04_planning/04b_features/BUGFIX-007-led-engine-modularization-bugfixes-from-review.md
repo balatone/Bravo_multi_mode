@@ -5,7 +5,7 @@ version: 1.0.0
 status: DRAFT
 created: 2026-07-24 12:39:39
 updated: 2026-07-24 12:39:46
-related_docs: ["FEAT-017", "REVIEW-FEAT-017"]
+related_docs: ["FEAT-017", "REVIEW-018"]
 priority: HIGH
 ---
 # Summary
