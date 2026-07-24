@@ -4,7 +4,7 @@ title: "Modular Architecture Revision Release Plan"
 version: 1.0.0
 status: REVIEWING
 created: "2026-07-23 12:52:03"
-updated: "2026-07-24 12:59:35"
+updated: "2026-07-24 13:16:42"
 primary_doc: REQ-008
 related_docs: ["REQ-008", "PLAN-006", "FEAT-017", "FEAT-018", "FEAT-019", "FEAT-020"]
 ---
@@ -44,3 +44,4 @@ related_docs: ["REQ-008", "PLAN-006", "FEAT-017", "FEAT-018", "FEAT-019", "FEAT-
 [2026-07-24 12:42:10] - [team-lead] - Pre-delegation for BUGFIX: Implement BUGFIX-007: LED Engine Modularization Fixes
 [2026-07-24 12:50:08] - [team-lead] - BUGFIX implementation complete, requesting review
 [2026-07-24 12:59:35] - [worker] - Completed: Implemented all 6 BUGFIX-007 fixes (F-001 switch_leds set_led, F-002 annunciator labels, BP-001/P-001 gear_leds constants, BP-003/P-002 led_hid_bridge pre-alloc, F-003 API signature alignment, BP-004 get_buffer_snapshot)
+[2026-07-24 13:16:42] - [reviewer] - Updated REVIEW-FEAT-017: Removed switch_leds.lua from scope after discovering rocker switches have no physical LEDs. Root cause traced to RAD-005 misinterpretation of handle_rocker_switch_led_changes(). Remaining blockers: F-002 (annunciator row labels), F-003 (API signature mismatch).
