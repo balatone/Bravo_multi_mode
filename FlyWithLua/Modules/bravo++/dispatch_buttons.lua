@@ -15,6 +15,40 @@ local log = require("bravo++.log")
 
 local buttons = {}
 
+--- Execute a command through the safe command executor.
+--- Uses state.command_fn if available, falls back to _G.command_once.
+--- @param state table  Shared state table
+--- @param cmd string  Command name to execute
+local function execute_command(state, cmd)
+    if state.command_fn and type(state.command_fn) == "function" then
+        state.command_fn(cmd)
+    else
+        _G.command_once(cmd)
+    end
+end
+
+--- Execute a command_begin through the safe executor.
+--- @param state table  Shared state table
+--- @param cmd string  Command name to execute
+local function execute_command_begin(state, cmd)
+    if state.command_fn and type(state.command_fn) == "function" then
+        state.command_fn(cmd)
+    else
+        _G.command_begin(cmd)
+    end
+end
+
+--- Execute a command_end through the safe executor.
+--- @param state table  Shared state table
+--- @param cmd string  Command name to execute
+local function execute_command_end(state, cmd)
+    if state.command_fn and type(state.command_fn) == "function" then
+        state.command_fn(cmd)
+    else
+        _G.command_end(cmd)
+    end
+end
+
 --- Execute the resolved button command based on current phase.
 --- @param state table  Shared state table
 --- @param button_name string  Button identifier
@@ -31,19 +65,19 @@ local function _trigger_button_command(state, button_name)
         if is_continuous then
             if phase == "begin" then
                 log.debug("Trigger command begin: " .. (cmds["ON_HOLD"] or cmds["ON_CLICK"]))
-                _G.command_begin(cmds["ON_HOLD"] or cmds["ON_CLICK"])
+                execute_command_begin(state, cmds["ON_HOLD"] or cmds["ON_CLICK"])
                 state.command_state[button_name].phase = "continuous"
             elseif phase == "end" then
                 log.debug("Trigger command end: " .. (cmds["ON_HOLD"] or cmds["ON_CLICK"]))
-                _G.command_end(cmds["ON_HOLD"] or cmds["ON_CLICK"])
+                execute_command_end(state, cmds["ON_HOLD"] or cmds["ON_CLICK"])
             end
         else
             if phase == "long_click" and cmds["ON_LONG_CLICK"] ~= nil then
                 log.debug("Trigger long click: " .. cmds["ON_LONG_CLICK"])
-                _G.command_once(cmds["ON_LONG_CLICK"])
+                execute_command(state, cmds["ON_LONG_CLICK"])
             else
                 log.debug("Trigger click: " .. (cmds["ON_CLICK"] or "sim/none/none"))
-                _G.command_once(cmds["ON_CLICK"] or "sim/none/none")
+                execute_command(state, cmds["ON_CLICK"] or "sim/none/none")
             end
         end
     end)

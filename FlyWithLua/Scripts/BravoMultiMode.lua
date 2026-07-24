@@ -18,6 +18,10 @@ local config_loader = require("bravo++.config_loader")
 local rocker_switches = require("bravo++.rocker_switches")
 local button_lifecycle = require("bravo++.button_lifecycle")
 
+-- Medium Priority Module Extractions (FEAT-019)
+local input_handlers = require("bravo++.input_handlers")
+local mode_manager = require("bravo++.mode_manager")
+
 -- Initialize profiler (FEAT-018)
 profiler.init({ enabled = false, log_interval = 60 })
 
@@ -282,6 +286,14 @@ if nav_bindings["SWITCH_LABELS"] ~= nil then
     switch_map_labels = util.create_table(nav_bindings["SWITCH_LABELS"])
 end
 
+-- FEAT-019: Safe command execution wrapper (resolves _G.command_once bypass)
+-- All command invocations flow through this wrapper with try_catch error handling.
+local function safe_command(cmd)
+    try_catch(function()
+        command_once(cmd)
+    end, "safe_command:" .. tostring(cmd))
+end
+
 -- Initialize the dispatch module with bindings and validation context
 log.info("Initializing button action map, twist knob action map, and rocker switch states via dispatch module...")
 dispatch.init(nav_bindings, {
@@ -290,9 +302,22 @@ dispatch.init(nav_bindings, {
     default_button_labels = default_button_labels,
     selection_map_labels = selection_map_labels,
     button_map_labels = button_map_labels,
+    -- FEAT-019: Inject safe command executor (resolves _G.command_once bypass)
+    command_fn = safe_command,
 })
 
--- Twist knob action map and rocker switch LED states are now managed by dispatch module.
+-- Initialize mode manager (FEAT-019)
+mode_manager.init({
+    dispatch_module = dispatch,
+    modes_array = modes,
+    selection_map_labels = selection_map_labels,
+    default_selections = default_selections,
+    default_button_labels = default_button_labels,
+    button_map_labels = button_map_labels,
+})
+
+-- Input handlers initialized after set_current_selector (FEAT-019)
+-- See below for input_handlers.init() call
 
 local current_buttons = default_button_labels
 local vertical_spacing = 30
@@ -315,67 +340,26 @@ float_wnd_set_position(my_floating_wnd, SCREEN_WIDTH * 0.25, SCREEN_HEIGHT * 0.2
 -- float_wnd_set_onclick(my_floating_wnd, "on_click_floating_window")
 float_wnd_set_onclose(my_floating_wnd, "on_close_floating_window")
 
--- Initialize the static tables pertaining to mode
-local conceptual_mode_order = {} -- Stores unique conceptual names in the order they first appear
-local conceptual_name_seen = {} -- Helper to track if a conceptual name has been added to order
-
-for i = 1, #modes do
-    local name_conceptual = util.get_name_before_index(modes[i]) -- Get the base name, e.g., "AUTO" from "AUTO_2"
-    if not conceptual_name_seen[name_conceptual] then
-        table.insert(conceptual_mode_order, name_conceptual) -- Add unique conceptual name to maintain order
-        conceptual_name_seen[name_conceptual] = true
-    end
-end
-
--- Build mode group info: maps conceptual name -> {count} (static, computed once)
-local mode_group_info = {}
-for _, conceptual_name in ipairs(conceptual_mode_order) do
-    local count = 0
-    for i = 1, #modes do
-        if util.get_name_before_index(modes[i]) == conceptual_name then
-            count = count + 1
-        end
-    end
-    mode_group_info[conceptual_name] = { count = count }
-end
-
 -- Build a context table for the UI module so it stays decoupled from globals.
+-- Mode cycling state (conceptual_mode_order, mode_group_info) is managed by mode_manager (FEAT-019).
 local function build_ui_context()
-    local current_mode = dispatch.get_current_mode()
-    local current_mode_conceptual = util.get_name_before_index(current_mode)
-
-    -- Update current_index dynamically based on active mode (recalculated each frame)
-    for conceptual_name, group in pairs(mode_group_info) do
-        if group.count > 1 then
-            group.current_index = nil -- reset until found
-            local idx = 0
-            for i = 1, #modes do
-                if util.get_name_before_index(modes[i]) == conceptual_name then
-                    idx = idx + 1
-                    if modes[i] == current_mode and conceptual_name == current_mode_conceptual then
-                        group.current_index = idx
-                        break
-                    end
-                end
-            end
-        end
-    end
+    local base_context = mode_manager.build_ui_context()
 
     return {
-        current_mode = dispatch.get_current_mode(),
-        current_selection = dispatch.get_current_selection(),
-        current_cf_mode = dispatch.get_current_cf_mode(),
-        current_cf_mode_upper = string.upper(dispatch.get_current_cf_mode()),
-        current_switch_mode = dispatch.get_current_switch_mode(),
-        current_selection_label = dispatch._get_current_selection_label(),
-        conceptual_mode_order = conceptual_mode_order,
-        mode_group_info = mode_group_info,
-        selection_map_labels = selection_map_labels,
-        button_is_switch_map = dispatch.get_button_is_switch_map(),
-        default_button_labels = dispatch.get_default_button_labels(),
-        current_buttons = dispatch.get_current_buttons(),
+        current_mode = base_context.current_mode,
+        current_selection = base_context.current_selection,
+        current_cf_mode = base_context.current_cf_mode,
+        current_cf_mode_upper = base_context.current_cf_mode_upper,
+        current_switch_mode = base_context.current_switch_mode,
+        current_selection_label = base_context.current_selection_label,
+        conceptual_mode_order = base_context.conceptual_mode_order,
+        mode_group_info = base_context.mode_group_info,
+        selection_map_labels = base_context.selection_map_labels,
+        button_is_switch_map = base_context.button_is_switch_map,
+        default_button_labels = base_context.default_button_labels,
+        current_buttons = base_context.current_buttons,
         switch_map_labels = switch_map_labels,
-        twist_knob_map_actions = dispatch.get_twist_knob_map_actions(),
+        twist_knob_map_actions = base_context.twist_knob_map_actions,
         twist_knob_map_labels = twist_knob_map_labels,
         get_button_led_state = get_button_led_state,
         get_led_state_for_switch = dispatch.get_rocker_switch_led,
@@ -407,18 +391,26 @@ end
 --------------------------------------------------------------
 --- CREATE THE FUNCTIONS FOR REFRESHING THE MODE AND SELECTOR
 --------------------------------------------------------------
--- Track the selector index locally.
--- (Previously this leaked as a global because it was assigned before being declared local.)
-local selector_index = 1
+-- Selector index is now managed by mode_manager (FEAT-019).
 
 local function set_current_selector(idx)
-    selector_index = idx
+    mode_manager.set_selector_index(idx)
     dispatch.set_selector_index(idx, function()
         prime_button_led_states_for_mode_change()
         led_state_modified = true
         handle_led_changes()
     end)
 end
+
+-- Initialize input handlers (FEAT-019)
+-- Must be after set_current_selector is defined (used as selector_handler_fn)
+input_handlers.init({
+    dispatch_module = dispatch,
+    decoder_handler_fn = function(handlers)
+        bravo_decoder.set_handlers(handlers)
+    end,
+    selector_handler_fn = set_current_selector,
+})
 
 local function refresh_selector_hid()
     -- Use decoded selector state from the modular decoder/state instead of calling hid_read()
@@ -445,10 +437,10 @@ dispatch_callbacks.refresh_selector_task = refresh_selector_task
 
 do_every_frame("bravo_dispatch('refresh_selector_task')")
 
--- Function to cycle the mode down one
+-- Function to cycle the mode down one (FEAT-019: delegates to mode_manager)
 local function cycle_mode_down()
     return try_catch(function()
-        dispatch.cycle_mode_down()
+        mode_manager.cycle_mode_down()
         prime_button_led_states_for_mode_change()
         led_state_modified = true
         handle_led_changes()
@@ -457,10 +449,10 @@ end
 
 dispatch_callbacks.cycle_mode_down = cycle_mode_down
 
--- Function to cycle the mode up one
+-- Function to cycle the mode up one (FEAT-019: delegates to mode_manager)
 local function cycle_mode_up()
     return try_catch(function()
-        dispatch.cycle_mode_up()
+        mode_manager.cycle_mode_up()
         prime_button_led_states_for_mode_change()
         led_state_modified = true
         handle_led_changes()
@@ -498,7 +490,7 @@ create_command(
 
 local function toggle_mode_select_true()
     return try_catch(function()
-        dispatch.activate_mode_select()
+        mode_manager.activate_mode_select()
     end, "toggle_mode_select_true")
 end
 
@@ -506,7 +498,7 @@ dispatch_callbacks.toggle_mode_select_true = toggle_mode_select_true
 
 local function toggle_mode_select_false()
     return try_catch(function()
-        dispatch.deactivate_mode_select()
+        mode_manager.deactivate_mode_select()
     end, "toggle_mode_select_false")
 end
 
@@ -520,10 +512,10 @@ create_command(
     "bravo_dispatch('toggle_mode_select_false')"
 )
 
--- Function to cycle through outer/inner modes
+-- Function to cycle through outer/inner modes (FEAT-019: delegates to mode_manager)
 local function cycle_cf_mode()
     return try_catch(function()
-        dispatch.cycle_cf_mode()
+        mode_manager.cycle_cf_mode()
     end, "cycle_cf_mode")
 end
 
@@ -538,10 +530,10 @@ create_command(
     ""
 )
 
--- Function to cycle through up/down switch modes
+-- Function to cycle through up/down switch modes (FEAT-019: delegates to mode_manager)
 local function cycle_switch_mode()
     return try_catch(function()
-        dispatch.cycle_switch_mode()
+        mode_manager.cycle_switch_mode()
     end, "cycle_switch_mode")
 end
 
@@ -649,37 +641,9 @@ dispatch_callbacks.knob_decrease = function()
     return try_catch(dispatch.knob_decrease, "knob_decrease")
 end
 
--- Wire the new modular decoder to dispatch-based handlers
-bravo_decoder.set_handlers({
-    on_selector_changed = function(new)
-        -- new is a raw byte for now; attempt to map to selector index if possible
-        if type(new) == "number" then
-            if new >= 1 and new <= 5 then
-                set_current_selector(new)
-            else
-                -- leave as debug info until mapping is confirmed
-                log.info("Decoder: selector change raw=" .. tostring(new))
-            end
-        else
-            log.info("Decoder: selector change (non-numeric) " .. tostring(new))
-        end
-    end,
-    on_rotary_cw = function()
-        pcall(dispatch.knob_increase)
-    end,
-    on_rotary_ccw = function()
-        pcall(dispatch.knob_decrease)
-    end,
-    on_trim_changed = function(v)
-        if v == "down" then
-            pcall(dispatch.trim_nose_down)
-        elseif v == "up" then
-            pcall(dispatch.trim_nose_up)
-        else
-            log.info("Decoder: trim change raw=" .. tostring(v))
-        end
-    end,
-})
+-- Wire decoder handlers through input_handlers (FEAT-019)
+-- All command invocations flow through dispatch module with try_catch error handling.
+input_handlers.register_decoder_handlers()
 
 -- Subscribe decoder to hid reports
 bravo_hid.subscribe(bravo_decoder.on_report)

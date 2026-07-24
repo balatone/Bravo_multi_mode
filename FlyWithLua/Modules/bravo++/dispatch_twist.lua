@@ -5,6 +5,7 @@
     - Execute twist knob increase (clockwise)
     - Execute twist knob decrease (counter-clockwise)
     - Handle priority resolution: direct > OUTER > INNER based on cf_mode state
+    - Use safe command execution via state.command_fn (FEAT-019)
 
     This module handles all twist knob input logic.
 ]]
@@ -18,6 +19,19 @@ local mode_select_command = {
     UP = "FlyWithLua/Bravo++/cycle_mode_up",
     DOWN = "FlyWithLua/Bravo++/cycle_mode_down",
 }
+
+--- Execute a command through the safe command executor.
+--- Uses state.command_fn if available, falls back to _G.command_once.
+--- @param state table  Shared state table
+--- @param cmd string  Command name to execute
+local function execute_command(state, cmd)
+    if state.command_fn and type(state.command_fn) == "function" then
+        state.command_fn(cmd)
+    else
+        -- Fallback for backward compatibility and testing
+        _G.command_once(cmd)
+    end
+end
 
 --- Execute twist knob increase (clockwise).
 --- @param state table  Shared state table
@@ -37,11 +51,11 @@ function twist.knob_increase(state)
 
     -- Priority: direct UP > OUTER.UP (if cf=outer) > INNER.UP (if cf=inner)
     if current_action["UP"] then
-        _G.command_once(current_action["UP"])
+        execute_command(state, current_action["UP"])
     elseif state.current_cf_mode == "outer" and current_action["OUTER"] and current_action["OUTER"]["UP"] then
-        _G.command_once(current_action["OUTER"]["UP"])
+        execute_command(state, current_action["OUTER"]["UP"])
     elseif state.current_cf_mode == "inner" and current_action["INNER"] and current_action["INNER"]["UP"] then
-        _G.command_once(current_action["INNER"]["UP"])
+        execute_command(state, current_action["INNER"]["UP"])
     else
         log.debug("No UP action for twist knob.")
     end
@@ -65,11 +79,11 @@ function twist.knob_decrease(state)
 
     -- Priority: direct DOWN > OUTER.DOWN (if cf=outer) > INNER.DOWN (if cf=inner)
     if current_action["DOWN"] then
-        _G.command_once(current_action["DOWN"])
+        execute_command(state, current_action["DOWN"])
     elseif state.current_cf_mode == "outer" and current_action["OUTER"] and current_action["OUTER"]["DOWN"] then
-        _G.command_once(current_action["OUTER"]["DOWN"])
+        execute_command(state, current_action["OUTER"]["DOWN"])
     elseif state.current_cf_mode == "inner" and current_action["INNER"] and current_action["INNER"]["DOWN"] then
-        _G.command_once(current_action["INNER"]["DOWN"])
+        execute_command(state, current_action["INNER"]["DOWN"])
     else
         log.debug("No DOWN action for twist knob.")
     end

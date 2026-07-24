@@ -67,6 +67,9 @@ local state = {
     default_selections = nil,
     default_button_labels = nil,
     nav_bindings = nil,
+
+    -- Safe command executor (FEAT-019: resolves _G.command_once bypass)
+    command_fn = nil,
 }
 
 -- ============================================================
@@ -83,6 +86,11 @@ function dispatch.init(bindings, ctx)
     state.default_button_labels = ctx.default_button_labels or {}
     state.selection_map_labels = ctx.selection_map_labels or {}
     state.button_map_labels = ctx.button_map_labels or {}
+
+    -- FEAT-019: Safe command executor injection (resolves _G.command_once bypass)
+    if ctx.command_fn and type(ctx.command_fn) == "function" then
+        state.command_fn = ctx.command_fn
+    end
 
     state.current_mode = state.modes[1]
     state.current_selection = state.default_selections[1]
@@ -241,13 +249,25 @@ end
 -- Public: Rocker Switch Execution
 -- ============================================================
 
+--- Execute a command through the safe command executor.
+--- Uses state.command_fn if available, falls back to _G.command_once.
+--- @param cmd string  Command name to execute
+local function execute_command(cmd)
+    if state.command_fn and type(state.command_fn) == "function" then
+        state.command_fn(cmd)
+    else
+        -- Fallback: direct global access (backward compat / testing)
+        _G.command_once(cmd)
+    end
+end
+
 function dispatch.rocker_switch(rocker_number, dir)
     local key = "SWITCH" .. rocker_number .. "_" .. dir
     local binding = state.nav_bindings and state.nav_bindings[key]
 
     if binding then
         log.info("Rocker switch " .. rocker_number .. " " .. dir .. ": " .. binding)
-        _G.command_once(binding)
+        execute_command(binding)
     else
         log.warning("No binding for rocker switch " .. rocker_number .. " " .. dir)
     end
@@ -306,6 +326,31 @@ function dispatch.get_arrow_color()
 end
 
 -- ============================================================
+-- Public: Safe Command Execution (FEAT-019)
+-- ============================================================
+
+--- Set the safe command executor function.
+--- Replaces direct _G.command_once access with try_catch-wrapped execution.
+--- @param fn function  Command execution wrapper (cmd_str)
+function dispatch.set_command_fn(fn)
+    if type(fn) == "function" then
+        state.command_fn = fn
+    end
+end
+
+--- Execute a command safely using the injected command function.
+--- Falls back to _G.command_once if no command_fn is set (backward compat).
+--- @param cmd string  Command name to execute
+function dispatch.execute_command(cmd)
+    if state.command_fn then
+        state.command_fn(cmd)
+    else
+        -- Fallback: direct global access (will be replaced by composition root)
+        _G.command_once(cmd)
+    end
+end
+
+-- ============================================================
 -- Test-only accessor for E2E/integration tests
 -- ============================================================
 
@@ -344,6 +389,7 @@ function dispatch.reset()
     state.default_selections = nil
     state.default_button_labels = nil
     state.nav_bindings = nil
+    state.command_fn = nil
 end
 
 return dispatch
