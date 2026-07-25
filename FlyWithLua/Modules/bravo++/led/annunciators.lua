@@ -41,18 +41,19 @@ local LED_POSITIONS = {
 }
 
 -- Row 1 annunciator labels (Bank 2: bits 7-8)
+-- Row 1 annunciator labels (Banks 2-3: first 7 annunciators)
 local ROW1_LABELS = {
     "MASTER_WARNING",
     "FIRE_WARNING",
-}
-
--- Row 2 annunciator labels (Banks 3-4: all remaining annunciators)
-local ROW2_LABELS = {
     "OIL_LOW_PRESSURE",
     "FUEL_LOW_PRESSURE",
     "ANTI_ICE",
     "STARTER_ENGAGED",
     "APU",
+}
+
+-- Row 2 annunciator labels (Banks 3-4: remaining 7 annunciators)
+local ROW2_LABELS = {
     "MASTER_CAUTION",
     "VACUUM",
     "HYD_LOW_PRESSURE",
