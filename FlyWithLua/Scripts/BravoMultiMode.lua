@@ -4,7 +4,6 @@ local log = require("bravo++.log")
 local config = require("bravo++.config")
 local ui = require("bravo++.ui")
 local MapBuilder = require("bravo++.mapbuilder")
-local plugincheck = require("bravo++.plugincheck")
 
 -----------------------------------------------------
 --- PERFORMANCE PROFILER (Method 2: Cumulative Stats)
@@ -403,13 +402,6 @@ dispatch.init(nav_bindings, {
 	selection_map_labels = selection_map_labels,
 	button_map_labels = button_map_labels,
 })
-
------------------------------------------------------
---- Check for conflicting Honeycomb Bridge plugin
------------------------------------------------------
-if plugincheck.should_warn() then
-	plugincheck.show_warning_if_needed()
-end
 
 -- Twist knob action map and rocker switch LED states are now managed by dispatch module.
 
