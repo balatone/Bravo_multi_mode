@@ -10,10 +10,10 @@ end
 
 local G1000_COM_STATE_DR = create_dataref_table("FlyWithLua/G1000_COM_STATE", "Int")
 
-local com1_freq = dataref_table("sim/cockpit/radios/com1_freq_hz")
-local com1_stby_freq = dataref_table("sim/cockpit/radios/com1_stdby_freq_hz")
-local com2_freq = dataref_table("sim/cockpit/radios/com2_freq_hz")
-local com2_stby_freq = dataref_table("sim/cockpit/radios/com2_stdby_freq_hz")
+local com1_freq = dataref_table("sim/cockpit2/radios/actuators/com1_frequency_hz_833")
+local com1_stby_freq = dataref_table("sim/cockpit2/radios/actuators/com1_standby_frequency_hz_833")
+local com2_freq = dataref_table("sim/cockpit2/radios/actuators/com2_frequency_hz_833")
+local com2_stby_freq = dataref_table("sim/cockpit2/radios/actuators/com2_standby_frequency_hz_833")
 
 local FLAG_PFD_COM2 = 0x01
 local FLAG_MFD_COM2 = 0x02
