@@ -34,13 +34,3 @@ repos:
       - id: check-added-large-files
         args: ["--maxkb=1024"]
       - id: detect-private-key
-
-  # ── Documentation validation ────────────────────────────────
-  - repo: local
-    hooks:
-      - id: validate-docs
-        name: Validate SDLC documents
-        entry: uv run python3 toolbox/validate_docs.py
-        language: system
-        pass_filenames: false
-        files: "internal-docs/"

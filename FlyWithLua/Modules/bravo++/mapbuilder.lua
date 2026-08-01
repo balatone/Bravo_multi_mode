@@ -174,6 +174,7 @@ function MapBuilder.build(
 			for _, btn in ipairs(default_button_labels) do
 				local binding
 				local full_key
+				local handled = false
 
 				-- ALT selection: check mode-level LED key first
 				if sel == "ALT" then
@@ -204,41 +205,41 @@ function MapBuilder.build(
 						end
 						log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
 
-						-- Continue to next button (mode-level LED takes precedence for ALT)
-						goto next_button
+						-- Mode-level LED takes precedence for ALT; skip selection-level check
+						handled = true
 					end
 				end
 
-				-- Normal selection-level LED key
-				full_key = mode .. "_" .. sel .. "_" .. btn .. "_BUTTON_LED"
-				if nav_bindings[full_key] then
-					binding = util.create_table(nav_bindings[full_key])
+				if not handled then
+					-- Normal selection-level LED key
+					full_key = mode .. "_" .. sel .. "_" .. btn .. "_BUTTON_LED"
+					if nav_bindings[full_key] then
+						binding = util.create_table(nav_bindings[full_key])
 
-					-- Ensure per-selection sub-table exists
-					if not button_map_leds[mode][sel] then
-						button_map_leds[mode][sel] = {}
-						button_map_leds_cond[mode][sel] = {}
-						button_map_leds_state[mode][sel] = {}
-						button_map_leds_index[mode][sel] = {}
-					end
+						-- Ensure per-selection sub-table exists
+						if not button_map_leds[mode][sel] then
+							button_map_leds[mode][sel] = {}
+							button_map_leds_cond[mode][sel] = {}
+							button_map_leds_state[mode][sel] = {}
+							button_map_leds_index[mode][sel] = {}
+						end
 
-					button_map_leds[mode][sel][btn] = dataref_table_fn(binding[1])
-					button_map_leds_cond[mode][sel][btn] = config.compile_condition(binding[2], full_key)
-					button_map_leds_state[mode][sel][btn] = false
-					if binding[3] ~= nil then
-						button_map_leds_index[mode][sel][btn] = binding[3]
-					end
+						button_map_leds[mode][sel][btn] = dataref_table_fn(binding[1])
+						button_map_leds_cond[mode][sel][btn] = config.compile_condition(binding[2], full_key)
+						button_map_leds_state[mode][sel][btn] = false
+						if binding[3] ~= nil then
+							button_map_leds_index[mode][sel][btn] = binding[3]
+						end
 
-					log.debug("navbinding: " .. nav_bindings[full_key])
-					log.debug("datref: " .. binding[1])
-					log.debug("cond: " .. binding[2])
-					if binding[3] ~= nil then
-						log.debug("index: " .. binding[3])
+						log.debug("navbinding: " .. nav_bindings[full_key])
+						log.debug("datref: " .. binding[1])
+						log.debug("cond: " .. binding[2])
+						if binding[3] ~= nil then
+							log.debug("index: " .. binding[3])
+						end
+						log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
 					end
-					log.info("Adding " .. full_key .. " = " .. nav_bindings[full_key])
 				end
-
-				::next_button::
 			end
 		end
 	end
