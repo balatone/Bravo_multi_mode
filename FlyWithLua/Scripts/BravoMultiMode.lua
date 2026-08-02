@@ -114,6 +114,7 @@ dofile(custom_directory .. "DA42.lua")
 dofile(custom_directory .. "B58.lua")
 dofile(custom_directory .. "Transponder.lua")
 dofile(custom_directory .. "G1000_COM_STDBY.lua")
+dofile(custom_directory .. "GNS_COM_STDBY.lua")
 
 -- Change the logging level to log.LOG_DEBUG if troubleshooting
 log.LOG_LEVEL = log.LOG_INFO
