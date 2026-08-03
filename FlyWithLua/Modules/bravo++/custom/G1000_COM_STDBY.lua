@@ -11,8 +11,6 @@ if log.LOG_LEVEL == nil then
 end
 
 local G1000_COM_STATE_DR = create_dataref_table("FlyWithLua/Bravo++/G1000_COM_STATE", "Int")
-local LAST_AIRCRAFT_PATH = create_dataref_table("FlyWithLua/Bravo++/LAST_AIRCRAFT_PATH", "Data")
-local LAST_AIRCRAFT_NAME = create_dataref_table("FlyWithLua/Bravo++/LAST_AIRCRAFT_NAME", "Data")
 
 local com1_freq = dataref_table("sim/cockpit2/radios/actuators/com1_frequency_hz_833")
 local com1_stby_freq = dataref_table("sim/cockpit2/radios/actuators/com1_standby_frequency_hz_833")
@@ -22,9 +20,44 @@ local com2_stby_freq = dataref_table("sim/cockpit2/radios/actuators/com2_standby
 local FLAG_PFD_COM2 = 0x01
 local FLAG_MFD_COM2 = 0x02
 
--- Track last-known aircraft to detect switches (AIRCRAFT_PATH/Filename update every frame in FlyWithLua)
-local last_aircraft_path = LAST_AIRCRAFT_PATH[0] or ""
-local last_aircraft_filename = LAST_AIRCRAFT_NAME[0] or ""
+-- ============================================================
+-- Persistent state: external file survives FlyWithLua restarts
+-- (custom datarefs are cleared on script reload)
+-- File format: single line — total_flight_time_sec
+--
+-- sim/time/total_flight_time_sec resets when a new aircraft is loaded
+-- but stays unaffected when reloading the Lua script.
+--
+-- I/O strategy: read once at init, keep in memory. Only write when
+-- a reload is detected (flight time went backwards).
+-- ============================================================
+
+--- Absolute path to the checkpoint file, derived from this script's location.
+local STATE_FILE = MODULES_DIRECTORY .. "bravo++" .. DIRECTORY_SEPARATOR .. "g1000_reload_flag.txt"
+-- local STATE_FILE = string.match(debug.getinfo(1, "S").source, "(.*)/[^/]+$") .. "/g1000_reload_flag.txt"
+
+--- Read the checkpoint file and return the saved flight time.
+--- Returns nil if the file doesn't exist or is unreadable.
+local function read_checkpoint()
+	local f = io.open(STATE_FILE, "r")
+	if not f then
+		return nil
+	end
+	local t = tonumber(f:read("*n")) or 0
+	f:close()
+	return t
+end
+
+--- Write the current flight time to the checkpoint file.
+local function write_checkpoint(flight_time)
+	local f, err = io.open(STATE_FILE, "w")
+	if not f then
+		log.error("G1000: failed to write checkpoint: " .. tostring(err))
+		return
+	end
+	f:write(tostring(flight_time))
+	f:close()
+end
 
 --- Reset all G1000 COM state to defaults. Call this when the aircraft changes or flight is reloaded.
 local function reset_state()
@@ -32,11 +65,14 @@ local function reset_state()
 	log.info("G1000 COM state reset")
 end
 
---- Track time between polls (seconds). 1 Hz is plenty — aircraft loads are infrequent events.
+-- Read checkpoint once at init (only I/O at startup)
+local saved_flight_time = read_checkpoint()
+
+--- Track time between polls (seconds).
 local POLL_INTERVAL = 5.0
 local last_poll_time = os.clock()
 
---- Detect aircraft change (or flight reload) and reset state. Called every frame but only executes once per second.
+--- Detect flight reload and reset state. Called every frame but only executes once per second.
 function G1000_COM_STDBY_detect_aircraft_change()
 	local now = os.clock()
 	if now - last_poll_time < POLL_INTERVAL then
@@ -44,27 +80,32 @@ function G1000_COM_STDBY_detect_aircraft_change()
 	end
 	last_poll_time = now
 
-	local new_path = AIRCRAFT_PATH or ""
-	local new_name = AIRCRAFT_FILENAME or ""
+	local current_flight_time = get("sim/time/total_flight_time_sec") or 0
 
-	-- Detect: different aircraft OR same aircraft but flight was reloaded (counter incremented)
-	if
-		new_path ~= last_aircraft_path
-		or new_name ~= last_aircraft_filename
-	then
-		--log.info("G1000: state reset (" .. last_aircraft_filename .. ", load=" .. current_load_count .. ")")
-		log.info("G1000: state reset (" .. last_aircraft_filename .. ")")
-		reset_state()
-		LAST_AIRCRAFT_PATH[0] = new_path
-		LAST_AIRCRAFT_NAME[1] = new_name
-		last_aircraft_path = new_path
-		last_aircraft_filename = new_name
+	-- First run — save the flight time for future comparison
+	if not saved_flight_time then
+		saved_flight_time = current_flight_time
+		write_checkpoint(current_flight_time)
+		return
 	end
 
+	-- Detect: flight reload (total_flight_time_sec went backwards = aircraft was reloaded)
+	if current_flight_time < saved_flight_time then
+		log.info(
+			"G1000: state reset (flight reloaded, flight_time "
+				.. tostring(saved_flight_time)
+				.. " -> "
+				.. tostring(current_flight_time)
+				.. ")"
+		)
+		reset_state()
+		saved_flight_time = current_flight_time
+		write_checkpoint(current_flight_time)
+	end
 end
 
--- Register a per-frame callback (rate-limited to 1 Hz inside the function).
-do_every_frame("G1000_COM_STDBY_detect_aircraft_change()")
+-- Register a lower polling callback
+do_often("G1000_COM_STDBY_detect_aircraft_change()")
 
 --- Manual reset command (fallback when auto-detection is insufficient).
 create_command(
