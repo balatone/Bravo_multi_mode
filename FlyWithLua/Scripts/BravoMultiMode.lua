@@ -112,9 +112,10 @@ local custom_directory = MODULES_DIRECTORY .. "bravo++" .. DIRECTORY_SEPARATOR .
 dofile(custom_directory .. "C90B.lua")
 dofile(custom_directory .. "DA42.lua")
 dofile(custom_directory .. "B58.lua")
-dofile(custom_directory .. "Transponder.lua")
-dofile(custom_directory .. "G1000_COM_STDBY.lua")
-dofile(custom_directory .. "GNS_COM_STDBY.lua")
+dofile(custom_directory .. "SR22.lua")
+
+-- NOTE: Transponder, G1000_COM_STDBY, and GNS_COM_STDBY are loaded
+-- conditionally after config validation (see below).
 
 -- Change the logging level to log.LOG_DEBUG if troubleshooting
 log.LOG_LEVEL = log.LOG_INFO
@@ -303,6 +304,61 @@ if not file_ok then
 	return -- Stop script if config is missing
 end
 
+-----------------------------------------------------
+--- Step 5: Conditional custom script loading
+--- Only load scripts whose commands are referenced in the active config.
+-----------------------------------------------------
+
+--- Returns true if any value in nav_bindings contains one of the given commands.
+local function config_uses_commands(commands)
+	for _, cmd in ipairs(commands) do
+		for _, value in pairs(nav_bindings) do
+			if type(value) == "string" and value:find(cmd, 1, true) then
+				return true
+			end
+		end
+	end
+	return false
+end
+
+-- G1000 COM STDBY
+if
+	config_uses_commands({
+		"FlyWithLua/Bravo++/G1000/toggle_n1_com12",
+		"FlyWithLua/Bravo++/G1000/toggle_n3_com12",
+		"FlyWithLua/Bravo++/G1000/toggle_n1_com12_stdby_freq",
+		"FlyWithLua/Bravo++/G1000/toggle_n3_com12_stdby_freq",
+	})
+then
+	dofile(custom_directory .. "G1000_COM_STDBY.lua")
+else
+	log.info("G1000_COM_STDBY: not referenced in config, skipping.")
+end
+
+-- GNS COM STDBY
+if
+	config_uses_commands({
+		"FlyWithLua/Bravo++/GNS/toggle_gns_n1_com_stdby_freq",
+		"FlyWithLua/Bravo++/GNS/toggle_gns_n2_com_stdby_freq",
+	})
+then
+	dofile(custom_directory .. "GNS_COM_STDBY.lua")
+else
+	log.info("GNS_COM_STDBY: not referenced in config, skipping.")
+end
+
+-- Transponder
+if
+	config_uses_commands({
+		"FlyWithLua/Bravo++/set_transponder_vfr_code",
+		"FlyWithLua/Bravo++/toggle_transponder_vfr_code",
+	})
+then
+	dofile(custom_directory .. "Transponder.lua")
+else
+	log.info("Transponder: not referenced in config, skipping.")
+end
+
 -- The annunciator labels. These are used for validation and in the led logic.
 local annunciator_labels = {
 	"MASTER_WARNING",
@@ -366,6 +422,7 @@ local values_valid = config.validate_values(nav_bindings, validation_context)
 if not keys_valid or not values_valid then
 	return
 end
+
 
 -----------------------------------------------------
 --- Unified mapping initialization via MapBuilder
