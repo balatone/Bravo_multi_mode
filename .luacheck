@@ -1,0 +1,11 @@
+-- FlyWithLua built-in globals
+globals _G
+
+-- Allowed FlyWithLua globals
+globals bit bravo_dispatch build_bravo_gui create_command dataref_table
+globals dataref_write do_every_frame do_on_exit float_wnd_set_imgui_builder
+globals float_wnd_set_onclose float_wnd_set_position float_wnd_set_title
+globals hid_close hid_enumerate hid_open hid_send_filled_feature_report
+globals logMsg on_close_floating_window unpack
+globals AIRCRAFT_FILENAME AIRCRAFT_PATH DIRECTORY_SEPARATOR MODULES_DIRECTORY
+globals SCREEN_HEIGHT SCREEN_WIDTH SUPPORTS_FLOATING_WINDOWS

@@ -5,7 +5,7 @@
 
 This is a a script I developed for personal use in the hopes that others would find it useful and fun. I am distributing it for free personal use and I appreciate feedback, but please don't expect me to provide full-time support on this. 
 
-If the script doesn't work for you, you can submit the ```log.txt``` file, the configuration file you are using and a description of the problem by creating a [GitHub issue](https://github.com/balatone/Bravo_multi_mode/issues) or send me a PM and I will try to see if I can solve the problem, but it may take time. I am running X-Plane on both Windows 11 and Linux Mint Cinnamon, and will try to test both platforms as extensively as possible before each release. For Mac OS users, I hope to find willing volunteers to test the script and provide me feedback if something doesn't work, but since I do not have Mac OS myself, I will be limited on how much support I can provide for the platform. 
+If the script doesn't work for you, you can submit the ```Log.txt``` file, the configuration file you are using and a description of the problem by creating a [GitHub issue](https://github.com/balatone/Bravo_multi_mode/issues) or send me a PM and I will try to see if I can solve the problem, but it may take time. I am running X-Plane on both Windows 11 and Linux Mint Cinnamon, and will try to test both platforms as extensively as possible before each release. For Mac OS users, I hope to find willing volunteers to test the script and provide me feedback if something doesn't work, but since I do not have Mac OS myself, I will be limited on how much support I can provide for the platform. 
 
 # Description
 Bravo++ allows you to configure multi-mode functionality, so that you get more out of your Honeycomb Bravo than just the basic autopilot. The default mode (AUTO) will retain the standard autopilot functionality (it can also be overridden), but you can configure additional modes so that you can use the selector switch, buttons and rotating knobs to control other functionality in the aircraft. There are some configuration files provided for the default aircraft such as the Cessna 172, the King Air C90B, and the Cirrus SF50 along with configurations for the Aerobask DA42 and DA62. Hopefully these will be enough so that you can configure you're own aircraft and perhaps submit it to the collection.
@@ -19,7 +19,8 @@ The functionality is provided as a FlyWithLua script and consists of 3 parts:
 
 - BravoMultiMode.lua - This is the main script that provides all the functionality and is placed in the FlyWithLua/Scripts directory.
 - log.lua -  This is a log utility that is used by BravoMultiMode.lua and is located in the FlyWithLua/Modules directory.
-- config file - The file can be called either bravo_multi-mode.cfg or bravo_multi-mode.<aircraft file name>.cfg and is where you onfigure all the different modes you want to have on your specific aircraft. Some example files are included in the FlyWithLua/conf directory and should be placed directly under the corresponding aircraft folder.
+- preferences.cfg - A global configuration file located in `FlyWithLua/Modules/bravo++/` that provides default values for thresholds and trim settings across all aircraft. This file can be edited to suit your hardware and personal preference. Aircraft-specific config files override these defaults.
+- config file - The file can be called either `bravo_multi-mode.cfg`, `bravo_multi-mode.<aircraft name>.cfg`, or `bravo_multi-mode.<aircraft name>.<variant>.cfg` (e.g., `bravo_multi-mode.C90B.EVO.cfg`) and is where you configure all the different modes you want to have on your specific aircraft. Some example files are included in the FlyWithLua/Modules/bravo++/conf directory and should be placed directly under the corresponding aircraft folder.
 
 There is also an extra utility called ButtonLogUtility.lua that is used to determine which buttons the selector knob is mapped to in X-Plane. By default it is set to 0 and will use the HID to determine the state of the left selector knob, but this will introduce lag (at least on Windows 11). So to have a more responsive update to the GUI it is better to determine the button number X-Plane has assigned to the selector knob when it is set to "alt".
 
@@ -51,11 +52,13 @@ There are also datarefs that are used for toggling/scrolling through the modes. 
 - If you prefer scrolling through the modes with the right rotary encoded knob located on the Honeycomb Bravo, then you need to map the following command with description ```Bravo++ activates the mode select when button is held in```. The way this works is that you need to keep the button pressed down while you scroll with the right knob. When you are done you release the button.
 - If you don't like these options, you can also map the commands that move the selection up or down to any key or button you like using the provided commands with description ```Bravo++ cycle mode up``` and ```Bravo++ cycle mode down```
 
-A small note on button behavior and assuming: 
-  - `LONG_CLICK_THRESHOLD` = 0.350
-  - `CONTINUOUS_PRESS_THRESHOLD` = 0.750
- 
-A click (below 350 msec) will actuate the button or switch and the arrows will stay green during this time. A long click (between 350 - 750 msec) is use for switches and will change the direction in which the switches will be actuated on the following click. In order to help with the timing, the arrow will turn yellow indicating that you can release it to do a long click. Holding a button down for over 750 msec will assume you want to sustain a switch and is useful for spring-loaded switches that cannot be activated with a simple click. The arrows will turn a magenta color and will remain so until you release the button. 
+A small note on button behavior and assuming:
+  - `LONG_CLICK_THRESHOLD` = 0.750 (default from preferences.cfg)
+  - `CONTINUOUS_PRESS_THRESHOLD` = 2.0 (default from preferences.cfg)
+
+These defaults can be changed in the global `preferences.cfg` file or overridden per-aircraft in your config file.
+
+A click (below 750 msec) will actuate the button or switch and the arrows will stay green during this time. A long click (between 750 - 2000 msec) is used for switches and will change the direction in which the switches will be actuated on the following click. In order to help with the timing, the arrow will turn yellow indicating that you can release it to do a long click. Holding a button down for over 2000 msec will assume you want to sustain a switch and is useful for spring-loaded switches that cannot be activated with a simple click. The arrows will turn a magenta color and will remain so until you release the button. 
 
 Finally, there are two internal commands that are often assigned to one of the Honeycomb Bravo buttons. 
 - The ```I/O``` button (see one of the example configs) is used for switching between the inner or outer scroll knob. The active state is shown in the knob depiction in the Bravo++ window. The dataref is described as ```Bravo++ toggles INNER/OUTER mode```.
@@ -97,11 +100,32 @@ Using the built-in decoder
 
 - Make sure the Bravo device is plugged in before starting X-Plane (the script will exit if it cannot find the Bravo HID).
 - Do not bind the selector knob, right knob or trim wheel in X-Plane if you want the built-in decoder to handle them.
-- You can fine-tune behaviour of the button clicks in `bravo_multi-mode.cfg` via these properties (defaults come from the script):
-  - `LONG_CLICK_THRESHOLD` (seconds) - default: 0.250 on Windows, 0.500 on other platforms
-  - `CONTINUOUS_PRESS_THRESHOLD` (seconds) -  default: 0.750 on Windows, 1.0 on other platforms
 
-Example lines to add to your config file (if you want explicit values):
+### Global Preferences
+
+The `preferences.cfg` file located at `FlyWithLua/Modules/bravo++/preferences.cfg` provides default values used across all aircraft. You can edit this file to customize settings for your hardware and personal preference:
+
+```ini
+# Time in seconds before a button press is considered a "long click"
+LONG_CLICK_THRESHOLD=0.750
+
+# Time in seconds before a held button enters continuous repeat mode
+CONTINUOUS_PRESS_THRESHOLD=2.0
+
+# Trim increment per wheel click (range -1 to 1)
+TRIM_INCREMENT=0.005
+
+# Multiplier applied when turning the trim wheel quickly
+TRIM_BOOST=6
+```
+
+These values can be overridden on a per-aircraft basis by adding them to your aircraft-specific config file. The precedence order is:
+
+1. Aircraft config file (highest priority)
+2. Global `preferences.cfg`
+3. OS-specific defaults in the script (lowest priority, used only if neither of the above specify a value)
+
+Example lines to add to your aircraft config file (if you want explicit values):
 ```
 LONG_CLICK_THRESHOLD=0.350
 CONTINUOUS_PRESS_THRESHOLD=0.750
@@ -113,6 +137,16 @@ The easiest way to start is to use one of the predefined G1000 configurations (a
 So let's configure the Cessna 172 that uses the G1000.
 
 Start by copying the file under ```Resources\plugins\FlyWithLua\Modules\bravo++\conf\bravo_multi-mode.Cessna_172SP_G1000.cfg``` or download the file from [bravo_multi-mode.Cessna_172SP_G1000.cfg](https://raw.githubusercontent.com/balatone/Bravo_multi_mode/refs/heads/main/FlyWithLua/Modules/bravo%2B%2B/conf/bravo_multi-mode.Cessna_172SP_G1000.cfg) and copy to the ```Aircraft\Laminar Research\Cessna 172 SP``` directory. Note that the Cessna has 3 .acf files and the configuration contains the name that is in ```Cessna_172SP_G1000.acf```. This is how the script knows which configuration to use when it starts up. If you start any of the other two variants that aren't G1000 equipped, the script will just stop, since it can't find a corresponding config file.
+
+### Config File Detection Order
+
+The script searches for your aircraft's config file in this order:
+
+1. **Exact match**: `bravo_multi-mode.<aircraft_name>.cfg` — matches the name from the `.acf` file (e.g., `C90B.acf` → `bravo_multi-mode.C90B.cfg`)
+2. **Variant match**: `bravo_multi-mode.<aircraft_name>.*.cfg` — for aircraft variants sharing the same `.acf` name (e.g., `C90B.acf` → `bravo_multi-mode.C90B.EVO.cfg`). If multiple variant files exist, one is selected alphabetically and a warning is logged.
+3. **Generic fallback**: `bravo_multi-mode.cfg` — used if no aircraft-specific file is found
+
+This allows you to keep separate config files for different variants of the same aircraft (e.g., stock C90B vs. C90B EVO) without renaming them, as long as they follow the naming convention.
 
 Once the file is copied, you can load the aircraft and hopefully you will now see the Bravo++ window that contains the current mode and status of the buttons. If you don't, then either the script couldn't find the config file, the Honeycomb Bravo device is not plugged in or something went wrong with the script. In the latter case you will probably hear FlyWithLua complaining and telling you that it has moved the bad script to ```Script (Quarantine)``` folder. This shouldn't happen, but if it does check the ```log.txt``` file for any errors.
 
@@ -178,7 +212,17 @@ A button label is specifed by using the ```mode name``` + ```selector name``` se
 
 For ```AUTO```, it will use default button labels, but like the selector labels they can be overridden by specifying them in the config file.
 
-Note that even if you do not want to have all the buttons assigned to something you need to assign a blank label as seen in the example above. 
+Note that even if you do not want to have all the buttons assigned to something you need to assign a blank label as seen in the example above.
+
+### Aligning Paired Button Labels
+
+When you have paired buttons with labels of different lengths (e.g., "Left IGN" vs "Right IGN"), the auto-scaler may render them at different font sizes because it optimizes each button independently. To force paired buttons to use the same scale, use underscore (`_`) characters as invisible padding in the shorter label:
+
+```
+SYS_HDG_BUTTON_LABELS = "Left_ IGN","Right IGN"
+```
+
+The underscores are measured during layout (so both labels get identical font scaling and wrapping) but are stripped before rendering. The result is that both buttons display at the same size, with the underscores invisible to the user. 
   
 ### Actions for right rotary encoded knob
 The rotary encoded knob on the right of the Honeycomb Bravo is used for incrementing or decrementing values for various components of the cockpit. For the GNS530/GNS430 and the G1000 the rotary encoded knobs have an inner and outer wheel, and this is implemented in the Bravo++. 
@@ -213,23 +257,23 @@ The Honeycomb Bravo has 8 buttons that can be configured to trigger a command de
 
 The buttons support short click and long press (i.e. holding down the button). This is enabled on all the buttons and holding down the button simulates spring-loaded switches which are often used for tests or actions that should not be activated continually. If you want the same command to be used for short click and long press, then you only need to specify that one command dataref. If you want to invoke a different command on a long press, then you need to specify the second command after the first one, separated by a comma. 
 
-To specify a command to a button you use a similar pattern to what has been used for the previous sections: ```mode name``` + ```selector name``` (optional) + ```button name``` + ```switch direction``` (optional) separated with ````_``` and ending with ```_BUTTON```. Note that the ```selector name``` and ```switch direction``` are optional and the reason is that it is possible that you want an a button to trigger the same action regardless of what the selector is set to. This is how you want the autopilot to behave for example. The ```switch direction``` is only used when the same command cannot be used to toggle the state of a switch and requires 2 separate commands. So just like with the rotary encoded knob in the previous section, after the name you specify the name of the dataref to use after the = sign.   
+To specify a command to a button you use a similar pattern to what has been used for the previous sections: ```mode name``` + ```selector name``` (optional) + ```button name``` + ```switch direction``` (optional) separated with ```_``` and ending with ```_BUTTON```. Note that the ```selector name``` and ```switch direction``` are optional and the reason is that it is possible that you want an a button to trigger the same action regardless of what the selector is set to. This is how you want the autopilot to behave for example. The ```switch direction``` is only used when the same command cannot be used to toggle the state of a switch and requires 2 separate commands. So just like with the rotary encoded knob in the previous section, after the name you specify the name of the dataref to use after the = sign.   
 
-To specify the dataref and value to use for deciding when a led light on the button should light up or not you first specify the name:  ```mode name``` + ```selector name``` (optional) + ```button name``` and ending with ```_BUTTON_LED```. Again the ```selector name``` is optional because there are cases where you want the same led to light (or not) irregardless of the selection on the selector knob. Next you need to specify the dataref that contains the value of the state of whatever the corresponding command triggered and you need to provide a value to check against. In this case the value is what it should be in order to turn off the led.  
+To specify the dataref and condition for deciding when a button's LED light should be lit you first specify the name:  ```mode name``` + ```selector name``` (optional) + ```button name``` and ending with ```_BUTTON_LED```. Again the ```selector name``` is optional because there are cases where you want the same led to light (or not) irregardless of the selection on the selector knob. Next you need to specify the dataref that contains the value of the state of whatever the corresponding command triggered, followed by a **condition** that determines when the LED should be lit. The condition supports comparison operators: ```>```, ```>=```, ```<```, ```<=```, ```!=```, and ```=``` (equality). If the condition evaluates to true, the LED is lit. A bare number without an operator is treated as equality (e.g., ```0``` is equivalent to ```=0```).  
 
 Let's look at some examples:
 
 ```
 PFD_ALT_APR_BUTTON = "sim/audio_panel/select_audio_com1"
-PFD_ALT_APR_BUTTON_LED = "sim/cockpit2/radios/actuators/audio_selection_com1,0"
+PFD_ALT_APR_BUTTON_LED = "sim/cockpit2/radios/actuators/audio_selection_com1,>0"
 PFD_ALT_REV_BUTTON = "sim/audio_panel/select_audio_com2"
-PFD_ALT_REV_BUTTON_LED = "sim/cockpit2/radios/actuators/audio_selection_com2,0"
+PFD_ALT_REV_BUTTON_LED = "sim/cockpit2/radios/actuators/audio_selection_com2,>0"
 PFD_ALT_ALT_BUTTON = "sim/GPS/g1000n1_com12"
 PFD_ALT_VS_BUTTON = "sim/GPS/g1000n1_com_ff"
 PFD_ALT_IAS_BUTTON = "FlyWithLua/Bravo++/cf_mode_button"
 ``` 
 
-Here we have an example from the PFD of the G1000. The first line says that when the ```PFD``` mode is selected and the selector knob is set to ```ALT``` and the ```APR``` button is pressed, it should either mute or unmute the speaker. The second line specifies the same conditions as the first, but here it relates to the led light. So here it checks the value of the dataref ```sim/cockpit2/radios/actuators/audio_selection_com1``` and if the value is 0, then it should turn off the led light. Note that the led light specification is optional and you can see in line 5-6 that there is no led specified. This will result in the text color in the Bravo++ window being a different color (yellow) than those with led lights. The last line shows how to specify the toggling of the INNER/OUTER mode using a Bravo++ dataref.
+Here we have an example from the PFD of the G1000. The first line says that when the ```PFD``` mode is selected and the selector knob is set to ```ALT``` and the ```APR``` button is pressed, it should either mute or unmute the speaker. The second line specifies the same conditions as the first, but here it relates to the led light. So here it checks the value of the dataref ```sim/cockpit2/radios/actuators/audio_selection_com1``` and if the condition ```>0``` evaluates to true (i.e., the value is greater than 0), then the LED is lit. Note that the led light specification is optional and you can see in line 5-6 that there is no led specified. This will result in the text color in the Bravo++ window being a different color (yellow) than those with led lights. The last line shows how to specify the toggling of the INNER/OUTER mode using a Bravo++ dataref.
 
 
 ```
@@ -248,16 +292,16 @@ Now let's look at another example, this time from the King Air C90B configuratio
 
 ```
 SYS_HDG_HDG_BUTTON = "laminar/c90/electrical/switch/auto_ignition_L"
-SYS_HDG_HDG_BUTTON_LED = "sim/cockpit2/annunciators/igniter_on,0,1"
+SYS_HDG_HDG_BUTTON_LED = "sim/cockpit2/annunciators/igniter_on,=1,1"
 SYS_HDG_NAV_BUTTON = "laminar/c90/electrical/switch/auto_ignition_R"
-SYS_HDG_NAV_BUTTON_LED = "sim/cockpit2/annunciators/igniter_on,0,2"
+SYS_HDG_NAV_BUTTON_LED = "sim/cockpit2/annunciators/igniter_on,=1,2"
 SYS_HDG_APR_UP_BUTTON = "laminar/c90/powerplant/switch/autofeather_switch_up"
 SYS_HDG_APR_DOWN_BUTTON = "laminar/c90/powerplant/switch/autofeather_switch_dn"
-SYS_HDG_APR_BUTTON_LED = "sim/cockpit2/switches/prop_feather_mode,0"
+SYS_HDG_APR_BUTTON_LED = "sim/cockpit2/switches/prop_feather_mode,=1"
 SYS_HDG_IAS_BUTTON = "FlyWithLua/Bravo++/switch_mode_button"
 ```
  
-The first line specifies the command to turn on the left engine's auto ignition and the second line specifies the dataref to check for the led condition, but notice that there are two numbers specified. Here the dataref is an array that contains more than one value, so on this case we need to specify an index starting from 1, so that we know which value to compare to. So in this case it will check if the value in the first place in the array is equal to 0. If it is, it will turn off the led light. Looking at line 4 you see the same dataref, but this time it specified 2 instead of 1. This is because in line 3 we turn on the right engine's auto ignition so we need to check the corresponding value in the array.
+The first line specifies the command to turn on the left engine's auto ignition and the second line specifies the dataref to check for the led condition, but notice that there are two numbers specified after the comma. Here the dataref is an array that contains more than one value, so we need to specify an index (starting from 1) indicating which element of the array to compare against the condition. So in this case it will check if the value at index 1 satisfies the condition ```=1```. If true, the LED is lit. Looking at line 4 you see the same dataref, but this time it specified index 2 instead of 1. This is because in line 3 we turn on the right engine's auto ignition so we need to check the corresponding value in the array.
 
 On line 5 -6 we see an example of a switch where we specify the dataref for the UP and DOWN command. This will result in a slightly different rendering of the button in the Bravo++ window where you will either see a ```^^``` above or ```vv``` below the button. Line 7 shows the Bravo++ dataref for toggling between UP or DOWN when using switches.  
 
@@ -268,71 +312,71 @@ Let's look at an example for the DA42:
 ```
 SWITCH1_UP="sim/ice/pitot_heat0_on"
 SWITCH1_DOWN="sim/ice/pitot_heat0_off"
-SWITCH1_LED = "aerobask/sw_pitot_heat,0"
+SWITCH1_LED = "aerobask/sw_pitot_heat,=1"
 
 SWITCH2_UP="aerobask/eng/master1_up"
 SWITCH2_DOWN="aerobask/eng/master1_dn"
-SWITCH2_LED = "aerobask/eng/sw_master1,0"
+SWITCH2_LED = "aerobask/eng/sw_master1,=1"
 
 SWITCH3_UP="aerobask/eng/master2_up"
 SWITCH3_DOWN="aerobask/eng/master2_dn"
-SWITCH3_LED = "aerobask/eng/sw_master2,0"
+SWITCH3_LED = "aerobask/eng/sw_master2,=1"
 
 SWITCH4_UP="sim/electrical/battery_1_on"
 SWITCH4_DOWN="sim/electrical/battery_1_off"
-SWITCH4_LED = "sim/cockpit/electrical/battery_on,0"
+SWITCH4_LED = "sim/cockpit/electrical/battery_on,=1"
 
 SWITCH5_UP="sim/systems/avionics_on"
 SWITCH5_DOWN="sim/systems/avionics_off"
-SWITCH5_LED = "aerobask/sw_avionics,0"
+SWITCH5_LED = "aerobask/sw_avionics,=1"
 
 SWITCH6_UP="aerobask/eng/fuel_pump1_on"
 SWITCH6_DOWN="aerobask/eng/fuel_pump1_off"
-SWITCH6_LED = "sim/cockpit/engine/fuel_pump_on,0,1"
+SWITCH6_LED = "sim/cockpit/engine/fuel_pump_on,=1,1"
 
 SWITCH7_UP="aerobask/eng/fuel_pump2_on"
 SWITCH7_DOWN="aerobask/eng/fuel_pump2_off"
-SWITCH7_LED = "sim/cockpit/engine/fuel_pump_on,0,2"
+SWITCH7_LED = "sim/cockpit/engine/fuel_pump_on,=1,2"
 ```
 
-Each switch is distinguished by a number and then by either appending "_UP", "_DOWN" or "_LED". The first two just specify a command dataref to activate depending on whether the switch is up or down. The third is a datref to monitor state in order to determine whether the "led" for the switch on the Bravo++ window should be turned off. 
+Each switch is distinguished by a number and then by either appending "_UP", "_DOWN" or "_LED". The first two just specify a command dataref to activate depending on whether the switch is up or down. The third specifies a dataref whose value is evaluated against a condition in order to determine whether the LED for the switch should be lit (condition evaluates to true) or not. 
 
 ### Annunciator and gear leds
 The annunciator leds and gear leds are pretty straight forward and hopefully this example from the King Air C90B should be clear enough:
 
 ```
-GEAR_DEPLOYMENT_LED = "sim/flightmodel2/gear/deploy_ratio,0"
+GEAR_DEPLOYMENT_LED = "sim/flightmodel2/gear/deploy_ratio,<1"
 
-MASTER_WARNING_LED = "sim/cockpit2/annunciators/master_warning,0"
-FIRE_WARNING_LED = "sim/cockpit2/annunciators/engine_fires,0"
-OIL_LOW_PRESSURE_LED = "sim/cockpit2/annunciators/oil_pressure_low,0"
-FUEL_LOW_PRESSURE_LED = "sim/cockpit2/annunciators/fuel_pressure_low,0"
-ANTI_ICE_1_LED = "sim/cockpit2/ice/ice_pitot_heat_on_pilot,0"
-ANTI_ICE_2_LED = "sim/cockpit2/ice/ice_pitot_heat_on_copilot,0"
-STARTER_ENGAGED_LED = "sim/cockpit2/engine/actuators/starter_hit,0"
-APU_LED = "sim/cockpit2/electrical/APU_running,0"
+MASTER_WARNING_LED = "sim/cockpit2/annunciators/master_warning,>0"
+FIRE_WARNING_LED = "sim/cockpit2/annunciators/engine_fires,>0"
+OIL_LOW_PRESSURE_LED = "sim/cockpit2/annunciators/oil_pressure_low,>0"
+FUEL_LOW_PRESSURE_LED = "sim/cockpit2/annunciators/fuel_pressure_low,>0"
+ANTI_ICE_1_LED = "sim/cockpit2/ice/ice_pitot_heat_on_pilot,=1"
+ANTI_ICE_2_LED = "sim/cockpit2/ice/ice_pitot_heat_on_copilot,=1"
+STARTER_ENGAGED_LED = "sim/cockpit2/engine/actuators/starter_hit,=1"
+APU_LED = "sim/cockpit2/electrical/APU_running,=1"
 
-MASTER_CAUTION_LED = "sim/cockpit2/annunciators/master_caution,0"
-VACUUM_LED = "sim/cockpit2/annunciators/low_vacuum,0"
-HYD_LOW_PRESSURE_LED = "sim/cockpit2/annunciators/hydraulic_pressure,0"
-AUX_FUEL_PUMP_1_LED = "sim/cockpit2/fuel/transfer_pump_left,0"
-AUX_FUEL_PUMP_2_LED = "sim/cockpit2/fuel/transfer_pump_right,0"
-PARKING_BRAKE_LED = "sim/cockpit2/controls/parking_brake_ratio,0"
-VOLTS_LOW_LED = "sim/cockpit2/annunciators/low_voltage,0"
-DOOR_1_LED = "sim/flightmodel2/misc/canopy_open_ratio,0"
-DOOR_2_LED = "sim/flightmodel2/misc/door_open_ratio,0"
-DOOR_3_LED = "sim/cockpit2/annunciators/cabin_door_open,0"
+MASTER_CAUTION_LED = "sim/cockpit2/annunciators/master_caution,>0"
+VACUUM_LED = "sim/cockpit2/annunciators/low_vacuum,>0"
+HYD_LOW_PRESSURE_LED = "sim/cockpit2/annunciators/hydraulic_pressure,>0"
+AUX_FUEL_PUMP_1_LED = "sim/cockpit2/fuel/transfer_pump_left,=1"
+AUX_FUEL_PUMP_2_LED = "sim/cockpit2/fuel/transfer_pump_right,=1"
+PARKING_BRAKE_LED = "sim/cockpit2/controls/parking_brake_ratio,>0"
+VOLTS_LOW_LED = "sim/cockpit2/annunciators/low_voltage,>0"
+DOOR_1_LED = "sim/flightmodel2/misc/canopy_open_ratio,>0"
+DOOR_2_LED = "sim/flightmodel2/misc/door_open_ratio,>0"
+DOOR_3_LED = "sim/cockpit2/annunciators/cabin_door_open,>0"
 ``` 
-Each led has its own unique name that matches the corresponding led ligh on the Honeycomb Bravo. Just like in the previous section the value of the led will be a dataref and a value to check against. The only additional feature we have here is that we can tie several datarefs to the same annunciator led. This is done by adding a ```_#``` between the annunciator name and the trailing ```_LED```. So this means that if any of these datarefs have a value other than what is specified the led light will light up.
+Each LED has its own unique name that matches the corresponding LED on the Honeycomb Bravo. Just like in the previous section, you specify a dataref followed by a condition. The condition supports comparison operators: ```>```, ```>=```, ```<```, ```<=```, ```!=```, and ```=``` (equality). If the condition evaluates to true, the LED is lit. A bare number without an operator is treated as equality (e.g., ```0``` is equivalent to ```=0```). The only additional feature we have here is that we can tie several datarefs to the same annunciator LED. This is done by adding a ```_#``` between the annunciator name and the trailing ```_LED```. So this means that if any of these dataref conditions evaluate to true, the LED will light up.
 
 Note that the GEAR_DEPLOYMENT_LED will most likely always be this value for retractable gears. For fixed gear aircraft you should not specify the GEAR_DEPLOYMENT_LED in the configuration.
 
 ### The trim wheel
-The trim wheel overrides the default values used in X-Plane to better simulate a manual trim wheel. The two parameters that can be set are TRIM_INCREMENT and TRIM_BOOST. The value of the trim is any value between -1 and 1, so the trim increment specifies how much one "click" of the wheel will change the value of the trim. The default value, if nothing is specified, is 0.01.
+The trim wheel overrides the default values used in X-Plane to better simulate a manual trim wheel. The two parameters that can be set are TRIM_INCREMENT and TRIM_BOOST. The value of the trim is any value between -1 and 1, so the trim increment specifies how much one "click" of the wheel will change the value of the trim.
 
-The trim boost is a value that is applied to the trim increment if the wheel is turned quickly. So if there are many "clicks" in short succession, the trim increment will be multiplied by the trim boost value. The default, if not specified, is 3.
+The trim boost is a value that is applied to the trim increment if the wheel is turned quickly. So if there are many "clicks" in short succession, the trim increment will be multiplied by the trim boost value.
 
-To specify your own values you can just add the following to the config file:
+Default values for both TRIM_INCREMENT and TRIM_BOOST come from `preferences.cfg` (0.005 and 6 respectively) and can be overridden per-aircraft:
 
 ```
 TRIM_INCREMENT=0.005

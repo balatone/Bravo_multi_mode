@@ -1,0 +1,10 @@
+-- .luacov - Luacov coverage configuration for Bravo++ project
+-- Note: luacov_utils.py reads luacov.stats.out directly and does not use this config.
+
+-- Stats file name (default: luacov.stats.out)
+-- The runner writes to this file; luacov_utils.py reads from it.
+statsfile = "luacov.stats.out"
+
+-- Report output files
+summaryfile = ".luacov.report.out"
+reportfile = "luacov_report.html"
